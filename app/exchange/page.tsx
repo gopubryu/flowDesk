@@ -68,13 +68,13 @@ function formatUpdatedAt(iso: string): string {
 
 function sourceLabel(kind: ActiveSource, payload: RateSourcePayload | null): string {
   if (kind === "bank") {
-    if (payload?.source === "naver") return "?�이�?금융 매매기�???;
-    if (payload?.source === "demo") return "?�시 ?�이??(?�??고시)";
-    return "?�??고시";
+    if (payload?.source === "naver") return "네이버 금융 매매기준율";
+    if (payload?.source === "demo") return "예시 데이터 (은행 고시)";
+    return "은행 고시";
   }
-  if (payload?.source === "open-er-api") return "?�장 ?�세 (미드마켓 · open.er-api)";
-  if (payload?.source === "demo") return "?�시 ?�이??(?�장 ?�세)";
-  return "?�장 ?�세 (미드마켓)";
+  if (payload?.source === "open-er-api") return "시장 시세 (미드마켓 · open.er-api)";
+  if (payload?.source === "demo") return "예시 데이터 (시장 시세)";
+  return "시장 시세 (미드마켓)";
 }
 
 export default function ExchangePage() {
@@ -136,12 +136,12 @@ export default function ExchangePage() {
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(
-          body.message || body.error || "?�율??불러?��? 못했?�니??"
+          body.message || body.error || "환율을 불러오지 못했습니다."
         );
       }
       const data = (await res.json()) as ExchangeResponse;
       if (!data.bank?.rates?.length && !data.market?.rates?.length) {
-        throw new Error("?�율 ?�이?��? 비어 ?�습?�다.");
+        throw new Error("환율 데이터가 비어 있습니다.");
       }
       if (data.bank?.rates?.length) setBank(data.bank);
       if (data.market?.rates?.length) setMarket(data.market);
@@ -149,7 +149,7 @@ export default function ExchangePage() {
       setLoadError(null);
     } catch (e) {
       const msg =
-        e instanceof Error ? e.message : "?�율??불러?��? 못했?�니??";
+        e instanceof Error ? e.message : "환율을 불러오지 못했습니다.";
       setLoadError(msg);
       setBank({
         source: "demo",
@@ -225,48 +225,51 @@ export default function ExchangePage() {
     <div className="mx-auto max-w-4xl space-y-6">
       {loadError && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <p className="font-medium">?�율 API�?불러?��? 못했?�니??</p>
+          <p className="font-medium">환율 API를 불러오지 못했습니다.</p>
           <p className="mt-1 text-amber-800/90">
-            {loadError} ???�래??<strong>?�시 ?�율</strong>�?계산?�니?? ?�로고침??            ?�러 ?�시 ?�도?�세??
+            {loadError} — 아래는 <strong>예시 환율</strong>로 계산합니다. 새로고침을
+            눌러 다시 시도하세요.
           </p>
         </div>
       )}
 
       {!loadError && bank.error && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <p className="font-medium">?�??고시(?�이�?�?불러?��? 못했?�니??</p>
+          <p className="font-medium">은행 고시(네이버)를 불러오지 못했습니다.</p>
           <p className="mt-1 text-amber-800/90">
-            {bank.error} ???�??고시???�시 ?�이?��? ?�용?�니?? ?�장 ?�세??별도�?            ?�시?�니??
+            {bank.error} — 은행 고시는 예시 데이터를 사용합니다. 시장 시세는 별도로
+            표시됩니다.
           </p>
         </div>
       )}
 
       {!loadError && market.error && (
         <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-          <p className="font-medium">?�장 ?�세(미드마켓)�?불러?��? 못했?�니??</p>
+          <p className="font-medium">시장 시세(미드마켓)를 불러오지 못했습니다.</p>
           <p className="mt-1 text-sky-800/90">
-            {market.error} ???�장 ?�세???�시 ?�이?��? ?�용?�니?? ?�??고시??별도�?            ?�시?�니??
+            {market.error} — 시장 시세는 예시 데이터를 사용합니다. 은행 고시는 별도로
+            표시됩니다.
           </p>
         </div>
       )}
 
       {!loading && !loadError && bankFailed && !bank.error && (
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-          ?�재 ?�??고시??<strong>?�시 ?�율</strong>?�니?? ?�로고침?�로 ?�이�?금융
-          매매기�??�을 불러?????�습?�다.
+          현재 은행 고시는 <strong>예시 환율</strong>입니다. 새로고침으로 네이버 금융
+          매매기준율을 불러올 수 있습니다.
         </div>
       )}
 
       <Card className="overflow-hidden border-indigo-100 shadow-sm">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0 border-b bg-gradient-to-r from-indigo-50/80 to-slate-50/50 pb-4">
           <div>
-            <CardTitle className="text-base text-indigo-950">?�율 계산�?/CardTitle>
+            <CardTitle className="text-base text-indigo-950">환율 계산기</CardTitle>
             <p className="mt-1 text-xs text-muted-foreground">
               출처: {sourceLabel(activeSource, activePayload)}
               {(activePayload.updatedAt || updatedAt) && (
                 <>
                   {" "}
-                  · ?�데?�트{" "}
+                  · 업데이트{" "}
                   {formatUpdatedAt(activePayload.updatedAt || updatedAt || "")}
                   <span className="text-muted-foreground/70"> (KST)</span>
                 </>
@@ -285,7 +288,7 @@ export default function ExchangePage() {
             ) : (
               <RefreshCw className="h-3.5 w-3.5" />
             )}
-            ?�로고침
+            새로고침
           </Button>
         </CardHeader>
         <CardContent className="space-y-5 pt-6">
@@ -301,7 +304,7 @@ export default function ExchangePage() {
                   : "text-slate-600 hover:text-indigo-700"
               )}
             >
-              ?�??고시
+              은행 고시
             </button>
             <button
               type="button"
@@ -313,14 +316,15 @@ export default function ExchangePage() {
                   : "text-slate-600 hover:text-indigo-700"
               )}
             >
-              ?�장 ?�세
+              시장 시세
             </button>
           </div>
 
           {initialLoading ? (
             <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin text-primary" />
-              ?�율??불러?�는 중�?            </div>
+              환율을 불러오는 중…
+            </div>
           ) : (
             <>
               <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-end">
@@ -332,21 +336,21 @@ export default function ExchangePage() {
                     value={fromCode}
                     onChange={(e) => setFromCode(e.target.value)}
                   >
-                    <optgroup label="주요 ?�화">
+                    <optgroup label="주요 통화">
                       {MAJOR_CODES.map((c) => {
                         const r = findRate(activeRates, c);
                         if (!r) return null;
                         return (
                           <option key={c} value={c}>
-                            {r.code} ??{r.name}
+                            {r.code} — {r.name}
                           </option>
                         );
                       })}
                     </optgroup>
-                    <optgroup label="?�체">
+                    <optgroup label="전체">
                       {sorted.map((r) => (
                         <option key={`all-from-${r.code}`} value={r.code}>
-                          {r.code} ??{r.name}
+                          {r.code} — {r.name}
                         </option>
                       ))}
                     </optgroup>
@@ -368,7 +372,7 @@ export default function ExchangePage() {
                     size="icon"
                     className="rounded-full border-indigo-200 text-indigo-700 hover:bg-indigo-50"
                     onClick={swap}
-                    aria-label="?�화 바꾸�?
+                    aria-label="통화 바꾸기"
                   >
                     <ArrowLeftRight className="h-4 w-4" />
                   </Button>
@@ -382,21 +386,21 @@ export default function ExchangePage() {
                     value={toCode}
                     onChange={(e) => setToCode(e.target.value)}
                   >
-                    <optgroup label="주요 ?�화">
+                    <optgroup label="주요 통화">
                       {MAJOR_CODES.map((c) => {
                         const r = findRate(activeRates, c);
                         if (!r) return null;
                         return (
                           <option key={c} value={c}>
-                            {r.code} ??{r.name}
+                            {r.code} — {r.name}
                           </option>
                         );
                       })}
                     </optgroup>
-                    <optgroup label="?�체">
+                    <optgroup label="전체">
                       {sorted.map((r) => (
                         <option key={`all-to-${r.code}`} value={r.code}>
-                          {r.code} ??{r.name}
+                          {r.code} — {r.name}
                         </option>
                       ))}
                     </optgroup>
@@ -413,17 +417,17 @@ export default function ExchangePage() {
               </div>
 
               <div className="rounded-lg bg-indigo-50/70 px-4 py-3 text-sm text-indigo-950">
-                <span className="font-medium">?�용 ?�율</span>
+                <span className="font-medium">적용 환율</span>
                 <span className="mx-2 text-indigo-300">·</span>
                 <span className="tabular-nums">{explanation}</span>
                 {fromRate && fromRate.unit > 1 && fromRate.code !== "KRW" && (
                   <p className="mt-1 text-xs text-indigo-800/80">
-                    ??{fromRate.code}???�??고시처럼 {fromRate.unit}?�위 기�??�니??
+                    ※ {fromRate.code}는 은행 고시처럼 {fromRate.unit}단위 기준입니다.
                   </p>
                 )}
                 {otherConverted != null && otherFrom && otherTo && (
                   <p className="mt-2 text-xs text-indigo-800/90">
-                    {activeSource === "bank" ? "?�장 ?�세" : "?�??고시"} 기�? ??" "}
+                    {activeSource === "bank" ? "시장 시세" : "은행 고시"} 기준 ≈{" "}
                     <span className="font-semibold tabular-nums">
                       {formatRateNumber(otherConverted, 6)} {toCode}
                     </span>
@@ -461,10 +465,10 @@ export default function ExchangePage() {
       {/* Comparison table */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">?�??고시 vs ?�장 ?�세 비교</CardTitle>
+          <CardTitle className="text-base">은행 고시 vs 시장 시세 비교</CardTitle>
           <p className="text-xs text-muted-foreground">
-            주요 ?�화 · ?�일 ?�위�?비교?�니?? JPY ?��? /100??고시 기�??�로 맞춥?�다.
-            ?�장 ?�세??미드마켓(open.er-api.com)?�니??
+            주요 통화 · 동일 단위로 비교합니다. JPY 등은 /100엔 고시 기준으로 맞춥니다.
+            시장 시세는 미드마켓(open.er-api.com)입니다.
           </p>
         </CardHeader>
         <CardContent>
@@ -472,20 +476,20 @@ export default function ExchangePage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-slate-50 text-left text-xs text-muted-foreground">
-                  <th className="px-4 py-2.5 font-medium">?�화</th>
-                  <th className="px-4 py-2.5 font-medium">?�위</th>
-                  <th className="px-4 py-2.5 font-medium text-right">?�?�고??/th>
-                  <th className="px-4 py-2.5 font-medium text-right">?�장?�세</th>
-                  <th className="px-4 py-2.5 font-medium text-right">차이(??</th>
+                  <th className="px-4 py-2.5 font-medium">통화</th>
+                  <th className="px-4 py-2.5 font-medium">단위</th>
+                  <th className="px-4 py-2.5 font-medium text-right">은행고시</th>
+                  <th className="px-4 py-2.5 font-medium text-right">시장시세</th>
+                  <th className="px-4 py-2.5 font-medium text-right">차이(원)</th>
                   <th className="px-4 py-2.5 font-medium text-right">차이(%)</th>
-                  <th className="px-4 py-2.5 font-medium text-right">?�세</th>
+                  <th className="px-4 py-2.5 font-medium text-right">상세</th>
                 </tr>
               </thead>
               <tbody>
                 {POPULAR_CODES.map((code) => {
                   const bankR = findRate(bank.rates, code);
                   const marketR = findRate(market.rates, code);
-                  // Prefer bank unit for display (JPY ??100); fallback unit-100 default
+                  // Prefer bank unit for display (JPY → 100); fallback unit-100 default
                   const displayUnit =
                     bankR?.unit ??
                     (UNIT_100_DEFAULT.has(code) ? 100 : 1);
@@ -500,7 +504,8 @@ export default function ExchangePage() {
                     Number.isFinite(bankDisp) &&
                     Number.isFinite(marketDisp)
                   ) {
-                    // Diff on KRW-per-1 then scale to display unit for ?�차??????                    const bankPer1 = bankR ? effectiveRate(bankR) : null;
+                    // Diff on KRW-per-1 then scale to display unit for “차이(원)”
+                    const bankPer1 = bankR ? effectiveRate(bankR) : null;
                     const marketPer1 = marketR ? effectiveRate(marketR) : null;
                     if (bankPer1 != null && marketPer1 != null) {
                       diffWon = (bankPer1 - marketPer1) * displayUnit;
@@ -522,10 +527,10 @@ export default function ExchangePage() {
                         {displayUnit}
                       </td>
                       <td className="px-4 py-3 text-right font-medium tabular-nums">
-                        {bankDisp != null ? formatRateNumber(bankDisp, 2) : "??}
+                        {bankDisp != null ? formatRateNumber(bankDisp, 2) : "—"}
                       </td>
                       <td className="px-4 py-3 text-right font-medium tabular-nums">
-                        {marketDisp != null ? formatRateNumber(marketDisp, 2) : "??}
+                        {marketDisp != null ? formatRateNumber(marketDisp, 2) : "—"}
                       </td>
                       <td
                         className={cn(
@@ -536,7 +541,7 @@ export default function ExchangePage() {
                       >
                         {diffWon != null
                           ? `${diffWon > 0 ? "+" : ""}${formatRateNumber(diffWon, 2)}`
-                          : "??}
+                          : "—"}
                       </td>
                       <td
                         className={cn(
@@ -547,7 +552,7 @@ export default function ExchangePage() {
                       >
                         {diffPct != null
                           ? `${diffPct > 0 ? "+" : ""}${formatRateNumber(diffPct, 2)}%`
-                          : "??}
+                          : "—"}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <a
@@ -556,7 +561,8 @@ export default function ExchangePage() {
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
                         >
-                          ?�이�?                          <ExternalLink className="h-3 w-3" />
+                          네이버
+                          <ExternalLink className="h-3 w-3" />
                         </a>
                       </td>
                     </tr>
@@ -566,8 +572,8 @@ export default function ExchangePage() {
             </table>
           </div>
           <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-            차이(?? = ?�?�고?????�장?�세 (?�시 ?�위 기�?). ?�수�??�??고시가
-            미드마켓보다 ?�습?�다. ?�장 ?�세 출처: open.er-api.com (미드마켓).
+            차이(원) = 은행고시 − 시장시세 (표시 단위 기준). 양수면 은행 고시가
+            미드마켓보다 높습니다. 시장 시세 출처: open.er-api.com (미드마켓).
           </p>
         </CardContent>
       </Card>
