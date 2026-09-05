@@ -485,11 +485,7 @@ export default function ExchangePage() {
                 )}
                 {otherConverted != null && otherFrom && otherTo && (
                   <p className="mt-2 text-xs text-indigo-800/90">
-                    {otherSource === "bank"
-                      ? "은행 고시"
-                      : otherSource === "oanda"
-                        ? "OANDA"
-                        : "시장 시세"}{" "}
+                    {otherSource === "bank" ? "은행 고시" : "시장 시세"}{" "}
                     기준 ≈{" "}
                     <span className="font-semibold tabular-nums">
                       {formatRateNumber(otherConverted, 6)} {toCode}
