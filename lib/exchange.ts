@@ -45,74 +45,74 @@ export const MAJOR_CODES = [
   "IDR",
 ] as const;
 
-export const POPULAR_CODES = ["USD", "EUR", "JPY", "CNY", "GBP"] as const;
+export const POPULAR_CODES = ["JPY", "USD", "EUR", "CNY", "GBP"] as const;
 
 export const CURRENCY_NAMES: Record<string, string> = {
-  KRW: "대한민국 원",
-  USD: "미국 달러",
-  EUR: "유럽연합 유로",
-  JPY: "일본 엔",
-  CNY: "중국 위안",
-  HKD: "홍콩 달러",
-  TWD: "대만 달러",
-  GBP: "영국 파운드",
-  CAD: "캐나다 달러",
-  CHF: "스위스 프랑",
-  AUD: "호주 달러",
-  NZD: "뉴질랜드 달러",
-  SGD: "싱가포르 달러",
-  THB: "태국 바트",
-  VND: "베트남 동",
-  IDR: "인도네시아 루피아",
-  MYR: "말레이시아 링깃",
-  PHP: "필리핀 페소",
-  INR: "인도 루피",
-  RUB: "러시아 루블",
-  BRL: "브라질 헤알",
-  SEK: "스웨덴 크로나",
-  DKK: "덴마크 크로네",
-  NOK: "노르웨이 크로네",
-  TRY: "튀르키예 리라",
-  MXN: "멕시코 페소",
-  ZAR: "남아프리카 랜드",
-  PLN: "폴란드 즈워티",
-  CZK: "체코 코루나",
-  HUF: "헝가리 포린트",
-  AED: "아랍에미리트 디르함",
-  SAR: "사우디 리얄",
-  ILS: "이스라엘 셰켈",
-  EGP: "이집트 파운드",
-  PKR: "파키스탄 루피",
-  BDT: "방글라데시 타카",
-  KZT: "카자흐스탄 텡게",
-  MNT: "몽골 투그릭",
-  OMR: "오만 리알",
-  KWD: "쿠웨이트 디나르",
-  BHD: "바레인 디나르",
-  JOD: "요르단 디나르",
-  QAR: "카타르 리얄",
-  BND: "브루나이 달러",
-  CLP: "칠레 페소",
-  COP: "콜롬비아 페소",
-  LKR: "스리랑카 루피",
-  NPR: "네팔 루피",
-  RON: "루마니아 레우",
-  LYD: "리비아 디나르",
-  MOP: "마카오 파타카",
-  MMK: "미얀마 짯",
-  ETB: "에티오피아 비르",
-  UZS: "우즈베키스탄 숨",
-  KHR: "캄보디아 리엘",
-  FJD: "피지 달러",
-  DZD: "알제리 디나르",
-  KES: "케냐 실링",
-  TZS: "탄자니아 실링",
+  KRW: "?�?��?�???,
+  USD: "미국 ?�러",
+  EUR: "?�럽?�합 ?�로",
+  JPY: "?�본 ??,
+  CNY: "중국 ?�안",
+  HKD: "?�콩 ?�러",
+  TWD: "?��??�러",
+  GBP: "?�국 ?�운??,
+  CAD: "캐나???�러",
+  CHF: "?�위???�랑",
+  AUD: "?�주 ?�러",
+  NZD: "?�질?�드 ?�러",
+  SGD: "?��??�르 ?�러",
+  THB: "?�국 바트",
+  VND: "베트????,
+  IDR: "?�도?�시??루피??,
+  MYR: "말레?�시??링깃",
+  PHP: "?�리?� ?�소",
+  INR: "?�도 루피",
+  RUB: "?�시??루블",
+  BRL: "브라�??�알",
+  SEK: "?�웨???�로??,
+  DKK: "?�마???�로??,
+  NOK: "?�르?�이 ?�로??,
+  TRY: "?�르키??리라",
+  MXN: "멕시�??�소",
+  ZAR: "?�아?�리�??�드",
+  PLN: "?��???즈워??,
+  CZK: "체코 코루??,
+  HUF: "?��?�??�린??,
+  AED: "?�랍?��?리트 ?�르??,
+  SAR: "?�우??리얄",
+  ILS: "?�스?�엘 ?�켈",
+  EGP: "?�집???�운??,
+  PKR: "?�키?�탄 루피",
+  BDT: "방�??�데???��?,
+  KZT: "카자?�스???�게",
+  MNT: "몽골 ?�그�?,
+  OMR: "?�만 리알",
+  KWD: "쿠웨?�트 ?�나�?,
+  BHD: "바레???�나�?,
+  JOD: "?�르???�나�?,
+  QAR: "카�?�?리얄",
+  BND: "브루?�이 ?�러",
+  CLP: "칠레 ?�소",
+  COP: "콜롬비아 ?�소",
+  LKR: "?�리?�카 루피",
+  NPR: "?�팔 루피",
+  RON: "루마?�아 ?�우",
+  LYD: "리비???�나�?,
+  MOP: "마카???��?�?,
+  MMK: "미�?�?�?,
+  ETB: "?�티?�피??비르",
+  UZS: "?�즈베키?�탄 ??,
+  KHR: "캄보?�아 리엘",
+  FJD: "?��? ?�러",
+  DZD: "?�제�??�나�?,
+  KES: "케???�링",
+  TZS: "?�자?�아 ?�링",
 };
 
 /** Currencies Naver quotes per 100 units by default */
 export const UNIT_100_DEFAULT = new Set(["JPY", "VND", "IDR"]);
 
-/** Snapshot for offline / API failure (예시 환율) — bank-style units */
+/** Snapshot for offline / API failure (?�시 ?�율) ??bank-style units */
 export const DEMO_RATES: ExchangeRate[] = [
   { code: "KRW", name: CURRENCY_NAMES.KRW, rate: 1, unit: 1 },
   { code: "USD", name: CURRENCY_NAMES.USD, rate: 1348.2, unit: 1 },
@@ -137,7 +137,7 @@ export const DEMO_RATES: ExchangeRate[] = [
   { code: "BRL", name: CURRENCY_NAMES.BRL, rate: 262.86, unit: 1 },
 ];
 
-/** Mid-market demo rates — always unit 1 (true per-1 KRW) */
+/** Mid-market demo rates ??always unit 1 (true per-1 KRW) */
 export const DEMO_MARKET_RATES: ExchangeRate[] = DEMO_RATES.map((r) => ({
   ...r,
   rate: r.rate / r.unit,
@@ -169,7 +169,7 @@ export function convertAmount(
 }
 
 export function formatRateNumber(n: number, maxFrac = 4): string {
-  if (!Number.isFinite(n)) return "—";
+  if (!Number.isFinite(n)) return "??;
   const abs = Math.abs(n);
   let fractionDigits = maxFrac;
   if (abs >= 100) fractionDigits = 2;
