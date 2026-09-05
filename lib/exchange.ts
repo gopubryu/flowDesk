@@ -6,17 +6,18 @@ export type ExchangeRate = {
 };
 
 export type RateSourcePayload = {
-  source: "naver" | "open-er-api" | "demo";
+  source: "naver" | "open-er-api" | "oanda" | "demo";
   updatedAt: string;
   rates: ExchangeRate[];
   error?: string;
 };
 
-/** Dual-source response from /api/exchange */
+/** Multi-source response from /api/exchange */
 export type ExchangeResponse = {
   updatedAt: string;
   bank: RateSourcePayload;
   market: RateSourcePayload;
+  oanda: RateSourcePayload;
 };
 
 /** @deprecated Prefer ExchangeResponse with bank/market; kept for legacy single-source shape */
@@ -143,6 +144,9 @@ export const DEMO_MARKET_RATES: ExchangeRate[] = DEMO_RATES.map((r) => ({
   rate: r.rate / r.unit,
   unit: 1,
 }));
+
+/** OANDA-style demo (Naver-like units for JPY/VND/IDR) */
+export const DEMO_OANDA_RATES: ExchangeRate[] = DEMO_RATES;
 
 export function currencyName(code: string): string {
   return CURRENCY_NAMES[code] ?? code;

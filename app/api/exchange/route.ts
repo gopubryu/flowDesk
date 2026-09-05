@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import {
   CURRENCY_NAMES,
   DEMO_MARKET_RATES,
+  DEMO_OANDA_RATES,
   DEMO_RATES,
+  MAJOR_CODES,
   UNIT_100_DEFAULT,
   type ExchangeRate,
   type ExchangeResponse,
@@ -177,6 +179,97 @@ function demoMarket(error?: string): RateSourcePayload {
   };
 }
 
+
+const OANDA_BASE =
+  "https://fxds-public-exchange-rates-api.oanda.com/cc-api/currencies";
+
+type OandaPairResponse = {
+  response?: Array<{
+    base_currency?: string;
+    quote_currency?: string;
+    average_bid?: string;
+    average_ask?: string;
+  }>;
+};
+
+function utcDateISO(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/** OANDA public FX mid rates vs KRW (Naver-style units for JPY/VND/IDR). */
+async function fetchOandaRates(): Promise<RateSourcePayload> {
+  const end = new Date();
+  const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
+  const startDate = utcDateISO(start);
+  const endDate = utcDateISO(end);
+  // API requires end_date AFTER start_date; bump end by 1 day if same calendar day
+  const endDateSafe =
+    endDate <= startDate
+      ? utcDateISO(new Date(end.getTime() + 24 * 60 * 60 * 1000))
+      : endDate;
+
+  const codes = MAJOR_CODES.filter((c) => c !== "KRW");
+
+  const results = await Promise.allSettled(
+    codes.map(async (code) => {
+      const url =
+        `${OANDA_BASE}?base=${code}&quote=KRW` +
+        `&data_type=general_currency_pair` +
+        `&start_date=${startDate}&end_date=${endDateSafe}`;
+      const res = await fetch(url, {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        throw new Error(`OANDA ${code} responded ${res.status}`);
+      }
+      const data = (await res.json()) as OandaPairResponse;
+      const row = data.response?.[0];
+      if (!row) throw new Error(`OANDA ${code}: empty response`);
+      const bid = Number(row.average_bid);
+      const ask = Number(row.average_ask);
+      if (!Number.isFinite(bid) || !Number.isFinite(ask)) {
+        throw new Error(`OANDA ${code}: invalid bid/ask`);
+      }
+      const mid = (bid + ask) / 2; // KRW per 1 foreign unit
+      const unit = UNIT_100_DEFAULT.has(code) ? 100 : 1;
+      const rate: ExchangeRate = {
+        code,
+        name: CURRENCY_NAMES[code] ?? code,
+        rate: mid * unit,
+        unit,
+      };
+      return rate;
+    })
+  );
+
+  const rates: ExchangeRate[] = [
+    { code: "KRW", name: currencyName("KRW"), rate: 1, unit: 1 },
+  ];
+  for (const r of results) {
+    if (r.status === "fulfilled") rates.push(r.value);
+  }
+
+  if (rates.length < 2) {
+    throw new Error("OANDA returned no usable currency pairs");
+  }
+
+  return {
+    source: "oanda",
+    updatedAt: new Date().toISOString(),
+    rates,
+  };
+}
+
+function demoOanda(error?: string): RateSourcePayload {
+  return {
+    source: "demo",
+    updatedAt: new Date().toISOString(),
+    rates: DEMO_OANDA_RATES,
+    ...(error ? { error } : {}),
+  };
+}
+
 export async function GET() {
   if (cache && Date.now() - cache.at < CACHE_TTL_MS) {
     return NextResponse.json(cache.body, {
@@ -184,9 +277,10 @@ export async function GET() {
     });
   }
 
-  const [bankResult, marketResult] = await Promise.allSettled([
+  const [bankResult, marketResult, oandaResult] = await Promise.allSettled([
     fetchBankRates(),
     fetchMarketRates(),
+    fetchOandaRates(),
   ]);
 
   const bank: RateSourcePayload =
@@ -207,14 +301,25 @@ export async function GET() {
             : "시장 시세를 불러오지 못했습니다."
         );
 
+  const oanda: RateSourcePayload =
+    oandaResult.status === "fulfilled"
+      ? oandaResult.value
+      : demoOanda(
+          oandaResult.reason instanceof Error
+            ? oandaResult.reason.message
+            : "OANDA 환율을 불러오지 못했습니다."
+        );
+
   const updatedAt =
     bank.source !== "demo"
       ? bank.updatedAt
       : market.source !== "demo"
         ? market.updatedAt
-        : new Date().toISOString();
+        : oanda.source !== "demo"
+          ? oanda.updatedAt
+          : new Date().toISOString();
 
-  const body: ExchangeResponse = { updatedAt, bank, market };
+  const body: ExchangeResponse = { updatedAt, bank, market, oanda };
   cache = { at: Date.now(), body };
 
   return NextResponse.json(body, {

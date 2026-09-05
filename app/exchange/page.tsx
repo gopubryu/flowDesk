@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   DEMO_MARKET_RATES,
+  DEMO_OANDA_RATES,
   DEMO_RATES,
   MAJOR_CODES,
   POPULAR_CODES,
@@ -31,7 +32,7 @@ import { cn } from "@/lib/utils";
 
 const QUICK_AMOUNTS = [1, 10, 100, 1000, 10000];
 
-type ActiveSource = "bank" | "market";
+type ActiveSource = "bank" | "market" | "oanda";
 
 function findRate(rates: ExchangeRate[], code: string): ExchangeRate | undefined {
   return rates.find((r) => r.code === code);
@@ -72,6 +73,11 @@ function sourceLabel(kind: ActiveSource, payload: RateSourcePayload | null): str
     if (payload?.source === "demo") return "예시 데이터 (은행 고시)";
     return "은행 고시";
   }
+  if (kind === "oanda") {
+    if (payload?.source === "oanda") return "OANDA 환율";
+    if (payload?.source === "demo") return "예시 데이터 (OANDA)";
+    return "OANDA 환율";
+  }
   if (payload?.source === "open-er-api") return "시장 시세 (미드마켓 · open.er-api)";
   if (payload?.source === "demo") return "예시 데이터 (시장 시세)";
   return "시장 시세 (미드마켓)";
@@ -88,6 +94,11 @@ export default function ExchangePage() {
     updatedAt: new Date().toISOString(),
     rates: DEMO_MARKET_RATES,
   });
+  const [oanda, setOanda] = useState<RateSourcePayload>({
+    source: "demo",
+    updatedAt: new Date().toISOString(),
+    rates: DEMO_OANDA_RATES,
+  });
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -98,10 +109,18 @@ export default function ExchangePage() {
   const [toAmount, setToAmount] = useState("");
   const [lastEdited, setLastEdited] = useState<"from" | "to">("from");
 
-  const activeRates = activeSource === "bank" ? bank.rates : market.rates;
-  const otherRates = activeSource === "bank" ? market.rates : bank.rates;
-  const activePayload = activeSource === "bank" ? bank : market;
-  const otherPayload = activeSource === "bank" ? market : bank;
+  const payloadBySource: Record<ActiveSource, RateSourcePayload> = {
+    bank,
+    market,
+    oanda,
+  };
+  const activePayload = payloadBySource[activeSource];
+  const activeRates = activePayload.rates;
+  // For side-by-side hint: prefer market when on bank/oanda, else bank
+  const otherSource: ActiveSource =
+    activeSource === "bank" ? "market" : activeSource === "market" ? "bank" : "market";
+  const otherPayload = payloadBySource[otherSource];
+  const otherRates = otherPayload.rates;
 
   const sorted = useMemo(() => sortRates(activeRates), [activeRates]);
   const fromRate = findRate(activeRates, fromCode) ?? activeRates[0];
@@ -140,11 +159,16 @@ export default function ExchangePage() {
         );
       }
       const data = (await res.json()) as ExchangeResponse;
-      if (!data.bank?.rates?.length && !data.market?.rates?.length) {
+      if (
+        !data.bank?.rates?.length &&
+        !data.market?.rates?.length &&
+        !data.oanda?.rates?.length
+      ) {
         throw new Error("환율 데이터가 비어 있습니다.");
       }
       if (data.bank?.rates?.length) setBank(data.bank);
       if (data.market?.rates?.length) setMarket(data.market);
+      if (data.oanda?.rates?.length) setOanda(data.oanda);
       setUpdatedAt(data.updatedAt ?? null);
       setLoadError(null);
     } catch (e) {
@@ -161,6 +185,12 @@ export default function ExchangePage() {
         source: "demo",
         updatedAt: new Date().toISOString(),
         rates: DEMO_MARKET_RATES,
+        error: msg,
+      });
+      setOanda({
+        source: "demo",
+        updatedAt: new Date().toISOString(),
+        rates: DEMO_OANDA_RATES,
         error: msg,
       });
       setUpdatedAt(null);
@@ -219,7 +249,13 @@ export default function ExchangePage() {
 
   const bankFailed = Boolean(bank.error) || bank.source === "demo";
   const marketFailed = Boolean(market.error) || market.source === "demo";
-  const initialLoading = loading && bank.source === "demo" && market.source === "demo" && !loadError;
+  const oandaFailed = Boolean(oanda.error) || oanda.source === "demo";
+  const initialLoading =
+    loading &&
+    bank.source === "demo" &&
+    market.source === "demo" &&
+    oanda.source === "demo" &&
+    !loadError;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -248,6 +284,16 @@ export default function ExchangePage() {
           <p className="font-medium">시장 시세(미드마켓)를 불러오지 못했습니다.</p>
           <p className="mt-1 text-sky-800/90">
             {market.error} — 시장 시세는 예시 데이터를 사용합니다. 은행 고시는 별도로
+            표시됩니다.
+          </p>
+        </div>
+      )}
+
+      {!loadError && oanda.error && (
+        <div className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
+          <p className="font-medium">OANDA 환율을 불러오지 못했습니다.</p>
+          <p className="mt-1 text-violet-800/90">
+            {oanda.error} — OANDA는 예시 데이터를 사용합니다. 다른 출처는 별도로
             표시됩니다.
           </p>
         </div>
@@ -293,7 +339,7 @@ export default function ExchangePage() {
         </CardHeader>
         <CardContent className="space-y-5 pt-6">
           {/* Source toggle */}
-          <div className="inline-flex rounded-lg border border-indigo-100 bg-slate-50 p-1">
+          <div className="inline-flex flex-wrap rounded-lg border border-indigo-100 bg-slate-50 p-1">
             <button
               type="button"
               onClick={() => setActiveSource("bank")}
@@ -317,6 +363,18 @@ export default function ExchangePage() {
               )}
             >
               시장 시세
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveSource("oanda")}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                activeSource === "oanda"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-600 hover:text-indigo-700"
+              )}
+            >
+              OANDA 환율
             </button>
           </div>
 
@@ -427,15 +485,17 @@ export default function ExchangePage() {
                 )}
                 {otherConverted != null && otherFrom && otherTo && (
                   <p className="mt-2 text-xs text-indigo-800/90">
-                    {activeSource === "bank" ? "시장 시세" : "은행 고시"} 기준 ≈{" "}
+                    {otherSource === "bank"
+                      ? "은행 고시"
+                      : otherSource === "oanda"
+                        ? "OANDA"
+                        : "시장 시세"}{" "}
+                    기준 ≈{" "}
                     <span className="font-semibold tabular-nums">
                       {formatRateNumber(otherConverted, 6)} {toCode}
                     </span>
                     <span className="text-indigo-400"> · </span>
-                    {sourceLabel(
-                      activeSource === "bank" ? "market" : "bank",
-                      otherPayload
-                    )}
+                    {sourceLabel(otherSource, otherPayload)}
                   </p>
                 )}
               </div>
@@ -465,10 +525,10 @@ export default function ExchangePage() {
       {/* Comparison table */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">은행 고시 vs 시장 시세 비교</CardTitle>
+          <CardTitle className="text-base">은행 고시 · 시장 시세 · OANDA 비교</CardTitle>
           <p className="text-xs text-muted-foreground">
             주요 통화 · 동일 단위로 비교합니다. JPY 등은 /100엔 고시 기준으로 맞춥니다.
-            시장 시세는 미드마켓(open.er-api.com)입니다.
+            시장 시세는 미드마켓(open.er-api.com), OANDA는 (bid+ask)/2 미드입니다.
           </p>
         </CardHeader>
         <CardContent>
@@ -480,6 +540,7 @@ export default function ExchangePage() {
                   <th className="px-4 py-2.5 font-medium">단위</th>
                   <th className="px-4 py-2.5 font-medium text-right">은행고시</th>
                   <th className="px-4 py-2.5 font-medium text-right">시장시세</th>
+                  <th className="px-4 py-2.5 font-medium text-right">OANDA</th>
                   <th className="px-4 py-2.5 font-medium text-right">차이(원)</th>
                   <th className="px-4 py-2.5 font-medium text-right">차이(%)</th>
                   <th className="px-4 py-2.5 font-medium text-right">상세</th>
@@ -489,12 +550,15 @@ export default function ExchangePage() {
                 {POPULAR_CODES.map((code) => {
                   const bankR = findRate(bank.rates, code);
                   const marketR = findRate(market.rates, code);
+                  const oandaR = findRate(oanda.rates, code);
                   // Prefer bank unit for display (JPY → 100); fallback unit-100 default
                   const displayUnit =
                     bankR?.unit ??
+                    oandaR?.unit ??
                     (UNIT_100_DEFAULT.has(code) ? 100 : 1);
                   const bankDisp = displayRateForCompare(bankR, displayUnit);
                   const marketDisp = displayRateForCompare(marketR, displayUnit);
+                  const oandaDisp = displayRateForCompare(oandaR, displayUnit);
 
                   let diffWon: number | null = null;
                   let diffPct: number | null = null;
@@ -520,7 +584,7 @@ export default function ExchangePage() {
                       <td className="px-4 py-3">
                         <span className="font-semibold text-foreground">{code}</span>
                         <span className="ml-2 text-muted-foreground">
-                          {bankR?.name ?? marketR?.name ?? code}
+                          {bankR?.name ?? marketR?.name ?? oandaR?.name ?? code}
                         </span>
                       </td>
                       <td className="px-4 py-3 tabular-nums text-muted-foreground">
@@ -531,6 +595,9 @@ export default function ExchangePage() {
                       </td>
                       <td className="px-4 py-3 text-right font-medium tabular-nums">
                         {marketDisp != null ? formatRateNumber(marketDisp, 2) : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium tabular-nums">
+                        {oandaDisp != null ? formatRateNumber(oandaDisp, 2) : "—"}
                       </td>
                       <td
                         className={cn(
@@ -573,7 +640,8 @@ export default function ExchangePage() {
           </div>
           <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
             차이(원) = 은행고시 − 시장시세 (표시 단위 기준). 양수면 은행 고시가
-            미드마켓보다 높습니다. 시장 시세 출처: open.er-api.com (미드마켓).
+            미드마켓보다 높습니다. 시장 시세: open.er-api.com · OANDA: 공개 미드
+            ((bid+ask)/2).
           </p>
         </CardContent>
       </Card>
