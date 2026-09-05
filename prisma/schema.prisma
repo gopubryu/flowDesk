@@ -1,0 +1,131 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+enum TaskStatus {
+  todo
+  in_progress
+  done
+}
+
+enum TaskPriority {
+  low
+  medium
+  high
+}
+
+enum EventType {
+  meeting
+  lecture
+  trip
+  leave
+  deadline
+  other
+}
+
+enum PaymentStatus {
+  paid
+  pending
+  overdue
+}
+
+enum FinanceCategory {
+  sales
+  expense
+  subscription
+}
+
+enum MailFolder {
+  inbox
+  drafts
+  sent
+  trash
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tasks    Task[]
+  events   CalendarEvent[]
+  finances FinanceRecord[]
+  mails    MailMessage[]
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  workspaceId String
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  status      TaskStatus   @default(todo)
+  priority    TaskPriority @default(medium)
+  dueDate     DateTime?
+  assignee    String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([workspaceId])
+}
+
+model CalendarEvent {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  date        DateTime
+  endDate     DateTime?
+  startTime   String?
+  endTime     String?
+  allDay      Boolean   @default(false)
+  type        EventType @default(other)
+  company     String?
+  location    String?
+  project     String?
+  attendees   String[]  @default([])
+
+  @@index([workspaceId])
+}
+
+model FinanceRecord {
+  id          String          @id @default(cuid())
+  workspaceId String
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client      String
+  description String
+  amount      Float
+  status      PaymentStatus   @default(pending)
+  date        DateTime
+  dueDate     DateTime?
+  category    FinanceCategory
+
+  @@index([workspaceId])
+}
+
+model MailMessage {
+  id             String      @id @default(cuid())
+  workspaceId    String
+  workspace      Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  folder         MailFolder  @default(inbox)
+  from           String
+  to             String
+  cc             String?
+  subject        String
+  body           String
+  snippet        String?
+  starred        Boolean     @default(false)
+  read           Boolean     @default(false)
+  createdAt      DateTime    @default(now())
+  previousFolder MailFolder?
+
+  @@index([workspaceId])
+}

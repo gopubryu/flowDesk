@@ -9,7 +9,6 @@ import React, {
   useState,
 } from "react";
 import type {
-  AppState,
   CalendarEvent,
   FinanceRecord,
   MailFolder,
@@ -17,221 +16,229 @@ import type {
   Task,
   TaskStatus,
 } from "./types";
-import {
-  initialEvents,
-  initialFinances,
-  initialMails,
-  initialTasks,
-  ME_FROM,
-} from "./mock-data";
-
-const STORAGE_KEY = "flowdesk-state-v3";
+import { ME_FROM } from "./mock-data";
 
 interface StoreContextValue {
   tasks: Task[];
   events: CalendarEvent[];
   finances: FinanceRecord[];
   mails: MailMessage[];
-  addTask: (task: Omit<Task, "id" | "createdAt" | "updatedAt">) => void;
-  updateTask: (id: string, patch: Partial<Task>) => void;
-  deleteTask: (id: string) => void;
-  moveTask: (id: string, status: TaskStatus) => void;
-  addEvent: (event: Omit<CalendarEvent, "id">) => void;
-  updateEvent: (id: string, patch: Partial<CalendarEvent>) => void;
-  deleteEvent: (id: string) => void;
-  addFinance: (record: Omit<FinanceRecord, "id">) => void;
-  updateFinance: (id: string, patch: Partial<FinanceRecord>) => void;
-  deleteFinance: (id: string) => void;
+  loading: boolean;
+  error: string | null;
+  refresh: () => Promise<void>;
+  addTask: (task: Omit<Task, "id" | "createdAt" | "updatedAt">) => Promise<void>;
+  updateTask: (id: string, patch: Partial<Task>) => Promise<void>;
+  deleteTask: (id: string) => Promise<void>;
+  moveTask: (id: string, status: TaskStatus) => Promise<void>;
+  addEvent: (event: Omit<CalendarEvent, "id">) => Promise<void>;
+  updateEvent: (id: string, patch: Partial<CalendarEvent>) => Promise<void>;
+  deleteEvent: (id: string) => Promise<void>;
+  addFinance: (record: Omit<FinanceRecord, "id">) => Promise<void>;
+  updateFinance: (id: string, patch: Partial<FinanceRecord>) => Promise<void>;
+  deleteFinance: (id: string) => Promise<void>;
   addMail: (
     mail: Omit<MailMessage, "id" | "createdAt" | "snippet"> & { snippet?: string }
-  ) => void;
-  updateMail: (id: string, patch: Partial<MailMessage>) => void;
-  deleteMail: (id: string) => void;
+  ) => Promise<void>;
+  updateMail: (id: string, patch: Partial<MailMessage>) => Promise<void>;
+  deleteMail: (id: string) => Promise<void>;
   sendMail: (input: {
     to: string;
     cc?: string;
     subject: string;
     body: string;
     draftId?: string;
-  }) => void;
+  }) => Promise<void>;
   saveDraft: (input: {
     to: string;
     cc?: string;
     subject: string;
     body: string;
     draftId?: string;
-  }) => void;
-  moveToTrash: (id: string) => void;
-  restoreFromTrash: (id: string) => void;
-  toggleStar: (id: string) => void;
-  toggleRead: (id: string) => void;
-  resetDemo: () => void;
+  }) => Promise<void>;
+  moveToTrash: (id: string) => Promise<void>;
+  restoreFromTrash: (id: string) => Promise<void>;
+  toggleStar: (id: string) => Promise<void>;
+  toggleRead: (id: string) => Promise<void>;
+  resetDemo: () => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextValue | null>(null);
-
-function uid(prefix: string) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
 
 function makeSnippet(body: string) {
   const oneLine = body.replace(/\s+/g, " ").trim();
   return oneLine.length > 80 ? `${oneLine.slice(0, 80)}…` : oneLine;
 }
 
-function emptyState(): AppState {
-  return {
-    tasks: initialTasks,
-    events: initialEvents,
-    finances: initialFinances,
-    mails: initialMails,
-  };
-}
-
-function loadState(): AppState {
-  if (typeof window === "undefined") {
-    return emptyState();
+async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `${res.status} ${res.statusText}`);
   }
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<AppState>;
-      if (parsed.tasks && parsed.events && parsed.finances && parsed.mails) {
-        return parsed as AppState;
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-  return emptyState();
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
 }
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [hydrated, setHydrated] = useState(false);
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
-  const [events, setEvents] = useState<CalendarEvent[]>(initialEvents);
-  const [finances, setFinances] = useState<FinanceRecord[]>(initialFinances);
-  const [mails, setMails] = useState<MailMessage[]>(initialMails);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [finances, setFinances] = useState<FinanceRecord[]>([]);
+  const [mails, setMails] = useState<MailMessage[]>([]);
 
-  useEffect(() => {
-    const state = loadState();
-    setTasks(state.tasks);
-    setEvents(state.events);
-    setFinances(state.finances);
-    setMails(state.mails);
-    setHydrated(true);
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [t, e, f, m] = await Promise.all([
+        apiJson<Task[]>("/api/tasks"),
+        apiJson<CalendarEvent[]>("/api/events"),
+        apiJson<FinanceRecord[]>("/api/finances"),
+        apiJson<MailMessage[]>("/api/mails"),
+      ]);
+      setTasks(t);
+      setEvents(e);
+      setFinances(f);
+      setMails(m);
+      // Drop legacy localStorage demo state
+      try {
+        localStorage.removeItem("flowdesk-state-v3");
+        localStorage.removeItem("flowdesk-state-v4");
+      } catch {
+        /* ignore */
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load data";
+      setError(message);
+      console.error("Store refresh failed", err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    if (!hydrated) return;
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ tasks, events, finances, mails } satisfies AppState)
-    );
-  }, [tasks, events, finances, mails, hydrated]);
+    void refresh();
+  }, [refresh]);
 
   const addTask = useCallback(
-    (task: Omit<Task, "id" | "createdAt" | "updatedAt">) => {
-      const now = new Date().toISOString();
-      setTasks((prev) => [
-        { ...task, id: uid("task"), createdAt: now, updatedAt: now },
-        ...prev,
-      ]);
+    async (task: Omit<Task, "id" | "createdAt" | "updatedAt">) => {
+      const created = await apiJson<Task>("/api/tasks", {
+        method: "POST",
+        body: JSON.stringify(task),
+      });
+      setTasks((prev) => [created, ...prev]);
     },
     []
   );
 
-  const updateTask = useCallback((id: string, patch: Partial<Task>) => {
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === id ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t
-      )
-    );
+  const updateTask = useCallback(async (id: string, patch: Partial<Task>) => {
+    const updated = await apiJson<Task>(`/api/tasks/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+    setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)));
   }, []);
 
-  const deleteTask = useCallback((id: string) => {
+  const deleteTask = useCallback(async (id: string) => {
+    await apiJson(`/api/tasks/${id}`, { method: "DELETE" });
     setTasks((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const moveTask = useCallback((id: string, status: TaskStatus) => {
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === id ? { ...t, status, updatedAt: new Date().toISOString() } : t
-      )
-    );
+  const moveTask = useCallback(
+    async (id: string, status: TaskStatus) => {
+      await updateTask(id, { status });
+    },
+    [updateTask]
+  );
+
+  const addEvent = useCallback(async (event: Omit<CalendarEvent, "id">) => {
+    const created = await apiJson<CalendarEvent>("/api/events", {
+      method: "POST",
+      body: JSON.stringify(event),
+    });
+    setEvents((prev) => [created, ...prev]);
   }, []);
 
-  const addEvent = useCallback((event: Omit<CalendarEvent, "id">) => {
-    setEvents((prev) => [{ ...event, id: uid("evt") }, ...prev]);
+  const updateEvent = useCallback(async (id: string, patch: Partial<CalendarEvent>) => {
+    const updated = await apiJson<CalendarEvent>(`/api/events/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+    setEvents((prev) => prev.map((e) => (e.id === id ? updated : e)));
   }, []);
 
-  const updateEvent = useCallback((id: string, patch: Partial<CalendarEvent>) => {
-    setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
-  }, []);
-
-  const deleteEvent = useCallback((id: string) => {
+  const deleteEvent = useCallback(async (id: string) => {
+    await apiJson(`/api/events/${id}`, { method: "DELETE" });
     setEvents((prev) => prev.filter((e) => e.id !== id));
   }, []);
 
-  const addFinance = useCallback((record: Omit<FinanceRecord, "id">) => {
-    setFinances((prev) => [{ ...record, id: uid("fin") }, ...prev]);
+  const addFinance = useCallback(async (record: Omit<FinanceRecord, "id">) => {
+    const created = await apiJson<FinanceRecord>("/api/finances", {
+      method: "POST",
+      body: JSON.stringify(record),
+    });
+    setFinances((prev) => [created, ...prev]);
   }, []);
 
-  const updateFinance = useCallback((id: string, patch: Partial<FinanceRecord>) => {
-    setFinances((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)));
+  const updateFinance = useCallback(async (id: string, patch: Partial<FinanceRecord>) => {
+    const updated = await apiJson<FinanceRecord>(`/api/finances/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+    setFinances((prev) => prev.map((f) => (f.id === id ? updated : f)));
   }, []);
 
-  const deleteFinance = useCallback((id: string) => {
+  const deleteFinance = useCallback(async (id: string) => {
+    await apiJson(`/api/finances/${id}`, { method: "DELETE" });
     setFinances((prev) => prev.filter((f) => f.id !== id));
   }, []);
 
   const addMail = useCallback(
-    (
+    async (
       mail: Omit<MailMessage, "id" | "createdAt" | "snippet"> & { snippet?: string }
     ) => {
-      const now = new Date().toISOString();
-      setMails((prev) => [
-        {
+      const created = await apiJson<MailMessage>("/api/mails", {
+        method: "POST",
+        body: JSON.stringify({
           ...mail,
-          id: uid("mail"),
-          createdAt: now,
           snippet: mail.snippet ?? makeSnippet(mail.body),
-        },
-        ...prev,
-      ]);
+        }),
+      });
+      setMails((prev) => [created, ...prev]);
     },
     []
   );
 
-  const updateMail = useCallback((id: string, patch: Partial<MailMessage>) => {
-    setMails((prev) =>
-      prev.map((m) => {
-        if (m.id !== id) return m;
-        const next = { ...m, ...patch };
-        if (patch.body !== undefined && patch.snippet === undefined) {
-          next.snippet = makeSnippet(patch.body);
-        }
-        return next;
-      })
-    );
+  const updateMail = useCallback(async (id: string, patch: Partial<MailMessage>) => {
+    const updated = await apiJson<MailMessage>(`/api/mails/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+    setMails((prev) => prev.map((m) => (m.id === id ? updated : m)));
   }, []);
 
-  const deleteMail = useCallback((id: string) => {
+  const deleteMail = useCallback(async (id: string) => {
+    await apiJson(`/api/mails/${id}`, { method: "DELETE" });
     setMails((prev) => prev.filter((m) => m.id !== id));
   }, []);
 
   const sendMail = useCallback(
-    (input: {
+    async (input: {
       to: string;
       cc?: string;
       subject: string;
       body: string;
       draftId?: string;
     }) => {
-      const now = new Date().toISOString();
-      const payload: MailMessage = {
-        id: input.draftId ?? uid("mail"),
-        folder: "sent",
+      const payload = {
+        folder: "sent" as MailFolder,
         from: ME_FROM,
         to: input.to,
         cc: input.cc || undefined,
@@ -240,110 +247,130 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         snippet: makeSnippet(input.body),
         starred: false,
         read: true,
-        createdAt: now,
+        previousFolder: null,
       };
-      setMails((prev) => {
-        if (input.draftId) {
-          return [payload, ...prev.filter((m) => m.id !== input.draftId)];
-        }
-        return [payload, ...prev];
-      });
+      if (input.draftId) {
+        const updated = await apiJson<MailMessage>(`/api/mails/${input.draftId}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+        setMails((prev) => [updated, ...prev.filter((m) => m.id !== input.draftId)]);
+      } else {
+        const created = await apiJson<MailMessage>("/api/mails", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        setMails((prev) => [created, ...prev]);
+      }
     },
     []
   );
 
   const saveDraft = useCallback(
-    (input: {
+    async (input: {
       to: string;
       cc?: string;
       subject: string;
       body: string;
       draftId?: string;
     }) => {
-      const now = new Date().toISOString();
-      setMails((prev) => {
-        if (input.draftId) {
-          return prev.map((m) =>
-            m.id === input.draftId
-              ? {
-                  ...m,
-                  folder: "drafts" as MailFolder,
-                  to: input.to,
-                  cc: input.cc || undefined,
-                  subject: input.subject || "(제목 없음)",
-                  body: input.body,
-                  snippet: makeSnippet(input.body),
-                  from: ME_FROM,
-                  read: true,
-                }
-              : m
-          );
-        }
-        return [
-          {
-            id: uid("mail"),
-            folder: "drafts" as MailFolder,
-            from: ME_FROM,
-            to: input.to,
-            cc: input.cc || undefined,
-            subject: input.subject || "(제목 없음)",
-            body: input.body,
-            snippet: makeSnippet(input.body),
-            starred: false,
-            read: true,
-            createdAt: now,
-          },
-          ...prev,
-        ];
-      });
+      const payload = {
+        folder: "drafts" as MailFolder,
+        from: ME_FROM,
+        to: input.to,
+        cc: input.cc || undefined,
+        subject: input.subject || "(제목 없음)",
+        body: input.body,
+        snippet: makeSnippet(input.body),
+        starred: false,
+        read: true,
+      };
+      if (input.draftId) {
+        const updated = await apiJson<MailMessage>(`/api/mails/${input.draftId}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+        setMails((prev) => prev.map((m) => (m.id === input.draftId ? updated : m)));
+      } else {
+        const created = await apiJson<MailMessage>("/api/mails", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        setMails((prev) => [created, ...prev]);
+      }
     },
     []
   );
 
-  const moveToTrash = useCallback((id: string) => {
-    setMails((prev) =>
-      prev.map((m) => {
-        if (m.id !== id || m.folder === "trash") return m;
-        return {
-          ...m,
-          previousFolder: m.folder,
-          folder: "trash" as MailFolder,
-          starred: false,
-        };
-      })
-    );
-  }, []);
+  const moveToTrash = useCallback(
+    async (id: string) => {
+      const current = mails.find((m) => m.id === id);
+      if (!current || current.folder === "trash") return;
+      await updateMail(id, {
+        previousFolder: current.folder,
+        folder: "trash",
+        starred: false,
+      });
+    },
+    [mails, updateMail]
+  );
 
-  const restoreFromTrash = useCallback((id: string) => {
-    setMails((prev) =>
-      prev.map((m) => {
-        if (m.id !== id || m.folder !== "trash") return m;
-        return {
-          ...m,
-          folder: m.previousFolder ?? "inbox",
-          previousFolder: undefined,
-        };
-      })
-    );
-  }, []);
+  const restoreFromTrash = useCallback(
+    async (id: string) => {
+      const current = mails.find((m) => m.id === id);
+      if (!current || current.folder !== "trash") return;
+      await apiJson<MailMessage>(`/api/mails/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          folder: current.previousFolder ?? "inbox",
+          previousFolder: null,
+        }),
+      }).then((updated) => {
+        setMails((prev) => prev.map((m) => (m.id === id ? updated : m)));
+      });
+    },
+    [mails, updateMail]
+  );
 
-  const toggleStar = useCallback((id: string) => {
-    setMails((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, starred: !m.starred } : m))
-    );
-  }, []);
+  const toggleStar = useCallback(
+    async (id: string) => {
+      const current = mails.find((m) => m.id === id);
+      if (!current) return;
+      await updateMail(id, { starred: !current.starred });
+    },
+    [mails, updateMail]
+  );
 
-  const toggleRead = useCallback((id: string) => {
-    setMails((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, read: !m.read } : m))
-    );
-  }, []);
+  const toggleRead = useCallback(
+    async (id: string) => {
+      const current = mails.find((m) => m.id === id);
+      if (!current) return;
+      await updateMail(id, { read: !current.read });
+    },
+    [mails, updateMail]
+  );
 
-  const resetDemo = useCallback(() => {
-    setTasks(initialTasks);
-    setEvents(initialEvents);
-    setFinances(initialFinances);
-    setMails(initialMails);
+  const resetDemo = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await apiJson<{
+        tasks: Task[];
+        events: CalendarEvent[];
+        finances: FinanceRecord[];
+        mails: MailMessage[];
+      }>("/api/demo/reset", { method: "POST" });
+      setTasks(data.tasks);
+      setEvents(data.events);
+      setFinances(data.finances);
+      setMails(data.mails);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to reset demo";
+      setError(message);
+      console.error("resetDemo failed", err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   const value = useMemo(
@@ -352,6 +379,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       events,
       finances,
       mails,
+      loading,
+      error,
+      refresh,
       addTask,
       updateTask,
       deleteTask,
@@ -378,6 +408,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       events,
       finances,
       mails,
+      loading,
+      error,
+      refresh,
       addTask,
       updateTask,
       deleteTask,

@@ -44,7 +44,7 @@ export function Header({ onMenu }: { onMenu?: () => void }) {
           size="sm"
           type="button"
           onClick={() => {
-            if (confirm("데모 데이터를 초기화할까요?")) resetDemo();
+            if (confirm("데모 데이터를 초기화할까요?")) void resetDemo();
           }}
         >
           <RotateCcw className="h-3.5 w-3.5" />

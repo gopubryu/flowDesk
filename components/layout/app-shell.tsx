@@ -16,6 +16,7 @@ import { Sidebar } from "./sidebar";
 import { Header } from "./header";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useStore } from "@/lib/store";
 
 const mobileNav = [
   { href: "/dashboard", label: "대시보드", icon: LayoutDashboard },
@@ -29,6 +30,7 @@ const mobileNav = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const { loading, error, refresh } = useStore();
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -68,6 +70,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
       <div className="flex min-w-0 flex-1 flex-col">
         <Header onMenu={() => setOpen(true)} />
+        {loading && (
+          <div className="border-b bg-muted/40 px-4 py-2 text-xs text-muted-foreground md:px-6">
+            데이터를 불러오는 중…
+          </div>
+        )}
+        {error && !loading && (
+          <div className="flex items-center justify-between gap-3 border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive md:px-6">
+            <span>데이터를 불러오지 못했습니다. DB 연결을 확인해 주세요.</span>
+            <Button variant="outline" size="sm" type="button" onClick={() => void refresh()}>
+              다시 시도
+            </Button>
+          </div>
+        )}
         <main className="flex-1 p-4 md:p-6">{children}</main>
       </div>
     </div>
