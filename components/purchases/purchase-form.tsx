@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { WarehouseSearchDialog } from "@/components/warehouses/warehouse-search-dialog";
 
 export type LineRow = {
   id: string;
@@ -222,6 +223,7 @@ export function PurchaseForm({
     Array.from({ length: INITIAL_LINE_COUNT }, () => emptyLine())
   );
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
+  const [warehouseSearchOpen, setWarehouseSearchOpen] = useState(false);
   const saveMenuRef = useRef<HTMLDivElement>(null);
 
   const totals = useMemo(() => {
@@ -484,7 +486,7 @@ export function PurchaseForm({
               name={master.warehouseName}
               onCodeChange={(v) => setMasterField("warehouseCode", v)}
               onNameChange={(v) => setMasterField("warehouseName", v)}
-              onSearch={() => stub("입고창고 검색")}
+              onSearch={() => setWarehouseSearchOpen(true)}
               namePlaceholder="창고명"
             />
 
@@ -819,6 +821,14 @@ export function PurchaseForm({
           </div>
         </div>
       </div>
+
+      <WarehouseSearchDialog
+        open={warehouseSearchOpen}
+        onOpenChange={setWarehouseSearchOpen}
+        onSelect={(wh) => {
+          setMaster((m) => ({ ...m, warehouseCode: wh.code, warehouseName: wh.name }));
+        }}
+      />
 
       <Label className="sr-only">구매입력 양식</Label>
     </div>

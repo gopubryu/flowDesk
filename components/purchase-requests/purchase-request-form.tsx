@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EmployeeSearchDialog } from "@/components/employees/employee-search-dialog";
+import { WarehouseSearchDialog } from "@/components/warehouses/warehouse-search-dialog";
 
 export type LineRow = {
   id: string;
@@ -215,6 +216,7 @@ export function PurchaseRequestForm({
   );
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const [employeeSearchOpen, setEmployeeSearchOpen] = useState(false);
+  const [warehouseSearchOpen, setWarehouseSearchOpen] = useState(false);
   const saveMenuRef = useRef<HTMLDivElement>(null);
 
   const totals = useMemo(() => {
@@ -469,7 +471,7 @@ export function PurchaseRequestForm({
               name={master.warehouseName}
               onCodeChange={(v) => setMasterField("warehouseCode", v)}
               onNameChange={(v) => setMasterField("warehouseName", v)}
-              onSearch={() => stub("창고 검색")}
+              onSearch={() => setWarehouseSearchOpen(true)}
               namePlaceholder="창고명"
             />
 
@@ -804,6 +806,14 @@ export function PurchaseRequestForm({
         onOpenChange={setEmployeeSearchOpen}
         onSelect={(emp) => {
           setMaster((m) => ({ ...m, managerCode: emp.code, managerName: emp.name }));
+        }}
+      />
+
+      <WarehouseSearchDialog
+        open={warehouseSearchOpen}
+        onOpenChange={setWarehouseSearchOpen}
+        onSelect={(wh) => {
+          setMaster((m) => ({ ...m, warehouseCode: wh.code, warehouseName: wh.name }));
         }}
       />
 
