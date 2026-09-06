@@ -145,3 +145,76 @@ export function serializeMail(m: {
     previousFolder: m.previousFolder ?? undefined,
   };
 }
+
+export function serializePurchaseRequest(r: {
+  id: string;
+  requestDate: Date;
+  slipNo: string | null;
+  vendorCode: string | null;
+  vendorName: string;
+  managerCode: string | null;
+  managerName: string | null;
+  taxType: string | null;
+  warehouseCode: string | null;
+  warehouseName: string | null;
+  currency: string | null;
+  dueDate: Date | null;
+  status: string;
+  item: string;
+  quantity: number;
+  amount: number;
+  project: string | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+  lines?: {
+    id: string;
+    itemCode: string | null;
+    itemName: string;
+    spec: string | null;
+    qty: number;
+    unitPrice: number;
+    supply: number;
+    vat: number;
+    total: number;
+    extra: string | null;
+    sortOrder: number;
+  }[];
+}) {
+  return {
+    id: r.id,
+    requestDate: toDateString(r.requestDate)!,
+    slipNo: r.slipNo ?? undefined,
+    vendorCode: r.vendorCode ?? undefined,
+    vendor: r.vendorName,
+    vendorName: r.vendorName,
+    managerCode: r.managerCode ?? undefined,
+    managerName: r.managerName ?? undefined,
+    manager: r.managerName ?? r.managerCode ?? undefined,
+    taxType: r.taxType ?? undefined,
+    warehouseCode: r.warehouseCode ?? undefined,
+    warehouseName: r.warehouseName ?? undefined,
+    warehouse: r.warehouseName ?? r.warehouseCode ?? undefined,
+    currency: r.currency ?? undefined,
+    dueDate: toDateString(r.dueDate) ?? toDateString(r.requestDate)!,
+    status: r.status,
+    item: r.item,
+    quantity: r.quantity,
+    amount: r.amount,
+    project: r.project ?? undefined,
+    createdAt: r.createdAt?.toISOString(),
+    updatedAt: r.updatedAt?.toISOString(),
+    lines: r.lines?.map((l) => ({
+      id: l.id,
+      itemCode: l.itemCode ?? "",
+      itemName: l.itemName,
+      spec: l.spec ?? "",
+      qty: l.qty,
+      unitPrice: l.unitPrice,
+      supply: l.supply,
+      vat: l.vat,
+      total: l.total,
+      extra: l.extra ?? "",
+      sortOrder: l.sortOrder,
+    })),
+  };
+}

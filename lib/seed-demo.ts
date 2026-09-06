@@ -3,6 +3,7 @@ import {
   type FinanceCategory,
   type MailFolder,
   type PaymentStatus,
+  type PurchaseRequestStatus,
   type TaskPriority,
   type TaskStatus,
 } from "@prisma/client";
@@ -19,6 +20,7 @@ import {
   initialMails,
   initialTasks,
 } from "@/lib/mock-data";
+import { mockPurchaseRequests } from "@/lib/purchase-requests";
 
 export async function wipeAndSeedDemoWorkspace() {
   await prisma.workspace.upsert({
@@ -28,6 +30,10 @@ export async function wipeAndSeedDemoWorkspace() {
   });
 
   await prisma.$transaction([
+    prisma.purchaseRequestLine.deleteMany({
+      where: { request: { workspaceId: DEMO_WORKSPACE_ID } },
+    }),
+    prisma.purchaseRequest.deleteMany({ where: { workspaceId: DEMO_WORKSPACE_ID } }),
     prisma.task.deleteMany({ where: { workspaceId: DEMO_WORKSPACE_ID } }),
     prisma.calendarEvent.deleteMany({ where: { workspaceId: DEMO_WORKSPACE_ID } }),
     prisma.financeRecord.deleteMany({ where: { workspaceId: DEMO_WORKSPACE_ID } }),
@@ -100,11 +106,45 @@ export async function wipeAndSeedDemoWorkspace() {
     })),
   });
 
+
+  // Minimal purchase-request seed (header + one line each)
+  for (const pr of mockPurchaseRequests.slice(0, 5)) {
+    await prisma.purchaseRequest.create({
+      data: {
+        id: pr.id,
+        workspaceId: DEMO_WORKSPACE_ID,
+        requestDate: parseDateOnly(pr.requestDate)!,
+        vendorName: pr.vendor,
+        dueDate: parseDateOnly(pr.dueDate),
+        status: pr.status as PurchaseRequestStatus,
+        item: pr.item,
+        quantity: pr.quantity,
+        amount: pr.amount,
+        taxType: "과세",
+        currency: "내자",
+        lines: {
+          create: [
+            {
+              itemName: pr.item,
+              qty: pr.quantity,
+              unitPrice: pr.quantity ? pr.amount / pr.quantity : 0,
+              supply: Math.round(pr.amount / 1.1),
+              vat: pr.amount - Math.round(pr.amount / 1.1),
+              total: pr.amount,
+              sortOrder: 0,
+            },
+          ],
+        },
+      },
+    });
+  }
+
   const counts = {
     tasks: initialTasks.length,
     events: initialEvents.length,
     finances: initialFinances.length,
     mails: initialMails.length,
+    purchaseRequests: Math.min(5, mockPurchaseRequests.length),
   };
 
   return { workspaceId: DEMO_WORKSPACE_ID, ...counts };

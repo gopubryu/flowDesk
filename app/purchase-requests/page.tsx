@@ -11,8 +11,7 @@ import {
   Search,
 } from "lucide-react";
 import {
-  loadPurchaseRequests,
-  savePurchaseRequests,
+  fetchPurchaseRequests,
   PURCHASE_REQUEST_STATUS_LABEL,
   PURCHASE_REQUEST_STATUS_TABS,
   type PurchaseRequest,
@@ -42,7 +41,8 @@ const statusVariant: Record<
 
 export default function PurchaseRequestsPage() {
   const [rows, setRows] = useState<PurchaseRequest[]>([]);
-  const [hydrated, setHydrated] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabKey>("all");
   const [query, setQuery] = useState("");
   const [dateFrom, setDateFrom] = useState("2026-08-01");
@@ -55,24 +55,32 @@ export default function PurchaseRequestsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [newOpen, setNewOpen] = useState(false);
 
-  useEffect(() => {
-    const loaded = loadPurchaseRequests();
-    setRows(loaded);
-    setHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    savePurchaseRequests(rows);
-  }, [rows, hydrated]);
-
-  function refreshFromStorage() {
-    setRows(loadPurchaseRequests());
+  async function refreshFromApi() {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const loaded = await fetchPurchaseRequests();
+      setRows(loaded);
+      try {
+        localStorage.removeItem("flowdesk-purchase-requests");
+      } catch {
+        /* ignore */
+      }
+    } catch (err) {
+      console.error(err);
+      setLoadError(err instanceof Error ? err.message : "목록을 불러오지 못했습니다.");
+    } finally {
+      setLoading(false);
+    }
   }
+
+  useEffect(() => {
+    void refreshFromApi();
+  }, []);
 
   function closeNewModal() {
     setNewOpen(false);
-    refreshFromStorage();
+    void refreshFromApi();
   }
 
   const filtered = useMemo(() => {
@@ -145,7 +153,7 @@ export default function PurchaseRequestsPage() {
             발주요청조회
           </h2>
           <p className="text-xs text-muted-foreground">
-            발주요청 전표를 조회하고 진행상태를 관리합니다. (목업 데이터)
+            발주요청 전표를 조회하고 진행상태를 관리합니다.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -244,10 +252,16 @@ export default function PurchaseRequestsPage() {
                 </tr>
               </thead>
               <tbody>
-                {!hydrated ? (
+                {loading ? (
                   <tr>
                     <td colSpan={8} className="px-3 py-10 text-center text-muted-foreground">
                       불러오는 중…
+                    </td>
+                  </tr>
+                ) : loadError ? (
+                  <tr>
+                    <td colSpan={8} className="px-3 py-10 text-center text-rose-600">
+                      {loadError}
                     </td>
                   </tr>
                 ) : filtered.length === 0 ? (
@@ -381,7 +395,7 @@ export default function PurchaseRequestsPage() {
             mode="new"
             variant="modal"
             onClose={closeNewModal}
-            onSaved={refreshFromStorage}
+            onSaved={() => void refreshFromApi()}
           />
         </DialogContent>
       </Dialog>

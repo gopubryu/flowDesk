@@ -5,6 +5,20 @@ export type PurchaseRequestStatus =
   | "in_progress"
   | "completed";
 
+export interface PurchaseRequestLine {
+  id?: string;
+  itemCode?: string;
+  itemName: string;
+  spec?: string;
+  qty: number;
+  unitPrice?: number;
+  supply?: number;
+  vat?: number;
+  total?: number;
+  extra?: string;
+  sortOrder?: number;
+}
+
 export interface PurchaseRequest {
   id: string;
   requestDate: string;
@@ -20,6 +34,16 @@ export interface PurchaseRequest {
   warehouse?: string;
   project?: string;
   currency?: string;
+  slipNo?: string;
+  vendorCode?: string;
+  vendorName?: string;
+  managerCode?: string;
+  managerName?: string;
+  warehouseCode?: string;
+  warehouseName?: string;
+  lines?: PurchaseRequestLine[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export const PURCHASE_REQUEST_STATUS_TABS: {
@@ -58,7 +82,7 @@ export const CURRENCY_OPTIONS = [
 
 const STORAGE_KEY = "flowdesk-purchase-requests";
 
-/** Local mock rows for 발주요청조회 — not wired to Prisma/Neon */
+/** Seed samples used when DB is empty / optional seed */
 export const mockPurchaseRequests: PurchaseRequest[] = [
   {
     id: "pr-001",
@@ -182,6 +206,81 @@ export const mockPurchaseRequests: PurchaseRequest[] = [
   },
 ];
 
+async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `${res.status} ${res.statusText}`);
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}
+
+/** Fetch all purchase requests from Neon/Prisma API */
+export async function fetchPurchaseRequests(): Promise<PurchaseRequest[]> {
+  return apiJson<PurchaseRequest[]>("/api/purchase-requests");
+}
+
+export async function fetchPurchaseRequest(
+  id: string
+): Promise<PurchaseRequest> {
+  return apiJson<PurchaseRequest>(`/api/purchase-requests/${id}`);
+}
+
+export type PurchaseRequestInput = Omit<PurchaseRequest, "id"> & {
+  id?: string;
+  lines?: PurchaseRequestLine[];
+};
+
+/** Create (POST) or update (PATCH) a purchase request via API */
+export async function savePurchaseRequestApi(
+  row: PurchaseRequestInput
+): Promise<PurchaseRequest> {
+  const payload = {
+    requestDate: row.requestDate,
+    slipNo: row.slipNo,
+    vendorCode: row.vendorCode,
+    vendorName: row.vendorName ?? row.vendor,
+    vendor: row.vendor,
+    managerCode: row.managerCode,
+    managerName: row.managerName ?? row.manager,
+    manager: row.manager,
+    taxType: row.taxType,
+    warehouseCode: row.warehouseCode,
+    warehouseName: row.warehouseName ?? row.warehouse,
+    warehouse: row.warehouse,
+    currency: row.currency,
+    dueDate: row.dueDate,
+    status: row.status,
+    item: row.item,
+    quantity: row.quantity,
+    amount: row.amount,
+    project: row.project,
+    lines: row.lines,
+  };
+  if (row.id) {
+    return apiJson<PurchaseRequest>(`/api/purchase-requests/${row.id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  }
+  return apiJson<PurchaseRequest>("/api/purchase-requests", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deletePurchaseRequestApi(id: string): Promise<void> {
+  await apiJson(`/api/purchase-requests/${id}`, { method: "DELETE" });
+}
+
+/** @deprecated Prefer fetchPurchaseRequests — kept for offline fallback */
 export function loadPurchaseRequests(): PurchaseRequest[] {
   if (typeof window === "undefined") return mockPurchaseRequests;
   try {
@@ -194,17 +293,20 @@ export function loadPurchaseRequests(): PurchaseRequest[] {
   }
 }
 
+/** @deprecated Prefer savePurchaseRequestApi */
 export function savePurchaseRequests(rows: PurchaseRequest[]): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
 }
 
+/** @deprecated Prefer savePurchaseRequestApi */
 export function appendPurchaseRequest(row: PurchaseRequest): PurchaseRequest[] {
   const next = [row, ...loadPurchaseRequests()];
   savePurchaseRequests(next);
   return next;
 }
 
+/** @deprecated IDs are now cuid from Prisma */
 export function nextPurchaseRequestId(): string {
   const rows = loadPurchaseRequests();
   let max = 0;

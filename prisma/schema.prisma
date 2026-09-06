@@ -48,16 +48,25 @@ enum MailFolder {
   trash
 }
 
+enum PurchaseRequestStatus {
+  approval
+  unconfirmed
+  confirmed
+  in_progress
+  completed
+}
+
 model Workspace {
   id        String   @id @default(cuid())
   name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tasks    Task[]
-  events   CalendarEvent[]
-  finances FinanceRecord[]
-  mails    MailMessage[]
+  tasks            Task[]
+  events           CalendarEvent[]
+  finances         FinanceRecord[]
+  mails            MailMessage[]
+  purchaseRequests PurchaseRequest[]
 }
 
 model Task {
@@ -128,4 +137,50 @@ model MailMessage {
   previousFolder MailFolder?
 
   @@index([workspaceId])
+}
+
+model PurchaseRequest {
+  id            String                @id @default(cuid())
+  workspaceId   String
+  workspace     Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  requestDate   DateTime
+  slipNo        String?
+  vendorCode    String?
+  vendorName    String
+  managerCode   String?
+  managerName   String?
+  taxType       String?
+  warehouseCode String?
+  warehouseName String?
+  currency      String?
+  dueDate       DateTime?
+  status        PurchaseRequestStatus @default(unconfirmed)
+  item          String
+  quantity      Float                 @default(0)
+  amount        Float                 @default(0)
+  project       String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  lines         PurchaseRequestLine[]
+
+  @@index([workspaceId])
+  @@index([workspaceId, requestDate])
+}
+
+model PurchaseRequestLine {
+  id        String          @id @default(cuid())
+  requestId String
+  request   PurchaseRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  itemCode  String?
+  itemName  String
+  spec      String?
+  qty       Float           @default(0)
+  unitPrice Float           @default(0)
+  supply    Float           @default(0)
+  vat       Float           @default(0)
+  total     Float           @default(0)
+  extra     String?
+  sortOrder Int             @default(0)
+
+  @@index([requestId])
 }

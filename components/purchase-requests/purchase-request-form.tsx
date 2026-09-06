@@ -7,11 +7,8 @@ import {
   Plus,
   Search,
   ArrowUpDown,
-  Package,
   FileInput,
   Warehouse,
-  ScanLine,
-  ShieldCheck,
   X,
   Send,
   Bell,
@@ -21,9 +18,8 @@ import {
 import {
   CURRENCY_OPTIONS,
   TAX_TYPE_OPTIONS,
-  appendPurchaseRequest,
-  nextPurchaseRequestId,
-  type PurchaseRequest,
+  fetchPurchaseRequest,
+  savePurchaseRequestApi,
 } from "@/lib/purchase-requests";
 import { cn } from "@/lib/utils";
 import {
@@ -142,14 +138,9 @@ function recalcLine(row: LineRow, taxType: string): LineRow {
 const LINE_TOOLBAR: { label: string; icon?: ReactNode }[] = [
   { label: "찾기", icon: <Search className="h-3 w-3" /> },
   { label: "정렬", icon: <ArrowUpDown className="h-3 w-3" /> },
-  { label: "My품목", icon: <Package className="h-3 w-3" /> },
-  { label: "소요" },
   { label: "주문" },
   { label: "전표불러오기", icon: <FileInput className="h-3 w-3" /> },
   { label: "재고불러오기", icon: <Warehouse className="h-3 w-3" /> },
-  { label: "바코드", icon: <ScanLine className="h-3 w-3" /> },
-  { label: "전표 바코드" },
-  { label: "검증", icon: <ShieldCheck className="h-3 w-3" /> },
 ];
 
 const fieldCls =
@@ -257,7 +248,61 @@ export function PurchaseRequestForm({
   const [warehouseSearchOpen, setWarehouseSearchOpen] = useState(false);
   const [itemSearchOpen, setItemSearchOpen] = useState(false);
   const [itemSearchLineId, setItemSearchLineId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const saveMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (mode !== "edit" || !editId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const row = await fetchPurchaseRequest(editId);
+        if (cancelled) return;
+        setMaster({
+          requestDate: row.requestDate,
+          slipNo: row.slipNo ?? "",
+          managerCode: row.managerCode ?? "",
+          managerName: row.managerName ?? row.manager ?? "",
+          taxType: row.taxType ?? "과세",
+          warehouseCode: row.warehouseCode ?? "",
+          warehouseName: row.warehouseName ?? row.warehouse ?? "",
+          vendorCode: row.vendorCode ?? "",
+          vendorName: row.vendorName ?? row.vendor ?? "",
+          currency: row.currency ?? "내자",
+          dueDate: row.dueDate || row.requestDate,
+        });
+        const linesFromApi = (row.lines ?? []).map((l) => {
+          const base = emptyLine();
+          return recalcLine(
+            {
+              ...base,
+              itemCode: l.itemCode ?? "",
+              itemName: l.itemName ?? "",
+              spec: l.spec ?? "",
+              qty: l.qty ? String(l.qty) : "",
+              unitPrice: l.unitPrice ? String(l.unitPrice) : "",
+              supply: l.supply ? String(l.supply) : "",
+              vat: l.vat ? String(l.vat) : "",
+              extra: l.extra ?? "",
+              total: l.total ? String(l.total) : "",
+            },
+            row.taxType ?? "과세"
+          );
+        });
+        setLines(
+          linesFromApi.length
+            ? linesFromApi
+            : Array.from({ length: INITIAL_LINE_COUNT }, () => emptyLine())
+        );
+      } catch (err) {
+        console.error(err);
+        alert("발주요청을 불러오지 못했습니다.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, editId]);
 
   const totals = useMemo(() => {
     let qty = 0;
@@ -294,11 +339,7 @@ export function PurchaseRequestForm({
     function onKey(e: KeyboardEvent) {
       if (e.key === "F8") {
         e.preventDefault();
-        handleSave(false);
-      }
-      if (e.key === "F7") {
-        e.preventDefault();
-        stub("저장/전표");
+        void handleSave();
       }
       if (e.key === "F3") {
         e.preventDefault();
@@ -360,7 +401,7 @@ export function PurchaseRequestForm({
     );
   }
 
-  function buildRowFromForm(): PurchaseRequest | null {
+  function buildPayloadFromForm(): Parameters<typeof savePurchaseRequestApi>[0] | null {
     const filled = filledLines();
     if (filled.length === 0) {
       alert("품목 행을 하나 이상 입력하세요.");
@@ -376,23 +417,44 @@ export function PurchaseRequestForm({
         acc + (parseNonNegNumber(l.total) || parseNonNegNumber(l.supply) || 0),
       0
     );
+    const vendor =
+      master.vendorName.trim() || master.vendorCode.trim() || "(미지정)";
+    const item =
+      filled.length === 1
+        ? first.itemName.trim() || first.itemCode.trim() || "(미지정)"
+        : `${first.itemName.trim() || first.itemCode.trim() || "품목"} 외 ${filled.length - 1}건`;
     return {
-      id: mode === "edit" && editId ? editId : nextPurchaseRequestId(),
+      id: mode === "edit" && editId ? editId : undefined,
       requestDate: master.requestDate,
-      vendor: master.vendorName.trim() || master.vendorCode.trim() || "(미지정)",
-      item:
-        filled.length === 1
-          ? first.itemName.trim() || first.itemCode.trim() || "(미지정)"
-          : `${first.itemName.trim() || first.itemCode.trim() || "품목"} 외 ${filled.length - 1}건`,
+      vendor,
+      vendorName: vendor,
+      vendorCode: master.vendorCode.trim() || undefined,
+      item,
       dueDate: master.dueDate || master.requestDate,
       quantity,
       amount,
       status: "unconfirmed",
-      manager: master.managerName || master.managerCode,
+      manager: master.managerName || master.managerCode || undefined,
+      managerName: master.managerName.trim() || undefined,
+      managerCode: master.managerCode.trim() || undefined,
       taxType: master.taxType,
-      warehouse: master.warehouseName || master.warehouseCode,
-      project: undefined,
+      warehouse: master.warehouseName || master.warehouseCode || undefined,
+      warehouseName: master.warehouseName.trim() || undefined,
+      warehouseCode: master.warehouseCode.trim() || undefined,
       currency: master.currency,
+      slipNo: master.slipNo.trim() || undefined,
+      lines: filled.map((l, i) => ({
+        itemCode: l.itemCode.trim() || undefined,
+        itemName: l.itemName.trim() || l.itemCode.trim() || "(미지정)",
+        spec: l.spec.trim() || undefined,
+        qty: parseNonNegNumber(l.qty),
+        unitPrice: parseNonNegNumber(l.unitPrice),
+        supply: parseNonNegNumber(l.supply),
+        vat: parseNonNegNumber(l.vat),
+        total: parseNonNegNumber(l.total) || parseNonNegNumber(l.supply),
+        extra: l.extra.trim() || undefined,
+        sortOrder: i,
+      })),
     };
   }
 
@@ -404,20 +466,30 @@ export function PurchaseRequestForm({
     router.push("/purchase-requests");
   }
 
-  function handleSave(andSlip: boolean) {
-    if (andSlip) {
-      stub("저장/전표");
-      return;
-    }
-    const row = buildRowFromForm();
+  async function handleSave() {
+    const row = buildPayloadFromForm();
     if (!row) return;
-    appendPurchaseRequest(row);
-    onSaved?.();
-    if (isModal) {
-      finishClose();
-      return;
+    if (saving) return;
+    setSaving(true);
+    try {
+      await savePurchaseRequestApi(row);
+      alert("저장되었습니다.");
+      onSaved?.();
+      if (isModal) {
+        finishClose();
+        return;
+      }
+      router.push("/purchase-requests");
+    } catch (err) {
+      console.error(err);
+      alert(
+        err instanceof Error
+          ? `저장 실패: ${err.message}`
+          : "저장에 실패했습니다."
+      );
+    } finally {
+      setSaving(false);
     }
-    router.push("/purchase-requests");
   }
 
   function resetForm() {
@@ -439,7 +511,7 @@ export function PurchaseRequestForm({
           <h2 className="text-base font-semibold tracking-tight text-slate-900">{title}</h2>
           {!isModal && (
             <p className="text-xs text-muted-foreground">
-              발주요청 전표를 입력합니다. 저장 시 조회 목록에 반영됩니다. (클라이언트 목업)
+              발주요청 전표를 입력합니다. 저장 시 서버(DB)에 반영됩니다.
             </p>
           )}
         </div>
@@ -808,9 +880,10 @@ export function PurchaseRequestForm({
                 type="button"
                 size="sm"
                 className="h-8 min-w-[72px] rounded-r-none"
-                onClick={() => handleSave(false)}
+                disabled={saving}
+                onClick={() => void handleSave()}
               >
-                저장
+                {saving ? "저장 중…" : "저장"}
               </Button>
               <Button
                 type="button"
@@ -834,7 +907,7 @@ export function PurchaseRequestForm({
                     className="block w-full px-3 py-1.5 text-left text-[11px] text-slate-700 hover:bg-indigo-50"
                     onClick={() => {
                       setSaveMenuOpen(false);
-                      handleSave(false);
+                      void handleSave();
                     }}
                   >
                     저장
@@ -854,15 +927,6 @@ export function PurchaseRequestForm({
                 </div>
               )}
             </div>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              className="h-8"
-              onClick={() => handleSave(true)}
-            >
-              저장/전표
-            </Button>
             <Button type="button" size="sm" variant="outline" className="h-8" onClick={resetForm}>
               다시 작성
             </Button>

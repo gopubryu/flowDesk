@@ -16,7 +16,7 @@ import {
   PURCHASE_REQUEST_STATUS_LABEL,
   countByPurchaseRequestStatus,
   defaultPurchaseRequestDateRange,
-  loadPurchaseRequests,
+  fetchPurchaseRequests,
   summarizePurchaseRequests,
   type PurchaseRequest,
   type PurchaseRequestStatus,
@@ -160,8 +160,21 @@ export default function PurchaseRequestStatusPage() {
   });
 
   useEffect(() => {
-    setRows(loadPurchaseRequests());
-    setHydrated(true);
+    let cancelled = false;
+    (async () => {
+      try {
+        const loaded = await fetchPurchaseRequests();
+        if (!cancelled) setRows(loaded);
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) setRows([]);
+      } finally {
+        if (!cancelled) setHydrated(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function applyFilters() {
@@ -448,7 +461,7 @@ export default function PurchaseRequestStatusPage() {
       <div>
         <h2 className="text-base font-semibold tracking-tight text-slate-900">발주요청현황</h2>
         <p className="text-xs text-muted-foreground">
-          Ecount형 현황·집계 조회 (목업 · localStorage 연동)
+          Ecount형 현황·집계 조회
         </p>
       </div>
 
