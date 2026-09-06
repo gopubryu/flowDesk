@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EmployeeSearchDialog } from "@/components/employees/employee-search-dialog";
 import { WarehouseSearchDialog } from "@/components/warehouses/warehouse-search-dialog";
+import { ItemSearchDialog } from "@/components/items/item-search-dialog";
 
 export type LineRow = {
   id: string;
@@ -217,6 +218,8 @@ export function PurchaseRequestForm({
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const [employeeSearchOpen, setEmployeeSearchOpen] = useState(false);
   const [warehouseSearchOpen, setWarehouseSearchOpen] = useState(false);
+  const [itemSearchOpen, setItemSearchOpen] = useState(false);
+  const [itemSearchLineId, setItemSearchLineId] = useState<string | null>(null);
   const saveMenuRef = useRef<HTMLDivElement>(null);
 
   const totals = useMemo(() => {
@@ -657,6 +660,13 @@ export function PurchaseRequestForm({
                           readOnly={readOnly}
                           placeholder={isExtra ? "" : undefined}
                           onChange={(e) => updateLine(line.id, { [key]: e.target.value })}
+                          onDoubleClick={() => {
+                            if (key === "itemCode") {
+                              setItemSearchLineId(line.id);
+                              setItemSearchOpen(true);
+                            }
+                          }}
+                          title={key === "itemCode" ? "더블클릭하여 품목 검색" : undefined}
                         />
                       </td>
                     );
@@ -814,6 +824,23 @@ export function PurchaseRequestForm({
         onOpenChange={setWarehouseSearchOpen}
         onSelect={(wh) => {
           setMaster((m) => ({ ...m, warehouseCode: wh.code, warehouseName: wh.name }));
+        }}
+      />
+
+      <ItemSearchDialog
+        open={itemSearchOpen}
+        onOpenChange={(open) => {
+          setItemSearchOpen(open);
+          if (!open) setItemSearchLineId(null);
+        }}
+        onSelect={(item) => {
+          if (!itemSearchLineId) return;
+          updateLine(itemSearchLineId, {
+            itemCode: item.code,
+            itemName: item.name,
+            ...(item.spec ? { spec: item.spec } : {}),
+          });
+          setItemSearchLineId(null);
         }}
       />
 
