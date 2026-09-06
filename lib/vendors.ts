@@ -1,8 +1,10 @@
 export type VendorCodeType =
+  | "사업자등록번호"
   | "비사업자(내국인)"
   | "비사업자(외국인)";
 
 export const VENDOR_CODE_TYPE_OPTIONS: VendorCodeType[] = [
+  "사업자등록번호",
   "비사업자(내국인)",
   "비사업자(외국인)",
 ];
@@ -39,13 +41,16 @@ function normalizeCodeType(value: unknown): VendorCodeType {
   // migrate legacy labels (no parentheses)
   if (raw === "비사업자내국인" || raw === "비사업자(내국인)") return "비사업자(내국인)";
   if (raw === "비사업자외국인" || raw === "비사업자(외국인)") return "비사업자(외국인)";
-  // old code-type option "사업자등록번호" -> default
-  if (raw === "사업자등록번호") return "비사업자(내국인)";
-  if (raw === "비사업자(내국인)" || raw === "비사업자(외국인)") {
+  if (
+    raw === "사업자등록번호" ||
+    raw === "비사업자(내국인)" ||
+    raw === "비사업자(외국인)"
+  ) {
     return raw;
   }
   return "비사업자(내국인)";
 }
+
 
 
 
