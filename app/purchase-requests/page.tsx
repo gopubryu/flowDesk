@@ -6,17 +6,19 @@ import {
   FilePlus2,
   Mail,
   RefreshCw,
-  Send,
   Printer,
   FileStack,
   Search,
   Paperclip,
   Pencil,
+  Trash2,
 } from "lucide-react";
 import {
+  deletePurchaseRequestApi,
   fetchPurchaseRequests,
   PURCHASE_REQUEST_STATUS_LABEL,
   PURCHASE_REQUEST_STATUS_TABS,
+  updatePurchaseRequestStatusApi,
   type PurchaseRequest,
   type PurchaseRequestStatus,
 } from "@/lib/purchase-requests";
@@ -26,10 +28,24 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { PurchaseRequestForm } from "@/components/purchase-requests/purchase-request-form";
 
 type TabKey = "all" | PurchaseRequestStatus;
+
+const STATUS_OPTIONS: PurchaseRequestStatus[] = [
+  "approval",
+  "unconfirmed",
+  "confirmed",
+  "in_progress",
+  "completed",
+];
 
 const statusVariant: Record<
   PurchaseRequestStatus,
@@ -67,6 +83,9 @@ export default function PurchaseRequestsPage() {
   });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [newOpen, setNewOpen] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [nextStatus, setNextStatus] = useState<PurchaseRequestStatus>("unconfirmed");
+  const [actionBusy, setActionBusy] = useState(false);
 
   async function refreshFromApi() {
     setLoading(true);
@@ -170,6 +189,60 @@ export default function PurchaseRequestsPage() {
 
   function stub(action: string) {
     alert(`${action} (데모)`);
+  }
+
+  async function deleteSelected() {
+    if (selected.size === 0) {
+      alert("삭제할 항목을 선택해 주세요.");
+      return;
+    }
+    if (!confirm(`선택한 ${selected.size}건을 삭제할까요?`)) return;
+    setActionBusy(true);
+    try {
+      const ids = Array.from(selected);
+      for (const id of ids) {
+        await deletePurchaseRequestApi(id);
+      }
+      setSelected(new Set());
+      await refreshFromApi();
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : "삭제에 실패했습니다.");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  function openStatusChange() {
+    if (selected.size === 0) {
+      alert("진행상태를 변경할 항목을 선택해 주세요.");
+      return;
+    }
+    const first = rows.find((r) => selected.has(r.id));
+    setNextStatus(first?.status ?? "unconfirmed");
+    setStatusOpen(true);
+  }
+
+  async function applyStatusChange() {
+    if (selected.size === 0) {
+      alert("진행상태를 변경할 항목을 선택해 주세요.");
+      return;
+    }
+    setActionBusy(true);
+    try {
+      const ids = Array.from(selected);
+      for (const id of ids) {
+        await updatePurchaseRequestStatusApi(id, nextStatus);
+      }
+      setStatusOpen(false);
+      setSelected(new Set());
+      await refreshFromApi();
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : "진행상태 변경에 실패했습니다.");
+    } finally {
+      setActionBusy(false);
+    }
   }
 
   const colCount = 14;
@@ -409,6 +482,7 @@ export default function PurchaseRequestsPage() {
                 size="sm"
                 className="h-8 gap-1.5"
                 onClick={() => setNewOpen(true)}
+                disabled={actionBusy}
               >
                 <FilePlus2 className="h-3.5 w-3.5" />
                 신규
@@ -419,6 +493,7 @@ export default function PurchaseRequestsPage() {
                 variant="outline"
                 className="h-8 gap-1.5"
                 onClick={() => stub("이메일")}
+                disabled={actionBusy}
               >
                 <Mail className="h-3.5 w-3.5" />
                 이메일
@@ -428,7 +503,8 @@ export default function PurchaseRequestsPage() {
                 size="sm"
                 variant="outline"
                 className="h-8 gap-1.5"
-                onClick={() => stub("진행상태변경")}
+                onClick={openStatusChange}
+                disabled={actionBusy}
               >
                 <RefreshCw className="h-3.5 w-3.5" />
                 진행상태변경
@@ -437,11 +513,12 @@ export default function PurchaseRequestsPage() {
                 type="button"
                 size="sm"
                 variant="outline"
-                className="h-8 gap-1.5"
-                onClick={() => stub("보내기")}
+                className="h-8 gap-1.5 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                onClick={() => void deleteSelected()}
+                disabled={actionBusy}
               >
-                <Send className="h-3.5 w-3.5" />
-                보내기
+                <Trash2 className="h-3.5 w-3.5" />
+                삭제
               </Button>
               <Button
                 type="button"
@@ -449,6 +526,7 @@ export default function PurchaseRequestsPage() {
                 variant="outline"
                 className="h-8 gap-1.5"
                 onClick={() => stub("인쇄")}
+                disabled={actionBusy}
               >
                 <Printer className="h-3.5 w-3.5" />
                 인쇄
@@ -459,6 +537,7 @@ export default function PurchaseRequestsPage() {
                 variant="outline"
                 className="h-8 gap-1.5"
                 onClick={() => stub("다른전표생성")}
+                disabled={actionBusy}
               >
                 <FileStack className="h-3.5 w-3.5" />
                 다른전표생성
@@ -479,6 +558,63 @@ export default function PurchaseRequestsPage() {
             onClose={closeNewModal}
             onSaved={() => void refreshFromApi()}
           />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={statusOpen}
+        onOpenChange={(open) => {
+          if (!actionBusy) setStatusOpen(open);
+        }}
+      >
+        <DialogContent
+          className="max-w-sm"
+          onClose={() => {
+            if (!actionBusy) setStatusOpen(false);
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>진행상태 변경</DialogTitle>
+          </DialogHeader>
+          <p className="mb-3 text-xs text-muted-foreground">
+            선택한 {selected.size}건의 진행상태를 변경합니다.
+          </p>
+          <Label htmlFor="pr-status-select" className="mb-1.5 block text-xs">
+            새 진행상태
+          </Label>
+          <select
+            id="pr-status-select"
+            className="h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+            value={nextStatus}
+            onChange={(e) => setNextStatus(e.target.value as PurchaseRequestStatus)}
+            disabled={actionBusy}
+          >
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {PURCHASE_REQUEST_STATUS_LABEL[s]}
+              </option>
+            ))}
+          </select>
+          <DialogFooter className="mt-4 gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setStatusOpen(false)}
+              disabled={actionBusy}
+            >
+              취소
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="bg-indigo-600 hover:bg-indigo-700"
+              onClick={() => void applyStatusChange()}
+              disabled={actionBusy}
+            >
+              {actionBusy ? "저장 중…" : "적용"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

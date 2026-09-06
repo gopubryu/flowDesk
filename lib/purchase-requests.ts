@@ -306,6 +306,17 @@ export async function deletePurchaseRequestApi(id: string): Promise<void> {
   await apiJson(`/api/purchase-requests/${id}`, { method: "DELETE" });
 }
 
+/** PATCH only status for selected rows on list */
+export async function updatePurchaseRequestStatusApi(
+  id: string,
+  status: PurchaseRequestStatus
+): Promise<PurchaseRequest> {
+  return apiJson<PurchaseRequest>(`/api/purchase-requests/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
 /** @deprecated Prefer fetchPurchaseRequests — kept for offline fallback */
 export function loadPurchaseRequests(): PurchaseRequest[] {
   if (typeof window === "undefined") return mockPurchaseRequests;
