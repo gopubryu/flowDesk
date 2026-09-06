@@ -548,7 +548,7 @@ export function PurchaseRequestForm({
     setSaving(true);
     try {
       await savePurchaseRequestApi(row);
-      alert("저장되었습니다.");
+      alert("저장되었습니다. (헤더·품목·첨부)");
       onSaved?.();
       if (isModal) {
         finishClose();
