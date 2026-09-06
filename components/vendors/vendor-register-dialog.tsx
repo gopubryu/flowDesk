@@ -144,10 +144,14 @@ function emptyForm(): FormState {
 export function VendorRegisterDialog({ open, onOpenChange, onSaved }: Props) {
   const [form, setForm] = useState<FormState>(() => emptyForm());
   const [postcodeOpen, setPostcodeOpen] = useState(false);
+  const [postcodeStep, setPostcodeStep] = useState<"search" | "detail">("search");
+  const [selectedAddress, setSelectedAddress] = useState("");
+  const [detailAddress, setDetailAddress] = useState("");
   const postcodeContainerRef = useRef<HTMLDivElement>(null);
   const postcodeOpenRef = useRef(false);
   const suppressRegisterCloseUntilRef = useRef(0);
   const wasOpenRef = useRef(false);
+  const detailInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     postcodeOpenRef.current = postcodeOpen;
@@ -158,12 +162,15 @@ export function VendorRegisterDialog({ open, onOpenChange, onSaved }: Props) {
     if (open && !wasOpenRef.current) {
       setForm(emptyForm());
       setPostcodeOpen(false);
+      setPostcodeStep("search");
+      setSelectedAddress("");
+      setDetailAddress("");
     }
     wasOpenRef.current = open;
   }, [open]);
 
   useEffect(() => {
-    if (!postcodeOpen) return;
+    if (!postcodeOpen || postcodeStep !== "search") return;
 
     let cancelled = false;
 
@@ -177,11 +184,9 @@ export function VendorRegisterDialog({ open, onOpenChange, onSaved }: Props) {
         new window.daum.Postcode({
           oncomplete: (data) => {
             const address = formatPostcodeAddress(data);
-            setForm((f) => ({ ...f, address }));
-            // Suppress parent dialog close while the select-click falls through
-            // after the postcode overlay unmounts.
-            suppressRegisterCloseUntilRef.current = Date.now() + 800;
-            setTimeout(() => setPostcodeOpen(false), 150);
+            setSelectedAddress(address);
+            setDetailAddress("");
+            setPostcodeStep("detail");
           },
           width: "100%",
           height: "100%",
@@ -197,7 +202,14 @@ export function VendorRegisterDialog({ open, onOpenChange, onSaved }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [postcodeOpen]);
+  }, [postcodeOpen, postcodeStep]);
+
+  useEffect(() => {
+    if (postcodeOpen && postcodeStep === "detail") {
+      const t = setTimeout(() => detailInputRef.current?.focus(), 50);
+      return () => clearTimeout(t);
+    }
+  }, [postcodeOpen, postcodeStep]);
 
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -207,12 +219,45 @@ export function VendorRegisterDialog({ open, onOpenChange, onSaved }: Props) {
     setForm(emptyForm());
   }
 
+  function closePostcodeOverlay() {
+    suppressRegisterCloseUntilRef.current = Date.now() + 800;
+    setTimeout(() => {
+      setPostcodeOpen(false);
+      setPostcodeStep("search");
+      setSelectedAddress("");
+      setDetailAddress("");
+    }, 150);
+  }
+
+  function handleDetailConfirm() {
+    const detail = detailAddress.trim();
+    const address = detail ? `${selectedAddress} ${detail}` : selectedAddress;
+    setForm((f) => ({ ...f, address }));
+    closePostcodeOverlay();
+  }
+
+  function handleSearchAgain() {
+    setDetailAddress("");
+    setSelectedAddress("");
+    setPostcodeStep("search");
+  }
+
+  function openPostcodeSearch() {
+    setPostcodeStep("search");
+    setSelectedAddress("");
+    setDetailAddress("");
+    setPostcodeOpen(true);
+  }
+
   function handleRegisterOpenChange(next: boolean) {
     if (
       next === false &&
       (postcodeOpenRef.current || Date.now() < suppressRegisterCloseUntilRef.current)
     ) {
       setPostcodeOpen(false);
+      setPostcodeStep("search");
+      setSelectedAddress("");
+      setDetailAddress("");
       return;
     }
     onOpenChange(next);
@@ -422,7 +467,7 @@ export function VendorRegisterDialog({ open, onOpenChange, onSaved }: Props) {
                   size="sm"
                   variant="outline"
                   className="h-9 shrink-0 border-indigo-200 px-3 text-indigo-700 hover:bg-indigo-50"
-                  onClick={() => setPostcodeOpen(true)}
+                  onClick={openPostcodeSearch}
                 >
                   주소검색
                 </Button>
@@ -500,7 +545,7 @@ export function VendorRegisterDialog({ open, onOpenChange, onSaved }: Props) {
         <div className="fixed inset-0 z-[100] flex items-center justify-center">
           <div
             className="fixed inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setPostcodeOpen(false)}
+            onClick={closePostcodeOverlay}
             aria-hidden
           />
           <div className="pointer-events-none relative z-[100] mx-4 flex w-full justify-center">
@@ -513,7 +558,7 @@ export function VendorRegisterDialog({ open, onOpenChange, onSaved }: Props) {
                 variant="ghost"
                 size="icon"
                 className="absolute right-3 top-3 z-10 h-8 w-8"
-                onClick={() => setPostcodeOpen(false)}
+                onClick={closePostcodeOverlay}
                 type="button"
               >
                 <X className="h-4 w-4" />
@@ -521,17 +566,70 @@ export function VendorRegisterDialog({ open, onOpenChange, onSaved }: Props) {
               </Button>
               <div className="border-b border-slate-100 bg-gradient-to-r from-indigo-50 to-slate-50 px-5 py-4 pr-12">
                 <DialogHeader className="mb-0">
-                  <DialogTitle className="text-base text-slate-900">주소 검색</DialogTitle>
+                  <DialogTitle className="text-base text-slate-900">
+                    {postcodeStep === "search" ? "주소 검색" : "세부주소 입력"}
+                  </DialogTitle>
                   <p className="mt-1 text-xs text-slate-500">
-                    도로명 또는 지번으로 주소를 검색하세요.
+                    {postcodeStep === "search"
+                      ? "도로명 또는 지번으로 주소를 검색하세요."
+                      : "선택한 주소에 세부주소를 입력한 뒤 확인을 눌러 주세요."}
                   </p>
                 </DialogHeader>
               </div>
-              <div
-                ref={postcodeContainerRef}
-                className="w-full overflow-hidden bg-white"
-                style={{ height: 400 }}
-              />
+              {postcodeStep === "search" ? (
+                <div
+                  ref={postcodeContainerRef}
+                  className="w-full overflow-hidden bg-white"
+                  style={{ height: 400 }}
+                />
+              ) : (
+                <div className="space-y-4 px-5 py-4">
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs text-slate-600">선택한 주소</Label>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800">
+                      {selectedAddress}
+                    </div>
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="vendor-detail-address" className="text-xs text-slate-600">
+                      세부주소
+                    </Label>
+                    <Input
+                      id="vendor-detail-address"
+                      ref={detailInputRef}
+                      className={fieldCls}
+                      value={detailAddress}
+                      onChange={(e) => setDetailAddress(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleDetailConfirm();
+                        }
+                      }}
+                      placeholder="동·호수 등 세부주소를 입력하세요"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-9 border-slate-200"
+                      onClick={handleSearchAgain}
+                    >
+                      다시 검색
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-9 min-w-[72px] bg-indigo-600 hover:bg-indigo-700"
+                      onClick={handleDetailConfirm}
+                    >
+                      확인
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
