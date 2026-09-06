@@ -600,7 +600,7 @@ export default function PurchaseRequestStatusPage() {
               </label>
               <Button type="button" size="sm" className="h-7 gap-1" onClick={applyFilters}>
                 <Search className="h-3.5 w-3.5" />
-                검색(F8)
+                검색
               </Button>
             </div>
           </CardContent>
@@ -645,7 +645,7 @@ export default function PurchaseRequestStatusPage() {
               집계 미리보기 — {agg1} × {agg2 || "(미선택)"} · 검색 시 현황 데이터 기준으로 요약합니다.
               <div className="mt-2">
                 <Button type="button" size="sm" className="h-7" onClick={applyFilters}>
-                  검색(F8)
+                  검색
                 </Button>
               </div>
             </div>
@@ -657,7 +657,7 @@ export default function PurchaseRequestStatusPage() {
       <div className="flex flex-wrap gap-1">
         {(
           [
-            ["search", "검색(F8)"],
+            ["search", "검색"],
             ["today", "금일"],
             ["yesterday", "전일"],
             ["this_week", "금주"],

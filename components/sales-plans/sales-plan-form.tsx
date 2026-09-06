@@ -13,8 +13,6 @@ import {
   ScanLine,
   ShieldCheck,
   X,
-  Settings2,
-  CircleHelp,
   Send,
   Bell,
   ChevronDown,
@@ -61,16 +59,6 @@ type Master = {
   currency: string;
   dueDate: string;
 };
-
-const OPTION_MENU_ITEMS = [
-  "업무설정",
-  "기능설정",
-  "입력화면설정",
-  "조건양식설정",
-  "My코드/문구설정",
-  "매핑센터",
-  "진행상태 변경 설정",
-] as const;
 
 const INITIAL_LINE_COUNT = 3;
 
@@ -140,7 +128,7 @@ function recalcLine(row: LineRow, taxType: string): LineRow {
 }
 
 const LINE_TOOLBAR: { label: string; icon?: ReactNode }[] = [
-  { label: "찾기(F3)", icon: <Search className="h-3 w-3" /> },
+  { label: "찾기", icon: <Search className="h-3 w-3" /> },
   { label: "정렬", icon: <ArrowUpDown className="h-3 w-3" /> },
   { label: "My품목", icon: <Package className="h-3 w-3" /> },
   { label: "소요" },
@@ -226,9 +214,7 @@ export function SalesPlanForm({
   const [lines, setLines] = useState<LineRow[]>(() =>
     Array.from({ length: INITIAL_LINE_COUNT }, () => emptyLine())
   );
-  const [optionOpen, setOptionOpen] = useState(false);
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
-  const optionRef = useRef<HTMLDivElement>(null);
   const saveMenuRef = useRef<HTMLDivElement>(null);
 
   const totals = useMemo(() => {
@@ -252,7 +238,6 @@ export function SalesPlanForm({
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
       const t = e.target as Node;
-      if (optionRef.current && !optionRef.current.contains(t)) setOptionOpen(false);
       if (saveMenuRef.current && !saveMenuRef.current.contains(t)) setSaveMenuOpen(false);
     }
     document.addEventListener("mousedown", onDocClick);
@@ -267,11 +252,11 @@ export function SalesPlanForm({
       }
       if (e.key === "F7") {
         e.preventDefault();
-        stub("저장/전표(F7)");
+        stub("저장/전표");
       }
       if (e.key === "F3") {
         e.preventDefault();
-        stub("찾기(F3)");
+        stub("찾기");
       }
     }
     window.addEventListener("keydown", onKey);
@@ -382,7 +367,7 @@ export function SalesPlanForm({
 
   function handleSave(andSlip: boolean) {
     if (andSlip) {
-      stub("저장/전표(F7)");
+      stub("저장/전표");
       return;
     }
     const row = buildRowFromForm();
@@ -420,52 +405,6 @@ export function SalesPlanForm({
           )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <div className="relative" ref={optionRef}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1 px-2 text-[11px] text-slate-600"
-              onClick={() => setOptionOpen((o) => !o)}
-              aria-expanded={optionOpen}
-              aria-haspopup="menu"
-            >
-              <Settings2 className="h-3.5 w-3.5" />
-              Option
-              <ChevronDown className="h-3 w-3 opacity-60" />
-            </Button>
-            {optionOpen && (
-              <div
-                role="menu"
-                className="absolute right-0 z-40 mt-1 min-w-[180px] rounded-md border border-slate-200 bg-white py-1 shadow-lg"
-              >
-                {OPTION_MENU_ITEMS.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    role="menuitem"
-                    className="block w-full px-3 py-1.5 text-left text-[11px] text-slate-700 hover:bg-indigo-50 hover:text-indigo-800"
-                    onClick={() => {
-                      setOptionOpen(false);
-                      stub(item);
-                    }}
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1 px-2 text-[11px] text-slate-600"
-            onClick={() => stub("도움말")}
-          >
-            <CircleHelp className="h-3.5 w-3.5" />
-            도움말
-          </Button>
           {isModal && (
             <Button
               type="button"
@@ -779,7 +718,7 @@ export function SalesPlanForm({
               <Bell className="h-3.5 w-3.5" />
             </Button>
             <p className="ml-1 text-[11px] text-muted-foreground">
-              {mode === "edit" ? `수정 모드 · ${editId}` : "신규 입력"} · F8 저장 · F7 저장/전표
+              {mode === "edit" ? `수정 모드 · ${editId}` : "신규 입력"}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
@@ -790,7 +729,7 @@ export function SalesPlanForm({
                 className="h-8 min-w-[72px] rounded-r-none"
                 onClick={() => handleSave(false)}
               >
-                저장(F8)
+                저장
               </Button>
               <Button
                 type="button"
@@ -841,7 +780,7 @@ export function SalesPlanForm({
               className="h-8"
               onClick={() => handleSave(true)}
             >
-              저장/전표(F7)
+              저장/전표
             </Button>
             <Button type="button" size="sm" variant="outline" className="h-8" onClick={resetForm}>
               다시 작성
@@ -855,15 +794,6 @@ export function SalesPlanForm({
                 닫기
               </Button>
             )}
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-8 text-slate-500"
-              onClick={() => stub("웹자료올리기")}
-            >
-              웹자료올리기
-            </Button>
           </div>
         </div>
       </div>

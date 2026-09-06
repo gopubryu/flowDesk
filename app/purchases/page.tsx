@@ -486,7 +486,7 @@ export default function PurchasesPage() {
                 onClick={() => setNewOpen(true)}
               >
                 <FilePlus2 className="h-3.5 w-3.5" />
-                신규(F2)
+                신규
               </Button>
               <Button
                 type="button"
