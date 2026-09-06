@@ -1,11 +1,11 @@
-export type PurchasePlanStatus =
+export type SalesPlanStatus =
   | "confirmed"
   | "in_progress"
   | "completed";
 
-export interface PurchasePlan {
+export interface SalesPlan {
   id: string;
-  /** 발주계획일자 */
+  /** 판매계획일자 */
   planDate: string;
   vendor: string;
   vendorCode?: string;
@@ -17,7 +17,7 @@ export interface PurchasePlan {
   vat: number;
   /** 합계 = amount + vat */
   total: number;
-  status: PurchasePlanStatus;
+  status: SalesPlanStatus;
   /** 최종수정자 */
   lastModifier?: string;
   /** 종결여부 */
@@ -30,8 +30,8 @@ export interface PurchasePlan {
   dueDate?: string;
 }
 
-export const PURCHASE_PLAN_STATUS_TABS: {
-  key: "all" | PurchasePlanStatus;
+export const SALES_PLAN_STATUS_TABS: {
+  key: "all" | SalesPlanStatus;
   label: string;
 }[] = [
   { key: "all", label: "전체" },
@@ -40,7 +40,7 @@ export const PURCHASE_PLAN_STATUS_TABS: {
   { key: "completed", label: "완료" },
 ];
 
-export const PURCHASE_PLAN_STATUS_LABEL: Record<PurchasePlanStatus, string> = {
+export const SALES_PLAN_STATUS_LABEL: Record<SalesPlanStatus, string> = {
   confirmed: "확인",
   in_progress: "진행중",
   completed: "완료",
@@ -62,12 +62,12 @@ export const CURRENCY_OPTIONS = [
   "유로",
 ] as const;
 
-const STORAGE_KEY = "flowdesk-purchase-plans";
+const STORAGE_KEY = "flowdesk-sales-plans";
 
-/** Local mock rows for 발주계획조회 — not wired to Prisma/Neon */
-export const mockPurchasePlans: PurchasePlan[] = [
+/** Local mock rows for 판매계획조회 — not wired to Prisma/Neon */
+export const mockSalesPlans: SalesPlan[] = [
   {
-    id: "pp-001",
+    id: "sp-001",
     planDate: "2026-08-28",
     vendor: "한빛산업",
     vendorCode: "V001",
@@ -87,7 +87,7 @@ export const mockPurchasePlans: PurchasePlan[] = [
     dueDate: "2026-09-10",
   },
   {
-    id: "pp-002",
+    id: "sp-002",
     planDate: "2026-08-29",
     vendor: "세진전자",
     vendorCode: "V002",
@@ -107,7 +107,7 @@ export const mockPurchasePlans: PurchasePlan[] = [
     dueDate: "2026-09-05",
   },
   {
-    id: "pp-003",
+    id: "sp-003",
     planDate: "2026-08-30",
     vendor: "동아포장",
     vendorCode: "V003",
@@ -127,7 +127,7 @@ export const mockPurchasePlans: PurchasePlan[] = [
     dueDate: "2026-09-08",
   },
   {
-    id: "pp-004",
+    id: "sp-004",
     planDate: "2026-09-01",
     vendor: "미래케미칼",
     vendorCode: "V004",
@@ -147,7 +147,7 @@ export const mockPurchasePlans: PurchasePlan[] = [
     dueDate: "2026-09-12",
   },
   {
-    id: "pp-005",
+    id: "sp-005",
     planDate: "2026-09-01",
     vendor: "코리아베어링",
     vendorCode: "V005",
@@ -167,7 +167,7 @@ export const mockPurchasePlans: PurchasePlan[] = [
     dueDate: "2026-09-15",
   },
   {
-    id: "pp-006",
+    id: "sp-006",
     planDate: "2026-09-02",
     vendor: "푸른물산",
     vendorCode: "V006",
@@ -187,7 +187,7 @@ export const mockPurchasePlans: PurchasePlan[] = [
     dueDate: "2026-09-18",
   },
   {
-    id: "pp-007",
+    id: "sp-007",
     planDate: "2026-09-02",
     vendor: "스마트오피스",
     vendorCode: "V007",
@@ -207,7 +207,7 @@ export const mockPurchasePlans: PurchasePlan[] = [
     dueDate: "2026-09-07",
   },
   {
-    id: "pp-008",
+    id: "sp-008",
     planDate: "2026-09-03",
     vendor: "남해철강",
     vendorCode: "V008",
@@ -227,7 +227,7 @@ export const mockPurchasePlans: PurchasePlan[] = [
     dueDate: "2026-09-20",
   },
   {
-    id: "pp-009",
+    id: "sp-009",
     planDate: "2026-09-03",
     vendor: "이노텍솔루션",
     vendorCode: "V009",
@@ -247,7 +247,7 @@ export const mockPurchasePlans: PurchasePlan[] = [
     dueDate: "2026-09-14",
   },
   {
-    id: "pp-010",
+    id: "sp-010",
     planDate: "2026-09-04",
     vendor: "한빛산업",
     vendorCode: "V001",
@@ -268,40 +268,50 @@ export const mockPurchasePlans: PurchasePlan[] = [
   },
 ];
 
-export function loadPurchasePlans(): PurchasePlan[] {
-  if (typeof window === "undefined") return mockPurchasePlans;
+const OLD_STORAGE_KEY = "flowdesk-purchase-plans";
+
+export function loadSalesPlans(): SalesPlan[] {
+  if (typeof window === "undefined") return mockSalesPlans;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [...mockPurchasePlans];
-    const parsed = JSON.parse(raw) as PurchasePlan[];
-    return Array.isArray(parsed) ? parsed : [...mockPurchasePlans];
+    let raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      const legacy = window.localStorage.getItem(OLD_STORAGE_KEY);
+      if (legacy) {
+        window.localStorage.setItem(STORAGE_KEY, legacy);
+        window.localStorage.removeItem(OLD_STORAGE_KEY);
+        raw = legacy;
+      }
+    }
+    if (!raw) return [...mockSalesPlans];
+    const parsed = JSON.parse(raw) as SalesPlan[];
+    return Array.isArray(parsed) ? parsed : [...mockSalesPlans];
   } catch {
-    return [...mockPurchasePlans];
+    return [...mockSalesPlans];
   }
 }
 
-export function savePurchasePlans(rows: PurchasePlan[]): void {
+export function saveSalesPlans(rows: SalesPlan[]): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
 }
 
-export function appendPurchasePlan(row: PurchasePlan): PurchasePlan[] {
-  const next = [row, ...loadPurchasePlans()];
-  savePurchasePlans(next);
+export function appendSalesPlan(row: SalesPlan): SalesPlan[] {
+  const next = [row, ...loadSalesPlans()];
+  saveSalesPlans(next);
   return next;
 }
 
-export function nextPurchasePlanId(): string {
-  const rows = loadPurchasePlans();
+export function nextSalesPlanId(): string {
+  const rows = loadSalesPlans();
   let max = 0;
   for (const r of rows) {
-    const m = /^pp-(\d+)$/i.exec(r.id);
+    const m = /^sp-(\d+)$/i.exec(r.id);
     if (m) max = Math.max(max, Number(m[1]));
   }
-  return `pp-${String(max + 1).padStart(3, "0")}`;
+  return `sp-${String(max + 1).padStart(3, "0")}`;
 }
 
-export interface PurchasePlanStatusSummary {
+export interface SalesPlanStatusSummary {
   count: number;
   quantitySum: number;
   amountSum: number;
@@ -309,9 +319,9 @@ export interface PurchasePlanStatusSummary {
   inProgressCount: number;
 }
 
-export function summarizePurchasePlans(
-  rows: PurchasePlan[]
-): PurchasePlanStatusSummary {
+export function summarizeSalesPlans(
+  rows: SalesPlan[]
+): SalesPlanStatusSummary {
   let quantitySum = 0;
   let amountSum = 0;
   let totalSum = 0;
@@ -331,16 +341,16 @@ export function summarizePurchasePlans(
   };
 }
 
-export function countByPurchasePlanStatus(
-  rows: PurchasePlan[]
-): { status: PurchasePlanStatus | "all"; label: string; count: number }[] {
-  const counts: Record<PurchasePlanStatus, number> = {
+export function countBySalesPlanStatus(
+  rows: SalesPlan[]
+): { status: SalesPlanStatus | "all"; label: string; count: number }[] {
+  const counts: Record<SalesPlanStatus, number> = {
     confirmed: 0,
     in_progress: 0,
     completed: 0,
   };
   for (const r of rows) counts[r.status] += 1;
-  return PURCHASE_PLAN_STATUS_TABS.map((t) => ({
+  return SALES_PLAN_STATUS_TABS.map((t) => ({
     status: t.key,
     label: t.label,
     count: t.key === "all" ? rows.length : counts[t.key],
@@ -348,7 +358,7 @@ export function countByPurchasePlanStatus(
 }
 
 /** Default ~2 month range ending today (local) */
-export function defaultPurchasePlanDateRange(today = new Date()): {
+export function defaultSalesPlanDateRange(today = new Date()): {
   from: string;
   to: string;
 } {

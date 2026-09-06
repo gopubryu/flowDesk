@@ -1,7 +1,5 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { PurchasePlanForm } from "@/components/purchase-plans/purchase-plan-form";
-
-export default function PurchasePlanNewPage() {
-  return <PurchasePlanForm mode="new" />;
+export default function PurchasePlansLegacyRedirect() {
+  redirect("/sales-plans/new");
 }

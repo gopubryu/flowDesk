@@ -23,10 +23,10 @@ import {
 import {
   CURRENCY_OPTIONS,
   TAX_TYPE_OPTIONS,
-  appendPurchasePlan,
-  nextPurchasePlanId,
-  type PurchasePlan,
-} from "@/lib/purchase-plans";
+  appendSalesPlan,
+  nextSalesPlanId,
+  type SalesPlan,
+} from "@/lib/sales-plans";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -213,7 +213,7 @@ function CodeNameField({
   );
 }
 
-export function PurchasePlanForm({
+export function SalesPlanForm({
   mode = "new",
   editId,
   variant = "page",
@@ -330,7 +330,7 @@ export function PurchasePlanForm({
     );
   }
 
-  function buildRowFromForm(): PurchasePlan | null {
+  function buildRowFromForm(): SalesPlan | null {
     const filled = filledLines();
     if (filled.length === 0) {
       alert("품목 행을 하나 이상 입력하세요.");
@@ -347,7 +347,7 @@ export function PurchasePlanForm({
     const unitPrice =
       quantity > 0 ? Math.round(amount / quantity) : Number(first.unitPrice) || 0;
     return {
-      id: mode === "edit" && editId ? editId : nextPurchasePlanId(),
+      id: mode === "edit" && editId ? editId : nextSalesPlanId(),
       planDate: master.planDate,
       vendor: first.vendorName.trim() || first.vendorCode.trim() || "(미지정)",
       vendorCode: first.vendorCode.trim() || undefined,
@@ -377,7 +377,7 @@ export function PurchasePlanForm({
       onClose();
       return;
     }
-    router.push("/purchase-plans");
+    router.push("/sales-plans");
   }
 
   function handleSave(andSlip: boolean) {
@@ -387,13 +387,13 @@ export function PurchasePlanForm({
     }
     const row = buildRowFromForm();
     if (!row) return;
-    appendPurchasePlan(row);
+    appendSalesPlan(row);
     onSaved?.();
     if (isModal) {
       finishClose();
       return;
     }
-    router.push("/purchase-plans");
+    router.push("/sales-plans");
   }
 
   function resetForm() {
@@ -401,7 +401,7 @@ export function PurchasePlanForm({
     setLines(Array.from({ length: INITIAL_LINE_COUNT }, () => emptyLine()));
   }
 
-  const title = mode === "edit" ? "발주계획입력 (수정)" : "발주계획입력";
+  const title = mode === "edit" ? "판매계획입력 (수정)" : "판매계획입력";
 
   return (
     <div
@@ -415,7 +415,7 @@ export function PurchasePlanForm({
           <h2 className="text-base font-semibold tracking-tight text-slate-900">{title}</h2>
           {!isModal && (
             <p className="text-xs text-muted-foreground">
-              발주계획 전표를 입력합니다. 저장 시 조회 목록에 반영됩니다. (클라이언트 목업)
+              판매계획 전표를 입력합니다. 저장 시 조회 목록에 반영됩니다. (클라이언트 목업)
             </p>
           )}
         </div>
@@ -868,7 +868,7 @@ export function PurchasePlanForm({
         </div>
       </div>
 
-      <Label className="sr-only">발주계획입력 양식</Label>
+      <Label className="sr-only">판매계획입력 양식</Label>
     </div>
   );
 }
