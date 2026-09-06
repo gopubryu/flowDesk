@@ -28,6 +28,11 @@ type FormState = {
   name: string;
   spec: string;
   unit: string;
+  stockQty: string;
+  inboundPrice: string;
+  inboundVatIncluded: boolean;
+  outboundPrice: string;
+  outboundVatIncluded: boolean;
 };
 
 function emptyForm(): FormState {
@@ -36,7 +41,18 @@ function emptyForm(): FormState {
     name: "",
     spec: "",
     unit: "",
+    stockQty: "0",
+    inboundPrice: "0",
+    inboundVatIncluded: false,
+    outboundPrice: "0",
+    outboundVatIncluded: false,
   };
+}
+
+function parseNonNegNumber(raw: string): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return n;
 }
 
 export function ItemRegisterDialog({ open, onOpenChange, onSaved }: Props) {
@@ -64,6 +80,11 @@ export function ItemRegisterDialog({ open, onOpenChange, onSaved }: Props) {
       name: form.name.trim(),
       spec: form.spec.trim() || undefined,
       unit: form.unit.trim() || undefined,
+      stockQty: parseNonNegNumber(form.stockQty),
+      inboundPrice: parseNonNegNumber(form.inboundPrice),
+      inboundVatIncluded: form.inboundVatIncluded,
+      outboundPrice: parseNonNegNumber(form.outboundPrice),
+      outboundVatIncluded: form.outboundVatIncluded,
     };
     upsertItem(saved);
     onSaved(saved);
@@ -141,6 +162,76 @@ export function ItemRegisterDialog({ open, onOpenChange, onSaved }: Props) {
               onChange={(e) => setField("unit", e.target.value)}
               placeholder="EA, 개 등 (선택)"
             />
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label htmlFor="item-stock" className="text-xs text-slate-600">
+              재고수량
+            </Label>
+            <Input
+              id="item-stock"
+              type="number"
+              min={0}
+              step="any"
+              className="h-9 rounded-lg border-slate-200 text-sm tabular-nums focus-visible:ring-indigo-500"
+              value={form.stockQty}
+              onChange={(e) => setField("stockQty", e.target.value)}
+              placeholder="0"
+            />
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label htmlFor="item-inbound" className="text-xs text-slate-600">
+              입고단가
+            </Label>
+            <div className="flex items-center gap-3">
+              <Input
+                id="item-inbound"
+                type="number"
+                min={0}
+                step="any"
+                className="h-9 flex-1 rounded-lg border-slate-200 text-sm tabular-nums focus-visible:ring-indigo-500"
+                value={form.inboundPrice}
+                onChange={(e) => setField("inboundPrice", e.target.value)}
+                placeholder="0"
+              />
+              <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-slate-600">
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  checked={form.inboundVatIncluded}
+                  onChange={(e) => setField("inboundVatIncluded", e.target.checked)}
+                />
+                VAT포함
+              </label>
+            </div>
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label htmlFor="item-outbound" className="text-xs text-slate-600">
+              출고단가
+            </Label>
+            <div className="flex items-center gap-3">
+              <Input
+                id="item-outbound"
+                type="number"
+                min={0}
+                step="any"
+                className="h-9 flex-1 rounded-lg border-slate-200 text-sm tabular-nums focus-visible:ring-indigo-500"
+                value={form.outboundPrice}
+                onChange={(e) => setField("outboundPrice", e.target.value)}
+                placeholder="0"
+              />
+              <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-slate-600">
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  checked={form.outboundVatIncluded}
+                  onChange={(e) => setField("outboundVatIncluded", e.target.checked)}
+                />
+                VAT포함
+              </label>
+            </div>
           </div>
         </div>
 
