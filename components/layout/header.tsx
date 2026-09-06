@@ -6,32 +6,65 @@ import { Bell, Menu, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useStore } from "@/lib/store";
 
-const titles: Record<string, { title: string; desc: string }> = {
-  "/dashboard": { title: "대시보드", desc: "오늘 할 일과 매출 현황을 한눈에" },
-  "/tasks": { title: "할 일 보드", desc: "드래그로 진행 상태를 바꿔보세요" },
-  "/calendar": {
+const titles: { match: (pathname: string) => boolean; title: string; desc: string }[] = [
+  {
+    match: (p) => p === "/dashboard",
+    title: "대시보드",
+    desc: "오늘 할 일과 매출 현황을 한눈에",
+  },
+  {
+    match: (p) => p === "/tasks" || p.startsWith("/tasks/"),
+    title: "할 일 보드",
+    desc: "드래그로 진행 상태를 바꿔보세요",
+  },
+  {
+    match: (p) => p === "/calendar" || p.startsWith("/calendar/"),
     title: "일정",
     desc: "팀 일정을 한곳에서 보고 잡으세요.",
   },
-  "/finance": { title: "매출·정산", desc: "입금·미수금과 매출 추이" },
-  "/purchase-requests": {
-    title: "발주요청",
+  {
+    match: (p) => p === "/finance" || p.startsWith("/finance/"),
+    title: "매출·정산",
+    desc: "입금·미수금과 매출 추이",
+  },
+  {
+    match: (p) => p === "/purchase-requests/status",
+    title: "발주요청현황",
+    desc: "발주요청 진행 상태를 집계·요약합니다.",
+  },
+  {
+    match: (p) => p === "/purchase-requests/new",
+    title: "발주요청입력",
+    desc: "발주요청 전표를 입력합니다.",
+  },
+  {
+    match: (p) => p.startsWith("/purchase-requests"),
+    title: "발주요청조회",
     desc: "발주요청 전표를 조회하고 진행상태를 관리합니다.",
   },
-  "/mail": {
+  {
+    match: (p) => p === "/mail" || p.startsWith("/mail/"),
     title: "메일",
     desc: "업무 메일을 한곳에서 읽고 보내세요.",
   },
-  "/exchange": {
+  {
+    match: (p) => p === "/exchange" || p.startsWith("/exchange/"),
     title: "환율",
     desc: "은행 고시와 시장 시세를 함께 비교하세요.",
   },
-};
+];
+
+function resolveMeta(pathname: string) {
+  for (const t of titles) {
+    if (t.match(pathname)) return { title: t.title, desc: t.desc };
+  }
+  return { title: "플로우데스크", desc: "" };
+}
 
 export function Header({ onMenu }: { onMenu?: () => void }) {
   const pathname = usePathname();
   const { resetDemo } = useStore();
-  const meta = titles[pathname] ?? { title: "플로우데스크", desc: "" };
+  const meta = resolveMeta(pathname);
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur md:px-6">

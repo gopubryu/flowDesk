@@ -216,3 +216,107 @@ export function nextPurchaseRequestId(): string {
   }
   return `pr-${String(max + 1).padStart(3, "0")}`;
 }
+
+export interface PurchaseRequestStatusAggRow {
+  key: string;
+  vendor: string;
+  item: string;
+  requestCount: number;
+  quantitySum: number;
+  amountSum: number;
+  status: PurchaseRequestStatus;
+}
+
+export interface PurchaseRequestStatusSummary {
+  count: number;
+  quantitySum: number;
+  amountSum: number;
+  inProgressCount: number;
+}
+
+export function summarizePurchaseRequests(
+  rows: PurchaseRequest[]
+): PurchaseRequestStatusSummary {
+  let quantitySum = 0;
+  let amountSum = 0;
+  let inProgressCount = 0;
+  for (const r of rows) {
+    quantitySum += r.quantity;
+    amountSum += r.amount;
+    if (r.status === "in_progress") inProgressCount += 1;
+  }
+  return {
+    count: rows.length,
+    quantitySum,
+    amountSum,
+    inProgressCount,
+  };
+}
+
+/** Aggregate by vendor + item + status for 발주요청현황 */
+export function aggregatePurchaseRequestsByVendorStatus(
+  rows: PurchaseRequest[]
+): PurchaseRequestStatusAggRow[] {
+  const map = new Map<string, PurchaseRequestStatusAggRow>();
+  for (const r of rows) {
+    const key = `${r.vendor}\0${r.item}\0${r.status}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.requestCount += 1;
+      existing.quantitySum += r.quantity;
+      existing.amountSum += r.amount;
+    } else {
+      map.set(key, {
+        key,
+        vendor: r.vendor,
+        item: r.item,
+        requestCount: 1,
+        quantitySum: r.quantity,
+        amountSum: r.amount,
+        status: r.status,
+      });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => {
+    const v = a.vendor.localeCompare(b.vendor, "ko");
+    if (v !== 0) return v;
+    const i = a.item.localeCompare(b.item, "ko");
+    if (i !== 0) return i;
+    return a.status.localeCompare(b.status);
+  });
+}
+
+export function countByPurchaseRequestStatus(
+  rows: PurchaseRequest[]
+): { status: PurchaseRequestStatus | "all"; label: string; count: number }[] {
+  const counts: Record<PurchaseRequestStatus, number> = {
+    approval: 0,
+    unconfirmed: 0,
+    confirmed: 0,
+    in_progress: 0,
+    completed: 0,
+  };
+  for (const r of rows) counts[r.status] += 1;
+  return PURCHASE_REQUEST_STATUS_TABS.map((t) => ({
+    status: t.key,
+    label: t.label,
+    count: t.key === "all" ? rows.length : counts[t.key],
+  }));
+}
+
+/** Default ~2 month range ending today (local) */
+export function defaultPurchaseRequestDateRange(today = new Date()): {
+  from: string;
+  to: string;
+} {
+  const to = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const from = new Date(to);
+  from.setMonth(from.getMonth() - 2);
+  const fmt = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+  return { from: fmt(from), to: fmt(to) };
+}

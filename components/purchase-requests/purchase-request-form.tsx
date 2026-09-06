@@ -458,6 +458,7 @@ export function PurchaseRequestForm({
             <CircleHelp className="h-3.5 w-3.5" />
             도움말
           </Button>
+          {isModal && (
           <Button
             type="button"
             variant="ghost"
@@ -468,6 +469,7 @@ export function PurchaseRequestForm({
           >
             <X className="h-3.5 w-3.5" />
           </Button>
+          )}
         </div>
       </div>
 
@@ -845,18 +847,21 @@ export function PurchaseRequestForm({
             <Button type="button" size="sm" variant="outline" className="h-8" onClick={resetForm}>
               다시 작성
             </Button>
-            <Button type="button" size="sm" variant="outline" className="h-8" onClick={finishClose}>
-              리스트
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8"
-              onClick={finishClose}
-            >
-              닫기
-            </Button>
+            {!isModal ? (
+              <Button type="button" size="sm" variant="outline" className="h-8" onClick={finishClose}>
+                리스트
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8"
+                onClick={finishClose}
+              >
+                닫기
+              </Button>
+            )}
             <Button
               type="button"
               size="sm"

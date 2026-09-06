@@ -11,6 +11,8 @@ import {
   Mail,
   ArrowLeftRight,
   ClipboardList,
+  FilePlus2,
+  BarChart3,
   X,
 } from "lucide-react";
 import { Sidebar } from "./sidebar";
@@ -19,15 +21,43 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useStore } from "@/lib/store";
 
-const mobileNav = [
+type MobileLeaf = {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  exact?: boolean;
+};
+
+type MobileGroup = {
+  type: "group";
+  label: string;
+  children: MobileLeaf[];
+};
+
+type MobileItem = MobileLeaf | MobileGroup;
+
+const mobileNav: MobileItem[] = [
   { href: "/dashboard", label: "대시보드", icon: LayoutDashboard },
   { href: "/tasks", label: "할 일", icon: CheckSquare },
   { href: "/calendar", label: "캘린더", icon: CalendarDays },
   { href: "/finance", label: "매출", icon: Wallet },
-  { href: "/purchase-requests", label: "발주요청", icon: ClipboardList },
+  {
+    type: "group",
+    label: "발주요청",
+    children: [
+      { href: "/purchase-requests", label: "발주요청조회", icon: ClipboardList, exact: true },
+      { href: "/purchase-requests/new", label: "발주요청입력", icon: FilePlus2, exact: true },
+      { href: "/purchase-requests/status", label: "발주요청현황", icon: BarChart3, exact: true },
+    ],
+  },
   { href: "/exchange", label: "환율", icon: ArrowLeftRight },
   { href: "/mail", label: "메일", icon: Mail },
 ];
+
+function isActive(pathname: string, href: string, exact?: boolean) {
+  if (exact) return pathname === href;
+  return pathname === href;
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -47,14 +77,44 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            <nav className="space-y-1">
+            <nav className="space-y-1 overflow-y-auto">
               {mobileNav.map((item) => {
-                const Icon = item.icon;
-                const active = pathname === item.href;
+                if ("type" in item && item.type === "group") {
+                  return (
+                    <div key={item.label} className="space-y-0.5 pt-1">
+                      <p className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        {item.label}
+                      </p>
+                      {item.children.map((child) => {
+                        const Icon = child.icon;
+                        const active = isActive(pathname, child.href, child.exact);
+                        return (
+                          <Link
+                            key={child.href}
+                            href={child.href}
+                            onClick={() => setOpen(false)}
+                            className={cn(
+                              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium",
+                              active
+                                ? "bg-sidebar-accent text-primary"
+                                : "text-muted-foreground"
+                            )}
+                          >
+                            <Icon className="h-4 w-4" />
+                            {child.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  );
+                }
+                const leaf = item as MobileLeaf;
+                const Icon = leaf.icon;
+                const active = isActive(pathname, leaf.href, leaf.exact);
                 return (
                   <Link
-                    key={item.href}
-                    href={item.href}
+                    key={leaf.href}
+                    href={leaf.href}
                     onClick={() => setOpen(false)}
                     className={cn(
                       "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium",
@@ -62,7 +122,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     )}
                   >
                     <Icon className="h-4 w-4" />
-                    {item.label}
+                    {leaf.label}
                   </Link>
                 );
               })}
