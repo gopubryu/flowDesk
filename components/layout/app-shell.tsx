@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -14,6 +14,7 @@ import {
   FilePlus2,
   BarChart3,
   X,
+  ChevronDown,
 } from "lucide-react";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
@@ -30,6 +31,7 @@ type MobileLeaf = {
 
 type MobileGroup = {
   type: "group";
+  id: string;
   label: string;
   children: MobileLeaf[];
 };
@@ -40,9 +42,10 @@ const mobileNav: MobileItem[] = [
   { href: "/dashboard", label: "대시보드", icon: LayoutDashboard },
   { href: "/tasks", label: "할 일", icon: CheckSquare },
   { href: "/calendar", label: "캘린더", icon: CalendarDays },
-  { href: "/finance", label: "매출", icon: Wallet },
+  { href: "/finance", label: "매출·재무", icon: Wallet },
   {
     type: "group",
+    id: "purchase-requests",
     label: "발주요청",
     children: [
       { href: "/purchase-requests", label: "발주요청조회", icon: ClipboardList, exact: true },
@@ -52,6 +55,7 @@ const mobileNav: MobileItem[] = [
   },
   {
     type: "group",
+    id: "purchases",
     label: "구매",
     children: [
       { href: "/purchases", label: "구매조회", icon: ClipboardList, exact: true },
@@ -65,13 +69,33 @@ const mobileNav: MobileItem[] = [
 
 function isActive(pathname: string, href: string, exact?: boolean) {
   if (exact) return pathname === href;
-  return pathname === href;
+  return pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const pathname = usePathname();
   const { loading, error, refresh } = useStore();
+
+  useEffect(() => {
+    setOpenGroups((prev) => {
+      const next = { ...prev };
+      for (const item of mobileNav) {
+        if (!("type" in item) || item.type !== "group") continue;
+        const groupActive = item.children.some((c) =>
+          isActive(pathname, c.href, c.exact)
+        );
+        if (groupActive) next[item.id] = true;
+        else if (!(item.id in next)) next[item.id] = false;
+      }
+      return next;
+    });
+  }, [pathname]);
+
+  const toggleGroup = (id: string) => {
+    setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -89,31 +113,50 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <nav className="space-y-1 overflow-y-auto">
               {mobileNav.map((item) => {
                 if ("type" in item && item.type === "group") {
+                  const groupActive = item.children.some((c) =>
+                    isActive(pathname, c.href, c.exact)
+                  );
+                  const expanded = openGroups[item.id] ?? groupActive;
                   return (
-                    <div key={item.label} className="space-y-0.5 pt-1">
-                      <p className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        {item.label}
-                      </p>
-                      {item.children.map((child) => {
-                        const Icon = child.icon;
-                        const active = isActive(pathname, child.href, child.exact);
-                        return (
-                          <Link
-                            key={child.href}
-                            href={child.href}
-                            onClick={() => setOpen(false)}
-                            className={cn(
-                              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium",
-                              active
-                                ? "bg-sidebar-accent text-primary"
-                                : "text-muted-foreground"
-                            )}
-                          >
-                            <Icon className="h-4 w-4" />
-                            {child.label}
-                          </Link>
-                        );
-                      })}
+                    <div key={item.id} className="space-y-0.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup(item.id)}
+                        aria-expanded={expanded}
+                        className={cn(
+                          "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold",
+                          groupActive ? "text-primary" : "text-muted-foreground"
+                        )}
+                      >
+                        <span className="flex-1">{item.label}</span>
+                        <ChevronDown
+                          className={cn(
+                            "h-4 w-4 shrink-0 transition-transform",
+                            expanded ? "rotate-0" : "-rotate-90"
+                          )}
+                        />
+                      </button>
+                      {expanded &&
+                        item.children.map((child) => {
+                          const Icon = child.icon;
+                          const active = isActive(pathname, child.href, child.exact);
+                          return (
+                            <Link
+                              key={child.href}
+                              href={child.href}
+                              onClick={() => setOpen(false)}
+                              className={cn(
+                                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium",
+                                active
+                                  ? "bg-sidebar-accent text-primary"
+                                  : "text-muted-foreground"
+                              )}
+                            >
+                              <Icon className="h-4 w-4" />
+                              {child.label}
+                            </Link>
+                          );
+                        })}
                     </div>
                   );
                 }
