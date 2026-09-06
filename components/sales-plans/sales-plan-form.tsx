@@ -19,7 +19,7 @@ import {
   Printer,
 } from "lucide-react";
 import {
-  CURRENCY_OPTIONS,
+  CURRENCY_OPTIONS, formatCurrencyLabel,
   TAX_TYPE_OPTIONS,
   appendSalesPlan,
   nextSalesPlanId,
@@ -101,7 +101,7 @@ function defaultMaster(): Master {
     warehouseName: "",
     projectCode: "",
     projectName: "",
-    currency: "원화",
+    currency: "내자",
     dueDate: today,
   };
 }
@@ -501,9 +501,7 @@ export function SalesPlanForm({
                 onChange={(e) => setMasterField("currency", e.target.value)}
               >
                 {CURRENCY_OPTIONS.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
+                  <option key={o} value={o}>{formatCurrencyLabel(o)}</option>
                 ))}
               </select>
             </div>

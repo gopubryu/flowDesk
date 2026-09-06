@@ -83,8 +83,17 @@ export const TAX_TYPE_OPTIONS = [
 ] as const;
 
 export const CURRENCY_OPTIONS = [
-  "원화",
+  "내자",
+  "달러[100]",
+  "엔화[400]",
+  "위안",
+  "유로",
 ] as const;
+
+/** UI label without unit brackets, e.g. 달러[100] → 달러 */
+export function formatCurrencyLabel(value: string): string {
+  return String(value ?? "").replace(/\[[^\]]*\]/g, "").trim() || value;
+}
 
 
 /** Human-readable 일자-No. label (never exposes cuid). */

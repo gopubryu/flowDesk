@@ -22,7 +22,7 @@ import {
   Percent,
 } from "lucide-react";
 import {
-  CURRENCY_OPTIONS,
+  CURRENCY_OPTIONS, formatCurrencyLabel,
   TAX_TYPE_OPTIONS,
   appendPurchase,
   nextPurchaseId,
@@ -104,7 +104,7 @@ function defaultMaster(): Master {
     warehouseCode: "",
     warehouseName: "",
     taxType: "부가세율 적용",
-    currency: "원화",
+    currency: "내자",
     projectCode: "",
     projectName: "",
   };
@@ -515,9 +515,7 @@ export function PurchaseForm({
                 onChange={(e) => setMasterField("currency", e.target.value)}
               >
                 {CURRENCY_OPTIONS.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
+                  <option key={o} value={o}>{formatCurrencyLabel(o)}</option>
                 ))}
               </select>
             </div>

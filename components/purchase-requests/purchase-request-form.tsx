@@ -16,7 +16,7 @@ import {
   Printer,
 } from "lucide-react";
 import {
-  CURRENCY_OPTIONS,
+  CURRENCY_OPTIONS, formatCurrencyLabel,
   TAX_TYPE_OPTIONS,
   fetchPurchaseRequest,
   savePurchaseRequestApi,
@@ -118,7 +118,7 @@ function defaultMaster(): Master {
     warehouseName: "",
     vendorCode: "",
     vendorName: "",
-    currency: "원화",
+    currency: "내자",
     dueDate: today,
   };
 }
@@ -291,7 +291,7 @@ export function PurchaseRequestForm({
           warehouseName: row.warehouseName ?? row.warehouse ?? "",
           vendorCode: row.vendorCode ?? "",
           vendorName: row.vendorName ?? row.vendor ?? "",
-          currency: row.currency ?? "원화",
+          currency: row.currency ?? "내자",
           dueDate: row.dueDate || row.requestDate,
         });
         const linesFromApi = (row.lines ?? []).map((l) => {
@@ -682,9 +682,7 @@ export function PurchaseRequestForm({
                 onChange={(e) => setMasterField("currency", e.target.value)}
               >
                 {CURRENCY_OPTIONS.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
+                  <option key={o} value={o}>{formatCurrencyLabel(o)}</option>
                 ))}
               </select>
             </div>

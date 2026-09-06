@@ -21,6 +21,7 @@ import {
   updatePurchaseRequestStatusApi,
   type PurchaseRequest,
   type PurchaseRequestStatus,
+  formatCurrencyLabel,
 } from "@/lib/purchase-requests";
 import { cn, formatKRW } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -431,7 +432,7 @@ export default function PurchaseRequestsPage() {
                           {headerText(r.warehouseName ?? r.warehouse)}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-slate-700">
-                          {headerText(r.currency)}
+                          {formatCurrencyLabel(headerText(r.currency))}
                         </td>
                         <td className="px-3 py-2 text-slate-700">{r.item}</td>
                         <td className="whitespace-nowrap px-3 py-2 text-slate-700">
