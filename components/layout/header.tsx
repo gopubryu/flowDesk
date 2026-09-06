@@ -43,6 +43,21 @@ const titles: { match: (pathname: string) => boolean; title: string; desc: strin
     desc: "발주요청 전표를 조회하고 진행상태를 관리합니다.",
   },
   {
+    match: (p) => p === "/purchase-plans/status",
+    title: "발주계획현황",
+    desc: "발주계획 진행 상태를 집계·요약합니다.",
+  },
+  {
+    match: (p) => p === "/purchase-plans/new",
+    title: "발주계획입력",
+    desc: "발주계획 전표를 입력합니다.",
+  },
+  {
+    match: (p) => p.startsWith("/purchase-plans"),
+    title: "발주계획조회",
+    desc: "발주계획 전표를 조회하고 진행상태를 관리합니다.",
+  },
+  {
     match: (p) => p === "/purchases/status",
     title: "구매현황",
     desc: "구매 진행 상태를 집계·요약합니다.",

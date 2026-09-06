@@ -55,6 +55,16 @@ const mobileNav: MobileItem[] = [
   },
   {
     type: "group",
+    id: "purchase-plans",
+    label: "발주계획",
+    children: [
+      { href: "/purchase-plans", label: "발주계획조회", icon: ClipboardList, exact: true },
+      { href: "/purchase-plans/new", label: "발주계획입력", icon: FilePlus2, exact: true },
+      { href: "/purchase-plans/status", label: "발주계획현황", icon: BarChart3, exact: true },
+    ],
+  },
+  {
+    type: "group",
     id: "purchases",
     label: "구매",
     children: [

@@ -15,6 +15,7 @@ import {
   FilePlus2,
   BarChart3,
   ShoppingCart,
+  CalendarClock,
   ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -50,6 +51,17 @@ const nav: NavItem[] = [
       { href: "/purchase-requests", label: "발주요청조회", icon: ClipboardList, exact: true },
       { href: "/purchase-requests/new", label: "발주요청입력", icon: FilePlus2, exact: true },
       { href: "/purchase-requests/status", label: "발주요청현황", icon: BarChart3, exact: true },
+    ],
+  },
+  {
+    type: "group",
+    id: "purchase-plans",
+    label: "발주계획",
+    icon: CalendarClock,
+    children: [
+      { href: "/purchase-plans", label: "발주계획조회", icon: ClipboardList, exact: true },
+      { href: "/purchase-plans/new", label: "발주계획입력", icon: FilePlus2, exact: true },
+      { href: "/purchase-plans/status", label: "발주계획현황", icon: BarChart3, exact: true },
     ],
   },
   {
