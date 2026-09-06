@@ -55,11 +55,7 @@ export const TAX_TYPE_OPTIONS = [
 ] as const;
 
 export const CURRENCY_OPTIONS = [
-  "내자",
-  "달러[100]",
-  "엔화[400]",
-  "위안",
-  "유로",
+  "원화",
 ] as const;
 
 const STORAGE_KEY = "flowdesk-sales-plans";
@@ -83,7 +79,7 @@ export const mockSalesPlans: SalesPlan[] = [
     manager: "김구매",
     taxType: "부가세율 적용",
     warehouse: "본사창고",
-    currency: "내자",
+    currency: "원화",
     dueDate: "2026-09-10",
   },
   {
@@ -103,7 +99,7 @@ export const mockSalesPlans: SalesPlan[] = [
     manager: "이입고",
     taxType: "부가세율 적용",
     warehouse: "전자부품창고",
-    currency: "내자",
+    currency: "원화",
     dueDate: "2026-09-05",
   },
   {
@@ -123,7 +119,7 @@ export const mockSalesPlans: SalesPlan[] = [
     manager: "김구매",
     taxType: "부가세율 적용",
     warehouse: "본사창고",
-    currency: "내자",
+    currency: "원화",
     dueDate: "2026-09-08",
   },
   {
@@ -143,7 +139,7 @@ export const mockSalesPlans: SalesPlan[] = [
     manager: "박자재",
     taxType: "부가세율 적용",
     warehouse: "화공창고",
-    currency: "내자",
+    currency: "원화",
     dueDate: "2026-09-12",
   },
   {
@@ -163,7 +159,7 @@ export const mockSalesPlans: SalesPlan[] = [
     manager: "이입고",
     taxType: "부가세율 적용",
     warehouse: "본사창고",
-    currency: "내자",
+    currency: "원화",
     dueDate: "2026-09-15",
   },
   {
@@ -183,7 +179,7 @@ export const mockSalesPlans: SalesPlan[] = [
     manager: "김구매",
     taxType: "부가세율 적용",
     warehouse: "본사창고",
-    currency: "내자",
+    currency: "원화",
     dueDate: "2026-09-18",
   },
   {
@@ -203,7 +199,7 @@ export const mockSalesPlans: SalesPlan[] = [
     manager: "박자재",
     taxType: "부가세율 적용",
     warehouse: "본사창고",
-    currency: "내자",
+    currency: "원화",
     dueDate: "2026-09-07",
   },
   {
@@ -223,7 +219,7 @@ export const mockSalesPlans: SalesPlan[] = [
     manager: "이입고",
     taxType: "부가세율 적용",
     warehouse: "철강야적",
-    currency: "내자",
+    currency: "원화",
     dueDate: "2026-09-20",
   },
   {
@@ -243,7 +239,7 @@ export const mockSalesPlans: SalesPlan[] = [
     manager: "김구매",
     taxType: "부가세율 적용",
     warehouse: "전자부품창고",
-    currency: "달러[100]",
+    currency: "원화",
     dueDate: "2026-09-14",
   },
   {
@@ -263,7 +259,7 @@ export const mockSalesPlans: SalesPlan[] = [
     manager: "박자재",
     taxType: "부가세율 적용",
     warehouse: "본사창고",
-    currency: "내자",
+    currency: "원화",
     dueDate: "2026-09-16",
   },
 ];

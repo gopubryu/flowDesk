@@ -104,7 +104,7 @@ function defaultMaster(): Master {
     warehouseCode: "",
     warehouseName: "",
     taxType: "부가세율 적용",
-    currency: "내자",
+    currency: "원화",
     projectCode: "",
     projectName: "",
   };

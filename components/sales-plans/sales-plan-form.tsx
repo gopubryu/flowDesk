@@ -101,7 +101,7 @@ function defaultMaster(): Master {
     warehouseName: "",
     projectCode: "",
     projectName: "",
-    currency: "내자",
+    currency: "원화",
     dueDate: today,
   };
 }

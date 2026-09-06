@@ -118,7 +118,7 @@ function defaultMaster(): Master {
     warehouseName: "",
     vendorCode: "",
     vendorName: "",
-    currency: "내자",
+    currency: "원화",
     dueDate: today,
   };
 }
@@ -291,7 +291,7 @@ export function PurchaseRequestForm({
           warehouseName: row.warehouseName ?? row.warehouse ?? "",
           vendorCode: row.vendorCode ?? "",
           vendorName: row.vendorName ?? row.vendor ?? "",
-          currency: row.currency ?? "내자",
+          currency: row.currency ?? "원화",
           dueDate: row.dueDate || row.requestDate,
         });
         const linesFromApi = (row.lines ?? []).map((l) => {

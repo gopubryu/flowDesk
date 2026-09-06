@@ -83,11 +83,7 @@ export const TAX_TYPE_OPTIONS = [
 ] as const;
 
 export const CURRENCY_OPTIONS = [
-  "내자",
-  "달러[100]",
-  "엔화[400]",
-  "위안",
-  "유로",
+  "원화",
 ] as const;
 
 
