@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   FilePlus2,
   Mail,
@@ -11,7 +12,8 @@ import {
   Search,
 } from "lucide-react";
 import {
-  mockPurchaseRequests,
+  loadPurchaseRequests,
+  savePurchaseRequests,
   PURCHASE_REQUEST_STATUS_LABEL,
   PURCHASE_REQUEST_STATUS_TABS,
   type PurchaseRequest,
@@ -23,13 +25,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 type TabKey = "all" | PurchaseRequestStatus;
 
@@ -44,17 +39,10 @@ const statusVariant: Record<
   completed: "success",
 };
 
-const emptyForm = {
-  vendor: "",
-  item: "",
-  quantity: "",
-  amount: "",
-  requestDate: new Date().toISOString().slice(0, 10),
-  dueDate: "",
-};
-
 export default function PurchaseRequestsPage() {
-  const [rows, setRows] = useState<PurchaseRequest[]>(mockPurchaseRequests);
+  const router = useRouter();
+  const [rows, setRows] = useState<PurchaseRequest[]>([]);
+  const [hydrated, setHydrated] = useState(false);
   const [tab, setTab] = useState<TabKey>("all");
   const [query, setQuery] = useState("");
   const [dateFrom, setDateFrom] = useState("2026-08-01");
@@ -65,8 +53,17 @@ export default function PurchaseRequestsPage() {
     dateTo: "2026-09-30",
   });
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState(emptyForm);
+
+  useEffect(() => {
+    const loaded = loadPurchaseRequests();
+    setRows(loaded);
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    savePurchaseRequests(rows);
+  }, [rows, hydrated]);
 
   const filtered = useMemo(() => {
     return rows.filter((r) => {
@@ -128,27 +125,6 @@ export default function PurchaseRequestsPage() {
 
   function stub(action: string) {
     alert(`${action} (데모)`);
-  }
-
-  function saveNew() {
-    const quantity = Number(form.quantity);
-    const amount = Number(form.amount);
-    if (!form.vendor.trim() || !form.item.trim() || Number.isNaN(quantity) || Number.isNaN(amount)) {
-      return;
-    }
-    const row: PurchaseRequest = {
-      id: `pr-${String(rows.length + 1).padStart(3, "0")}`,
-      requestDate: form.requestDate,
-      vendor: form.vendor.trim(),
-      item: form.item.trim(),
-      dueDate: form.dueDate || form.requestDate,
-      quantity,
-      amount,
-      status: "unconfirmed",
-    };
-    setRows((prev) => [row, ...prev]);
-    setOpen(false);
-    setForm(emptyForm);
   }
 
   return (
@@ -258,7 +234,13 @@ export default function PurchaseRequestsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
+                {!hydrated ? (
+                  <tr>
+                    <td colSpan={8} className="px-3 py-10 text-center text-muted-foreground">
+                      불러오는 중…
+                    </td>
+                  </tr>
+                ) : filtered.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-3 py-10 text-center text-muted-foreground">
                       조회된 발주요청이 없습니다.
@@ -320,10 +302,7 @@ export default function PurchaseRequestsPage() {
                 type="button"
                 size="sm"
                 className="h-8 gap-1.5"
-                onClick={() => {
-                  setForm(emptyForm);
-                  setOpen(true);
-                }}
+                onClick={() => router.push("/purchase-requests/new")}
               >
                 <FilePlus2 className="h-3.5 w-3.5" />
                 신규
@@ -382,82 +361,6 @@ export default function PurchaseRequestsPage() {
           </div>
         </CardContent>
       </Card>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent onClose={() => setOpen(false)} className="relative">
-          <DialogHeader>
-            <DialogTitle>발주요청 신규</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="pr-vendor">거래처명</Label>
-                <Input
-                  id="pr-vendor"
-                  value={form.vendor}
-                  onChange={(e) => setForm((f) => ({ ...f, vendor: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="pr-item">품목</Label>
-                <Input
-                  id="pr-item"
-                  value={form.item}
-                  onChange={(e) => setForm((f) => ({ ...f, item: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="pr-qty">수량</Label>
-                <Input
-                  id="pr-qty"
-                  type="number"
-                  value={form.quantity}
-                  onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="pr-amt">금액</Label>
-                <Input
-                  id="pr-amt"
-                  type="number"
-                  value={form.amount}
-                  onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="pr-req">발주요청일자</Label>
-                <Input
-                  id="pr-req"
-                  type="date"
-                  value={form.requestDate}
-                  onChange={(e) => setForm((f) => ({ ...f, requestDate: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="pr-due">납기일자</Label>
-                <Input
-                  id="pr-due"
-                  type="date"
-                  value={form.dueDate}
-                  onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" type="button" onClick={() => setOpen(false)}>
-              취소
-            </Button>
-            <Button type="button" onClick={saveNew}>
-              저장
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

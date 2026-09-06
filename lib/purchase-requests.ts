@@ -14,6 +14,12 @@ export interface PurchaseRequest {
   quantity: number;
   amount: number;
   status: PurchaseRequestStatus;
+  /** optional master fields from 발주요청입력 */
+  manager?: string;
+  taxType?: string;
+  warehouse?: string;
+  project?: string;
+  currency?: string;
 }
 
 export const PURCHASE_REQUEST_STATUS_TABS: {
@@ -35,6 +41,23 @@ export const PURCHASE_REQUEST_STATUS_LABEL: Record<PurchaseRequestStatus, string
   in_progress: "진행중",
   completed: "완료",
 };
+
+export const TAX_TYPE_OPTIONS = [
+  "부가세불적용",
+  "과세",
+  "영세",
+  "면세",
+] as const;
+
+export const CURRENCY_OPTIONS = [
+  "내자",
+  "달러[100]",
+  "엔화[400]",
+  "위안",
+  "유로",
+] as const;
+
+const STORAGE_KEY = "flowdesk-purchase-requests";
 
 /** Local mock rows for 발주요청조회 — not wired to Prisma/Neon */
 export const mockPurchaseRequests: PurchaseRequest[] = [
@@ -159,3 +182,36 @@ export const mockPurchaseRequests: PurchaseRequest[] = [
     status: "approval",
   },
 ];
+
+export function loadPurchaseRequests(): PurchaseRequest[] {
+  if (typeof window === "undefined") return mockPurchaseRequests;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [...mockPurchaseRequests];
+    const parsed = JSON.parse(raw) as PurchaseRequest[];
+    return Array.isArray(parsed) ? parsed : [...mockPurchaseRequests];
+  } catch {
+    return [...mockPurchaseRequests];
+  }
+}
+
+export function savePurchaseRequests(rows: PurchaseRequest[]): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
+}
+
+export function appendPurchaseRequest(row: PurchaseRequest): PurchaseRequest[] {
+  const next = [row, ...loadPurchaseRequests()];
+  savePurchaseRequests(next);
+  return next;
+}
+
+export function nextPurchaseRequestId(): string {
+  const rows = loadPurchaseRequests();
+  let max = 0;
+  for (const r of rows) {
+    const m = /^pr-(\d+)$/i.exec(r.id);
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return `pr-${String(max + 1).padStart(3, "0")}`;
+}
