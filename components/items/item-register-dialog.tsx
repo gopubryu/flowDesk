@@ -16,6 +16,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  formatNumberWithComma,
+  parseNumberInput,
+  parseNonNegNumber,
+} from "@/lib/format";
 
 type Props = {
   open: boolean;
@@ -49,10 +54,35 @@ function emptyForm(): FormState {
   };
 }
 
-function parseNonNegNumber(raw: string): number {
-  const n = Number(raw);
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return n;
+function CommaNumberInput({
+  id,
+  value,
+  onChange,
+  placeholder,
+  className,
+}: {
+  id?: string;
+  value: string;
+  onChange: (plain: string) => void;
+  placeholder?: string;
+  className?: string;
+}) {
+  const [focused, setFocused] = useState(false);
+  const display = focused ? value : formatNumberWithComma(value);
+
+  return (
+    <Input
+      id={id}
+      type="text"
+      inputMode="decimal"
+      className={className}
+      value={display}
+      placeholder={placeholder}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      onChange={(e) => onChange(parseNumberInput(e.target.value))}
+    />
+  );
 }
 
 export function ItemRegisterDialog({ open, onOpenChange, onSaved }: Props) {
@@ -168,14 +198,11 @@ export function ItemRegisterDialog({ open, onOpenChange, onSaved }: Props) {
             <Label htmlFor="item-stock" className="text-xs text-slate-600">
               재고수량
             </Label>
-            <Input
+            <CommaNumberInput
               id="item-stock"
-              type="number"
-              min={0}
-              step="any"
               className="h-9 rounded-lg border-slate-200 text-sm tabular-nums focus-visible:ring-indigo-500"
               value={form.stockQty}
-              onChange={(e) => setField("stockQty", e.target.value)}
+              onChange={(v) => setField("stockQty", v)}
               placeholder="0"
             />
           </div>
@@ -185,14 +212,11 @@ export function ItemRegisterDialog({ open, onOpenChange, onSaved }: Props) {
               입고단가
             </Label>
             <div className="flex items-center gap-3">
-              <Input
+              <CommaNumberInput
                 id="item-inbound"
-                type="number"
-                min={0}
-                step="any"
                 className="h-9 flex-1 rounded-lg border-slate-200 text-sm tabular-nums focus-visible:ring-indigo-500"
                 value={form.inboundPrice}
-                onChange={(e) => setField("inboundPrice", e.target.value)}
+                onChange={(v) => setField("inboundPrice", v)}
                 placeholder="0"
               />
               <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-slate-600">
@@ -212,14 +236,11 @@ export function ItemRegisterDialog({ open, onOpenChange, onSaved }: Props) {
               출고단가
             </Label>
             <div className="flex items-center gap-3">
-              <Input
+              <CommaNumberInput
                 id="item-outbound"
-                type="number"
-                min={0}
-                step="any"
                 className="h-9 flex-1 rounded-lg border-slate-200 text-sm tabular-nums focus-visible:ring-indigo-500"
                 value={form.outboundPrice}
-                onChange={(e) => setField("outboundPrice", e.target.value)}
+                onChange={(v) => setField("outboundPrice", v)}
                 placeholder="0"
               />
               <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-slate-600">

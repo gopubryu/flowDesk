@@ -26,6 +26,11 @@ import {
   type PurchaseRequest,
 } from "@/lib/purchase-requests";
 import { cn } from "@/lib/utils";
+import {
+  formatNumberWithComma,
+  parseNumberInput,
+  parseNonNegNumber,
+} from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -111,9 +116,16 @@ function vatRate(taxType: string) {
 }
 
 function recalcLine(row: LineRow, taxType: string): LineRow {
-  const qty = Number(row.qty);
-  const unit = Number(row.unitPrice);
-  if (Number.isNaN(qty) || Number.isNaN(unit) || row.qty === "" || row.unitPrice === "") {
+  const qtyRaw = parseNumberInput(row.qty);
+  const unitRaw = parseNumberInput(row.unitPrice);
+  const qty = Number(qtyRaw);
+  const unit = Number(unitRaw);
+  if (
+    Number.isNaN(qty) ||
+    Number.isNaN(unit) ||
+    qtyRaw === "" ||
+    unitRaw === ""
+  ) {
     return { ...row, supply: "", vat: "", total: "" };
   }
   const supply = Math.round(qty * unit);
@@ -202,6 +214,31 @@ function CodeNameField({
   );
 }
 
+function CommaLineInput({
+  value,
+  onChange,
+  className,
+}: {
+  value: string;
+  onChange: (plain: string) => void;
+  className?: string;
+}) {
+  const [focused, setFocused] = useState(false);
+  const display = focused ? value : formatNumberWithComma(value);
+
+  return (
+    <Input
+      type="text"
+      inputMode="decimal"
+      className={className}
+      value={display}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      onChange={(e) => onChange(parseNumberInput(e.target.value))}
+    />
+  );
+}
+
 export function PurchaseRequestForm({
   mode = "new",
   editId,
@@ -228,14 +265,18 @@ export function PurchaseRequestForm({
     let vat = 0;
     let total = 0;
     for (const l of lines) {
-      const q = Number(l.qty);
-      const s = Number(l.supply);
-      const v = Number(l.vat);
-      const t = Number(l.total);
-      if (!Number.isNaN(q) && l.qty !== "") qty += q;
-      if (!Number.isNaN(s) && l.supply !== "") supply += s;
-      if (!Number.isNaN(v) && l.vat !== "") vat += v;
-      if (!Number.isNaN(t) && l.total !== "") total += t;
+      const qRaw = parseNumberInput(l.qty);
+      const sRaw = parseNumberInput(l.supply);
+      const vRaw = parseNumberInput(l.vat);
+      const tRaw = parseNumberInput(l.total);
+      const q = Number(qRaw);
+      const s = Number(sRaw);
+      const v = Number(vRaw);
+      const t = Number(tRaw);
+      if (!Number.isNaN(q) && qRaw !== "") qty += q;
+      if (!Number.isNaN(s) && sRaw !== "") supply += s;
+      if (!Number.isNaN(v) && vRaw !== "") vat += v;
+      if (!Number.isNaN(t) && tRaw !== "") total += t;
     }
     return { qty, supply, vat, total };
   }, [lines]);
@@ -315,7 +356,7 @@ export function PurchaseRequestForm({
       (l) =>
         l.itemName.trim() ||
         l.itemCode.trim() ||
-        (l.qty !== "" && Number(l.qty) > 0)
+        (parseNumberInput(l.qty) !== "" && Number(parseNumberInput(l.qty)) > 0)
     );
   }
 
@@ -326,9 +367,13 @@ export function PurchaseRequestForm({
       return null;
     }
     const first = filled[0];
-    const quantity = filled.reduce((acc, l) => acc + (Number(l.qty) || 0), 0);
+    const quantity = filled.reduce(
+      (acc, l) => acc + parseNonNegNumber(l.qty),
+      0
+    );
     const amount = filled.reduce(
-      (acc, l) => acc + (Number(l.total) || Number(l.supply) || 0),
+      (acc, l) =>
+        acc + (parseNonNegNumber(l.total) || parseNonNegNumber(l.supply) || 0),
       0
     );
     return {
@@ -647,27 +692,57 @@ export function PurchaseRequestForm({
                   ).map(([key, align]) => {
                     const readOnly = key === "supply" || key === "vat" || key === "total";
                     const isExtra = key === "extra";
+                    const isMoney =
+                      key === "unitPrice" ||
+                      key === "supply" ||
+                      key === "vat" ||
+                      key === "total";
+                    const isQty = key === "qty";
+                    const useComma = isMoney || isQty;
+                    const plain = line[key];
+                    const displayValue =
+                      useComma && readOnly
+                        ? formatNumberWithComma(plain)
+                        : plain;
                     return (
                       <td key={key} className="px-1 py-0.5">
-                        <Input
-                          className={cn(
-                            "h-7 rounded border-slate-200 px-1.5 text-[11px] focus-visible:ring-1 focus-visible:ring-indigo-500",
-                            align === "right" && "text-right tabular-nums",
-                            readOnly && "bg-slate-50 text-slate-600",
-                            isExtra && "border-dashed border-slate-200 bg-slate-50/50 placeholder:text-slate-300"
-                          )}
-                          value={line[key]}
-                          readOnly={readOnly}
-                          placeholder={isExtra ? "" : undefined}
-                          onChange={(e) => updateLine(line.id, { [key]: e.target.value })}
-                          onDoubleClick={() => {
-                            if (key === "itemCode") {
-                              setItemSearchLineId(line.id);
-                              setItemSearchOpen(true);
+                        {useComma && !readOnly ? (
+                          <CommaLineInput
+                            value={plain}
+                            className={cn(
+                              "h-7 rounded border-slate-200 px-1.5 text-[11px] focus-visible:ring-1 focus-visible:ring-indigo-500",
+                              align === "right" && "text-right tabular-nums"
+                            )}
+                            onChange={(v) => updateLine(line.id, { [key]: v })}
+                          />
+                        ) : (
+                          <Input
+                            className={cn(
+                              "h-7 rounded border-slate-200 px-1.5 text-[11px] focus-visible:ring-1 focus-visible:ring-indigo-500",
+                              align === "right" && "text-right tabular-nums",
+                              readOnly && "bg-slate-50 text-slate-600",
+                              isExtra &&
+                                "border-dashed border-slate-200 bg-slate-50/50 placeholder:text-slate-300"
+                            )}
+                            value={displayValue}
+                            readOnly={readOnly}
+                            placeholder={isExtra ? "" : undefined}
+                            onChange={(e) =>
+                              updateLine(line.id, { [key]: e.target.value })
                             }
-                          }}
-                          title={key === "itemCode" ? "더블클릭하여 품목 검색" : undefined}
-                        />
+                            onDoubleClick={() => {
+                              if (key === "itemCode") {
+                                setItemSearchLineId(line.id);
+                                setItemSearchOpen(true);
+                              }
+                            }}
+                            title={
+                              key === "itemCode"
+                                ? "더블클릭하여 품목 검색"
+                                : undefined
+                            }
+                          />
+                        )}
                       </td>
                     );
                   })}
