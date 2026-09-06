@@ -13,6 +13,7 @@ import {
   ClipboardList,
   FilePlus2,
   BarChart3,
+  ShoppingCart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +46,16 @@ const nav: NavItem[] = [
       { href: "/purchase-requests", label: "발주요청조회", icon: ClipboardList, exact: true },
       { href: "/purchase-requests/new", label: "발주요청입력", icon: FilePlus2, exact: true },
       { href: "/purchase-requests/status", label: "발주요청현황", icon: BarChart3, exact: true },
+    ],
+  },
+  {
+    type: "group",
+    label: "구매",
+    icon: ShoppingCart,
+    children: [
+      { href: "/purchases", label: "구매조회", icon: ClipboardList, exact: true },
+      { href: "/purchases/new", label: "구매입력", icon: FilePlus2, exact: true },
+      { href: "/purchases/status", label: "구매현황", icon: BarChart3, exact: true },
     ],
   },
   { href: "/exchange", label: "환율", icon: ArrowLeftRight },

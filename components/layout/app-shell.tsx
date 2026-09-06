@@ -50,6 +50,15 @@ const mobileNav: MobileItem[] = [
       { href: "/purchase-requests/status", label: "발주요청현황", icon: BarChart3, exact: true },
     ],
   },
+  {
+    type: "group",
+    label: "구매",
+    children: [
+      { href: "/purchases", label: "구매조회", icon: ClipboardList, exact: true },
+      { href: "/purchases/new", label: "구매입력", icon: FilePlus2, exact: true },
+      { href: "/purchases/status", label: "구매현황", icon: BarChart3, exact: true },
+    ],
+  },
   { href: "/exchange", label: "환율", icon: ArrowLeftRight },
   { href: "/mail", label: "메일", icon: Mail },
 ];

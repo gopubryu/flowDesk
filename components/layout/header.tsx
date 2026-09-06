@@ -43,6 +43,21 @@ const titles: { match: (pathname: string) => boolean; title: string; desc: strin
     desc: "발주요청 전표를 조회하고 진행상태를 관리합니다.",
   },
   {
+    match: (p) => p === "/purchases/status",
+    title: "구매현황",
+    desc: "구매 진행 상태를 집계·요약합니다.",
+  },
+  {
+    match: (p) => p === "/purchases/new",
+    title: "구매입력",
+    desc: "구매 전표를 입력합니다.",
+  },
+  {
+    match: (p) => p.startsWith("/purchases"),
+    title: "구매조회",
+    desc: "구매 전표를 조회하고 진행상태를 관리합니다.",
+  },
+  {
     match: (p) => p === "/mail" || p.startsWith("/mail/"),
     title: "메일",
     desc: "업무 메일을 한곳에서 읽고 보내세요.",
