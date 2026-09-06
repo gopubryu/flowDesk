@@ -45,7 +45,7 @@ const nav: NavItem[] = [
   {
     type: "group",
     id: "purchase-requests",
-    label: "발주요청",
+    label: "발주",
     icon: ClipboardList,
     children: [
       { href: "/purchase-requests", label: "발주요청조회", icon: ClipboardList, exact: true },
@@ -56,7 +56,7 @@ const nav: NavItem[] = [
   {
     type: "group",
     id: "sales-plans",
-    label: "판매계획",
+    label: "판매",
     icon: CalendarClock,
     children: [
       { href: "/sales-plans", label: "판매계획조회", icon: ClipboardList, exact: true },
