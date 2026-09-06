@@ -1,31 +1,38 @@
 export type PurchaseStatus =
   | "approval"
   | "unconfirmed"
-  | "confirmed"
-  | "in_progress"
-  | "completed";
+  | "confirmed";
 
 export interface Purchase {
   id: string;
   /** 구매일자 */
   purchaseDate: string;
+  /** 오더관리번호 */
+  orderNo?: string;
   vendor: string;
+  vendorCode?: string;
   item: string;
-  /** 납기/입고예정일 */
-  dueDate: string;
-  /** 입고일 (optional) */
-  receiptDate?: string;
+  /** 적요 */
+  remarks?: string;
   quantity: number;
   amount: number;
   status: PurchaseStatus;
-  /** 종결여부 */
-  closed?: boolean;
   manager?: string;
+  /** 거래유형 */
   taxType?: string;
+  /** 입고창고 */
   warehouse?: string;
   project?: string;
   /** 내외자/통화 */
   currency?: string;
+  /** 발송여부 */
+  sent?: boolean;
+  /** 회계반영여부 */
+  accountingReflect?: boolean;
+  /** 인쇄 */
+  printed?: boolean;
+  /** 불러온전표 */
+  importedSlip?: string;
 }
 
 export const PURCHASE_STATUS_TABS: {
@@ -36,16 +43,12 @@ export const PURCHASE_STATUS_TABS: {
   { key: "approval", label: "결재중" },
   { key: "unconfirmed", label: "미확인" },
   { key: "confirmed", label: "확인" },
-  { key: "in_progress", label: "진행중" },
-  { key: "completed", label: "완료" },
 ];
 
 export const PURCHASE_STATUS_LABEL: Record<PurchaseStatus, string> = {
   approval: "결재중",
   unconfirmed: "미확인",
   confirmed: "확인",
-  in_progress: "진행중",
-  completed: "완료",
 };
 
 export const TAX_TYPE_OPTIONS = [
@@ -64,6 +67,19 @@ export const CURRENCY_OPTIONS = [
   "유로",
 ] as const;
 
+export const SENT_FILTER_OPTIONS = [
+  { key: "all", label: "전체" },
+  { key: "sent", label: "발송" },
+  { key: "unsent", label: "미발송" },
+] as const;
+
+export const SORT_OPTIONS = [
+  "일자",
+  "거래처",
+  "품목",
+  "금액",
+] as const;
+
 const STORAGE_KEY = "flowdesk-purchases";
 
 /** Local mock rows for 구매조회 — not wired to Prisma/Neon */
@@ -71,187 +87,234 @@ export const mockPurchases: Purchase[] = [
   {
     id: "pu-001",
     purchaseDate: "2026-08-28",
+    orderNo: "PO-260828-01",
     vendor: "한빛산업",
+    vendorCode: "V001",
     item: "스테인리스 볼트 M8",
-    dueDate: "2026-09-10",
-    receiptDate: "2026-09-09",
+    remarks: "정기 소모품 구매",
     quantity: 2000,
     amount: 924000,
-    status: "in_progress",
-    closed: false,
+    status: "unconfirmed",
     manager: "김구매",
     taxType: "부가세율 적용",
     warehouse: "본사창고",
     currency: "내자",
+    sent: false,
+    accountingReflect: false,
+    printed: false,
+    importedSlip: "",
   },
   {
     id: "pu-002",
     purchaseDate: "2026-08-29",
+    orderNo: "PO-260829-02",
     vendor: "세진전자",
+    vendorCode: "V002",
     item: "전원 어댑터 12V 5A",
-    dueDate: "2026-09-05",
+    remarks: "생산라인 보급",
     quantity: 150,
     amount: 2475000,
     status: "approval",
-    closed: false,
     manager: "이입고",
     taxType: "부가세율 적용",
     warehouse: "전자부품창고",
     currency: "내자",
+    sent: true,
+    accountingReflect: false,
+    printed: true,
+    importedSlip: "발주-002",
   },
   {
     id: "pu-003",
     purchaseDate: "2026-08-30",
+    orderNo: "PO-260830-03",
     vendor: "동아포장",
+    vendorCode: "V003",
     item: "골판지 박스 중형",
-    dueDate: "2026-09-08",
+    remarks: "출하 포장재",
     quantity: 500,
     amount: 715000,
     status: "unconfirmed",
-    closed: false,
     manager: "김구매",
     taxType: "부가세율 적용",
     warehouse: "본사창고",
     currency: "내자",
+    sent: false,
+    accountingReflect: false,
+    printed: false,
   },
   {
     id: "pu-004",
     purchaseDate: "2026-09-01",
+    orderNo: "PO-260901-04",
     vendor: "미래케미칼",
+    vendorCode: "V004",
     item: "산업용 세척제 20L",
-    dueDate: "2026-09-12",
-    receiptDate: "2026-09-11",
+    remarks: "설비 세척",
     quantity: 40,
     amount: 1408000,
     status: "confirmed",
-    closed: false,
     manager: "박자재",
     taxType: "부가세율 적용",
     warehouse: "화공창고",
     currency: "내자",
+    sent: true,
+    accountingReflect: true,
+    printed: true,
   },
   {
     id: "pu-005",
     purchaseDate: "2026-09-01",
+    orderNo: "PO-260901-05",
     vendor: "코리아베어링",
+    vendorCode: "V005",
     item: "베어링 6204-2RS",
-    dueDate: "2026-09-15",
-    receiptDate: "2026-09-14",
+    remarks: "교체 부품",
     quantity: 300,
     amount: 1056000,
-    status: "completed",
-    closed: true,
+    status: "confirmed",
     manager: "이입고",
     taxType: "부가세율 적용",
     warehouse: "본사창고",
     currency: "내자",
+    sent: true,
+    accountingReflect: true,
+    printed: false,
+    importedSlip: "발주-015",
   },
   {
     id: "pu-006",
     purchaseDate: "2026-09-02",
+    orderNo: "PO-260902-06",
     vendor: "푸른물산",
+    vendorCode: "V006",
     item: "PVC 파이프 50A",
-    dueDate: "2026-09-18",
+    remarks: "",
     quantity: 120,
     amount: 594000,
-    status: "in_progress",
-    closed: false,
+    status: "unconfirmed",
     manager: "김구매",
     taxType: "부가세율 적용",
     warehouse: "본사창고",
     currency: "내자",
+    sent: false,
+    accountingReflect: false,
+    printed: false,
   },
   {
     id: "pu-007",
     purchaseDate: "2026-09-02",
+    orderNo: "PO-260902-07",
     vendor: "스마트오피스",
+    vendorCode: "V007",
     item: "A4 복사용지 80g",
-    dueDate: "2026-09-07",
+    remarks: "사무용품",
     quantity: 50,
     amount: 192500,
     status: "unconfirmed",
-    closed: false,
     manager: "박자재",
     taxType: "부가세율 적용",
     warehouse: "본사창고",
     currency: "내자",
+    sent: false,
+    accountingReflect: false,
+    printed: false,
   },
   {
     id: "pu-008",
     purchaseDate: "2026-09-03",
+    orderNo: "PO-260903-08",
     vendor: "남해철강",
+    vendorCode: "V008",
     item: "각파이프 40x40",
-    dueDate: "2026-09-20",
+    remarks: "프레임 제작",
     quantity: 80,
     amount: 2112000,
     status: "approval",
-    closed: false,
     manager: "이입고",
     taxType: "부가세율 적용",
     warehouse: "철강야적",
     currency: "내자",
+    sent: false,
+    accountingReflect: false,
+    printed: false,
   },
   {
     id: "pu-009",
     purchaseDate: "2026-09-03",
+    orderNo: "PO-260903-09",
     vendor: "이노텍솔루션",
+    vendorCode: "V009",
     item: "PLC 릴레이 모듈",
-    dueDate: "2026-09-14",
-    receiptDate: "2026-09-13",
+    remarks: "자동화 설비",
     quantity: 25,
     amount: 3437500,
     status: "confirmed",
-    closed: false,
     manager: "김구매",
     taxType: "부가세율 적용",
     warehouse: "전자부품창고",
     currency: "달러[100]",
+    sent: true,
+    accountingReflect: true,
+    printed: true,
   },
   {
     id: "pu-010",
     purchaseDate: "2026-09-04",
+    orderNo: "PO-260904-10",
     vendor: "한빛산업",
+    vendorCode: "V001",
     item: "육각너트 M10",
-    dueDate: "2026-09-16",
-    receiptDate: "2026-09-15",
+    remarks: "볼트 세트 보충",
     quantity: 5000,
     amount: 495000,
-    status: "completed",
-    closed: true,
+    status: "confirmed",
     manager: "박자재",
     taxType: "부가세율 적용",
     warehouse: "본사창고",
     currency: "내자",
+    sent: true,
+    accountingReflect: true,
+    printed: true,
   },
   {
     id: "pu-011",
     purchaseDate: "2026-09-05",
+    orderNo: "PO-260905-11",
     vendor: "그린로지스",
+    vendorCode: "V010",
     item: "팔레트 랩 필름",
-    dueDate: "2026-09-11",
+    remarks: "물류 소모품",
     quantity: 60,
     amount: 858000,
-    status: "in_progress",
-    closed: false,
+    status: "approval",
     manager: "이입고",
     taxType: "부가세율 적용",
     warehouse: "본사창고",
     currency: "내자",
+    sent: false,
+    accountingReflect: false,
+    printed: false,
   },
   {
     id: "pu-012",
     purchaseDate: "2026-09-05",
+    orderNo: "PO-260905-12",
     vendor: "세진전자",
+    vendorCode: "V002",
     item: "USB-C 허브 7포트",
-    dueDate: "2026-09-22",
+    remarks: "사무 IT",
     quantity: 30,
     amount: 1485000,
     status: "approval",
-    closed: false,
     manager: "김구매",
     taxType: "부가세율 적용",
     warehouse: "전자부품창고",
     currency: "엔화[400]",
+    sent: false,
+    accountingReflect: false,
+    printed: false,
+    importedSlip: "발주-022",
   },
 ];
 
@@ -288,71 +351,28 @@ export function nextPurchaseId(): string {
   return `pu-${String(max + 1).padStart(3, "0")}`;
 }
 
-export interface PurchaseStatusAggRow {
-  key: string;
-  vendor: string;
-  item: string;
-  purchaseCount: number;
-  quantitySum: number;
-  amountSum: number;
-  status: PurchaseStatus;
-}
-
 export interface PurchaseStatusSummary {
   count: number;
   quantitySum: number;
   amountSum: number;
-  inProgressCount: number;
+  confirmedCount: number;
 }
 
 export function summarizePurchases(rows: Purchase[]): PurchaseStatusSummary {
   let quantitySum = 0;
   let amountSum = 0;
-  let inProgressCount = 0;
+  let confirmedCount = 0;
   for (const r of rows) {
     quantitySum += r.quantity;
     amountSum += r.amount;
-    if (r.status === "in_progress") inProgressCount += 1;
+    if (r.status === "confirmed") confirmedCount += 1;
   }
   return {
     count: rows.length,
     quantitySum,
     amountSum,
-    inProgressCount,
+    confirmedCount,
   };
-}
-
-/** Aggregate by vendor + item + status for 구매현황 */
-export function aggregatePurchasesByVendorStatus(
-  rows: Purchase[]
-): PurchaseStatusAggRow[] {
-  const map = new Map<string, PurchaseStatusAggRow>();
-  for (const r of rows) {
-    const key = `${r.vendor}\0${r.item}\0${r.status}`;
-    const existing = map.get(key);
-    if (existing) {
-      existing.purchaseCount += 1;
-      existing.quantitySum += r.quantity;
-      existing.amountSum += r.amount;
-    } else {
-      map.set(key, {
-        key,
-        vendor: r.vendor,
-        item: r.item,
-        purchaseCount: 1,
-        quantitySum: r.quantity,
-        amountSum: r.amount,
-        status: r.status,
-      });
-    }
-  }
-  return Array.from(map.values()).sort((a, b) => {
-    const v = a.vendor.localeCompare(b.vendor, "ko");
-    if (v !== 0) return v;
-    const i = a.item.localeCompare(b.item, "ko");
-    if (i !== 0) return i;
-    return a.status.localeCompare(b.status);
-  });
 }
 
 export function countByPurchaseStatus(
@@ -362,8 +382,6 @@ export function countByPurchaseStatus(
     approval: 0,
     unconfirmed: 0,
     confirmed: 0,
-    in_progress: 0,
-    completed: 0,
   };
   for (const r of rows) counts[r.status] += 1;
   return PURCHASE_STATUS_TABS.map((t) => ({

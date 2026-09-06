@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { FileSpreadsheet, Printer, Search, Settings2 } from "lucide-react";
+import { FileSpreadsheet, Mail, Printer, Search, Settings2 } from "lucide-react";
 import {
   PURCHASE_STATUS_LABEL,
   countByPurchaseStatus,
@@ -52,9 +52,7 @@ const AGG_DIMS = [
 const chartColors: Record<PurchaseStatus, string> = {
   approval: "#f59e0b",
   unconfirmed: "#94a3b8",
-  confirmed: "#6366f1",
-  in_progress: "#0ea5e9",
-  completed: "#22c55e",
+  confirmed: "#22c55e",
 };
 
 function isoDate(d: Date) {
@@ -72,8 +70,8 @@ function addDays(base: Date, n: number) {
 
 function startOfWeek(d: Date) {
   const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const day = x.getDay(); // 0 Sun
-  const diff = day === 0 ? -6 : 1 - day; // Monday start
+  const day = x.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
   return addDays(x, diff);
 }
 
@@ -97,11 +95,12 @@ type ResultRow =
       id: string;
       purchaseDate: string;
       slipNo: string;
+      vendor: string;
+      remarks: string;
       item: string;
       quantity: number;
       unitPrice: number;
-      supply: number;
-      vendor: string;
+      amount: number;
       status: PurchaseStatus;
     }
   | {
@@ -109,13 +108,13 @@ type ResultRow =
       key: string;
       label: string;
       quantity: number;
-      supply: number;
+      amount: number;
       count: number;
     }
   | {
       kind: "total";
       quantity: number;
-      supply: number;
+      amount: number;
       count: number;
     };
 
@@ -126,13 +125,10 @@ export default function PurchaseStatusPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("status");
   const [showChart, setShowChart] = useState(false);
 
-  // 현황 filters (subset of Ecount)
   const [lineMode] = useState("라인별");
   const [compare, setCompare] = useState<ComparePeriod>("none");
   const [dateFrom, setDateFrom] = useState(defaults.from);
   const [dateTo, setDateTo] = useState(defaults.to);
-  const [dueFrom, setDueFrom] = useState("");
-  const [dueTo, setDueTo] = useState("");
   const [slipNo, setSlipNo] = useState("");
   const [domestic, setDomestic] = useState<DomesticFilter>("all");
   const [warehouse, setWarehouse] = useState("");
@@ -141,15 +137,12 @@ export default function PurchaseStatusPage() {
   const [itemCode, setItemCode] = useState("");
   const [sortBy, setSortBy] = useState("일자");
 
-  // 집계 stub
   const [agg1, setAgg1] = useState<(typeof AGG_DIMS)[number]>("월별");
   const [agg2, setAgg2] = useState<(typeof AGG_DIMS)[number] | "">("거래처별");
 
   const [applied, setApplied] = useState({
     dateFrom: defaults.from,
     dateTo: defaults.to,
-    dueFrom: "",
-    dueTo: "",
     slipNo: "",
     domestic: "all" as DomesticFilter,
     warehouse: "",
@@ -168,8 +161,6 @@ export default function PurchaseStatusPage() {
     setApplied({
       dateFrom,
       dateTo,
-      dueFrom,
-      dueTo,
       slipNo,
       domestic,
       warehouse,
@@ -234,8 +225,6 @@ export default function PurchaseStatusPage() {
       const d = defaultPurchaseDateRange();
       setDateFrom(d.from);
       setDateTo(d.to);
-      setDueFrom("");
-      setDueTo("");
       setSlipNo("");
       setDomestic("all");
       setWarehouse("");
@@ -248,8 +237,6 @@ export default function PurchaseStatusPage() {
       setApplied({
         dateFrom: d.from,
         dateTo: d.to,
-        dueFrom: "",
-        dueTo: "",
         slipNo: "",
         domestic: "all",
         warehouse: "",
@@ -271,35 +258,34 @@ export default function PurchaseStatusPage() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateFrom, dateTo, dueFrom, dueTo, slipNo, domestic, warehouse, project, vendorCode, itemCode, sortBy]);
+  }, [dateFrom, dateTo, slipNo, domestic, warehouse, project, vendorCode, itemCode, sortBy]);
 
   const filtered = useMemo(() => {
     let list = rows.filter((r) => {
       if (r.purchaseDate < applied.dateFrom || r.purchaseDate > applied.dateTo) return false;
-      if (applied.dueFrom && r.dueDate < applied.dueFrom) return false;
-      if (applied.dueTo && r.dueDate > applied.dueTo) return false;
       if (applied.slipNo.trim()) {
         const q = applied.slipNo.trim().toLowerCase();
         if (!r.id.toLowerCase().includes(q)) return false;
       }
       if (applied.vendorCode.trim()) {
         const q = applied.vendorCode.trim().toLowerCase();
-        if (!r.vendor.toLowerCase().includes(q)) return false;
+        if (
+          !r.vendor.toLowerCase().includes(q) &&
+          !(r.vendorCode || "").toLowerCase().includes(q)
+        )
+          return false;
       }
       if (applied.itemCode.trim()) {
         const q = applied.itemCode.trim().toLowerCase();
         if (!r.item.toLowerCase().includes(q)) return false;
       }
-      if (applied.warehouse.trim() && r.warehouse) {
-        if (!r.warehouse.toLowerCase().includes(applied.warehouse.trim().toLowerCase()))
+      if (applied.warehouse.trim()) {
+        if (!(r.warehouse || "").toLowerCase().includes(applied.warehouse.trim().toLowerCase()))
           return false;
-      } else if (applied.warehouse.trim() && !r.warehouse) {
-        return false;
       }
-      if (applied.project.trim() && r.project) {
-        if (!r.project.toLowerCase().includes(applied.project.trim().toLowerCase())) return false;
-      } else if (applied.project.trim() && !r.project) {
-        return false;
+      if (applied.project.trim()) {
+        if (!(r.project || "").toLowerCase().includes(applied.project.trim().toLowerCase()))
+          return false;
       }
       if (applied.domestic === "domestic") {
         if (r.currency && r.currency !== "내자") return false;
@@ -321,7 +307,6 @@ export default function PurchaseStatusPage() {
         if (v !== 0) return v;
         return a.purchaseDate.localeCompare(b.purchaseDate);
       }
-      // 일자 default
       const d = a.purchaseDate.localeCompare(b.purchaseDate);
       if (d !== 0) return d;
       return a.id.localeCompare(b.id);
@@ -335,10 +320,10 @@ export default function PurchaseStatusPage() {
     const out: ResultRow[] = [];
     let curMonth = "";
     let mQty = 0;
-    let mSupply = 0;
+    let mAmt = 0;
     let mCount = 0;
     let tQty = 0;
-    let tSupply = 0;
+    let tAmt = 0;
 
     const flush = () => {
       if (!curMonth) return;
@@ -347,7 +332,7 @@ export default function PurchaseStatusPage() {
         key: curMonth,
         label: monthLabel(curMonth),
         quantity: mQty,
-        supply: mSupply,
+        amount: mAmt,
         count: mCount,
       });
     };
@@ -357,7 +342,7 @@ export default function PurchaseStatusPage() {
       if (curMonth && mk !== curMonth) {
         flush();
         mQty = 0;
-        mSupply = 0;
+        mAmt = 0;
         mCount = 0;
       }
       curMonth = mk;
@@ -367,22 +352,23 @@ export default function PurchaseStatusPage() {
         id: r.id,
         purchaseDate: r.purchaseDate,
         slipNo: r.id.replace(/^pu-/i, ""),
+        vendor: r.vendor,
+        remarks: r.remarks || "",
         item: r.item,
         quantity: r.quantity,
         unitPrice: up,
-        supply: r.amount,
-        vendor: r.vendor,
+        amount: r.amount,
         status: r.status,
       });
       mQty += r.quantity;
-      mSupply += r.amount;
+      mAmt += r.amount;
       mCount += 1;
       tQty += r.quantity;
-      tSupply += r.amount;
+      tAmt += r.amount;
     }
     flush();
     if (filtered.length > 0) {
-      out.push({ kind: "total", quantity: tQty, supply: tSupply, count: filtered.length });
+      out.push({ kind: "total", quantity: tQty, amount: tAmt, count: filtered.length });
     }
     return out;
   }, [filtered]);
@@ -404,7 +390,6 @@ export default function PurchaseStatusPage() {
 
   return (
     <div className="space-y-3">
-      {/* top tabs: 기본 | + */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1">
           <button
@@ -514,24 +499,6 @@ export default function PurchaseStatusPage() {
                 </select>
               </div>
               <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
-                <span className={labelCls}>납기일자</span>
-                <div className="flex flex-1 items-center gap-1 px-1">
-                  <Input
-                    type="date"
-                    className={cn(fieldCls, "w-full min-w-0 border-0 shadow-none")}
-                    value={dueFrom}
-                    onChange={(e) => setDueFrom(e.target.value)}
-                  />
-                  <span className="text-[10px] text-slate-400">~</span>
-                  <Input
-                    type="date"
-                    className={cn(fieldCls, "w-full min-w-0 border-0 shadow-none")}
-                    value={dueTo}
-                    onChange={(e) => setDueTo(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
                 <span className={labelCls}>창고</span>
                 <Input
                   className={cn(fieldCls, "flex-1 rounded-none border-0")}
@@ -545,15 +512,6 @@ export default function PurchaseStatusPage() {
                   className={cn(fieldCls, "flex-1 rounded-none border-0")}
                   value={project}
                   onChange={(e) => setProject(e.target.value)}
-                />
-              </div>
-              <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
-                <span className={labelCls}>관리항목</span>
-                <Input
-                  className={cn(fieldCls, "flex-1 rounded-none border-0")}
-                  placeholder="(선택)"
-                  onChange={() => undefined}
-                  readOnly
                 />
               </div>
               <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
@@ -653,7 +611,6 @@ export default function PurchaseStatusPage() {
         </Card>
       )}
 
-      {/* date shortcuts */}
       <div className="flex flex-wrap gap-1">
         {(
           [
@@ -693,15 +650,14 @@ export default function PurchaseStatusPage() {
         ))}
       </div>
 
-      {/* slim stats */}
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {[
           { label: "건수", value: `${summary.count.toLocaleString("ko-KR")}건` },
           { label: "총수량", value: summary.quantitySum.toLocaleString("ko-KR") },
           { label: "총금액", value: formatKRW(summary.amountSum) },
           {
-            label: "진행중 건수",
-            value: `${summary.inProgressCount.toLocaleString("ko-KR")}건`,
+            label: "확인 건수",
+            value: `${summary.confirmedCount.toLocaleString("ko-KR")}건`,
           },
         ].map((s) => (
           <Card key={s.label} className="border-slate-200 shadow-sm">
@@ -763,12 +719,12 @@ export default function PurchaseStatusPage() {
               <thead>
                 <tr className="border-b bg-slate-50 text-[11px] font-semibold tracking-wide text-slate-500">
                   <th className="px-3 py-2.5">일자-No.</th>
-                  <th className="px-3 py-2.5">품목명(규격)</th>
+                  <th className="px-3 py-2.5">거래처명</th>
+                  <th className="px-3 py-2.5">적요</th>
+                  <th className="px-3 py-2.5">품목명[규격]</th>
                   <th className="px-3 py-2.5 text-right">수량</th>
                   <th className="px-3 py-2.5 text-right">단가</th>
-                  <th className="px-3 py-2.5 text-right">공급가액</th>
-                  <th className="px-3 py-2.5">거래처명</th>
-                  <th className="px-3 py-2.5 text-slate-400">새로운 항목 추가</th>
+                  <th className="px-3 py-2.5 text-right">금액</th>
                 </tr>
               </thead>
               <tbody>
@@ -790,7 +746,7 @@ export default function PurchaseStatusPage() {
                       return (
                         <tr key={`sub-${r.key}`} className="border-b bg-indigo-50/50">
                           <td
-                            colSpan={2}
+                            colSpan={4}
                             className="px-3 py-2 text-[11px] font-semibold text-indigo-800"
                           >
                             {r.label} ({r.count}건)
@@ -800,16 +756,15 @@ export default function PurchaseStatusPage() {
                           </td>
                           <td className="px-3 py-2" />
                           <td className="px-3 py-2 text-right tabular-nums font-semibold text-indigo-900">
-                            {formatKRW(r.supply)}
+                            {formatKRW(r.amount)}
                           </td>
-                          <td colSpan={2} />
                         </tr>
                       );
                     }
                     if (r.kind === "total") {
                       return (
                         <tr key="total" className="border-b bg-slate-100">
-                          <td colSpan={2} className="px-3 py-2.5 text-xs font-bold text-slate-900">
+                          <td colSpan={4} className="px-3 py-2.5 text-xs font-bold text-slate-900">
                             총합계 ({r.count}건)
                           </td>
                           <td className="px-3 py-2.5 text-right tabular-nums font-bold text-slate-900">
@@ -817,9 +772,8 @@ export default function PurchaseStatusPage() {
                           </td>
                           <td className="px-3 py-2.5" />
                           <td className="px-3 py-2.5 text-right tabular-nums font-bold text-slate-900">
-                            {formatKRW(r.supply)}
+                            {formatKRW(r.amount)}
                           </td>
-                          <td colSpan={2} />
                         </tr>
                       );
                     }
@@ -832,6 +786,8 @@ export default function PurchaseStatusPage() {
                         <td className="whitespace-nowrap px-3 py-2 text-slate-700">
                           {r.purchaseDate}-{r.slipNo}
                         </td>
+                        <td className="px-3 py-2 font-medium text-slate-900">{r.vendor}</td>
+                        <td className="px-3 py-2 text-slate-600">{r.remarks || "—"}</td>
                         <td className="px-3 py-2 text-slate-800">{r.item}</td>
                         <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-700">
                           {r.quantity.toLocaleString("ko-KR")}
@@ -840,10 +796,8 @@ export default function PurchaseStatusPage() {
                           {formatKRW(r.unitPrice)}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium text-slate-900">
-                          {formatKRW(r.supply)}
+                          {formatKRW(r.amount)}
                         </td>
-                        <td className="px-3 py-2 font-medium text-slate-900">{r.vendor}</td>
-                        <td className="px-3 py-2 text-[10px] text-slate-300">—</td>
                       </tr>
                     );
                   })
@@ -853,7 +807,7 @@ export default function PurchaseStatusPage() {
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-slate-50/80 px-3 py-2.5">
             <p className="text-[11px] text-muted-foreground">
-              {viewMode === "status" ? "현황" : "집계"} · {filtered.length}건
+              {viewMode === "status" ? "현황" : "집계"} · 구분 {lineMode} · {filtered.length}건
               {compare !== "none"
                 ? ` · 비교기간: ${COMPARE_OPTIONS.find((c) => c.key === compare)?.label}`
                 : ""}
@@ -874,10 +828,20 @@ export default function PurchaseStatusPage() {
                 size="sm"
                 variant="outline"
                 className="h-8 gap-1.5"
-                onClick={() => stub("Excel(화면)")}
+                onClick={() => stub("Excel")}
               >
                 <FileSpreadsheet className="h-3.5 w-3.5" />
-                Excel(화면)
+                Excel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1.5"
+                onClick={() => stub("Email")}
+              >
+                <Mail className="h-3.5 w-3.5" />
+                Email
               </Button>
             </div>
           </div>

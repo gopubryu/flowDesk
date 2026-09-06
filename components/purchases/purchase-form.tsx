@@ -19,6 +19,9 @@ import {
   Bell,
   ChevronDown,
   Printer,
+  Banknote,
+  History,
+  Percent,
 } from "lucide-react";
 import {
   CURRENCY_OPTIONS,
@@ -37,8 +40,6 @@ export type LineRow = {
   checked: boolean;
   itemCode: string;
   itemName: string;
-  vendorCode: string;
-  vendorName: string;
   spec: string;
   qty: string;
   unitPrice: string;
@@ -49,19 +50,19 @@ export type LineRow = {
 };
 
 type Master = {
+  orderNo: string;
   purchaseDate: string;
   slipNo: string;
+  vendorCode: string;
+  vendorName: string;
   managerCode: string;
   managerName: string;
-  taxType: string;
   warehouseCode: string;
   warehouseName: string;
+  taxType: string;
+  currency: string;
   projectCode: string;
   projectName: string;
-  currency: string;
-  dueDate: string;
-  receiptDate: string;
-  closed: boolean;
 };
 
 const OPTION_MENU_ITEMS = [
@@ -90,8 +91,6 @@ function emptyLine(): LineRow {
     checked: false,
     itemCode: "",
     itemName: "",
-    vendorCode: "",
-    vendorName: "",
     spec: "",
     qty: "",
     unitPrice: "",
@@ -105,19 +104,19 @@ function emptyLine(): LineRow {
 function defaultMaster(): Master {
   const today = todayISO();
   return {
+    orderNo: "",
     purchaseDate: today,
     slipNo: "",
+    vendorCode: "",
+    vendorName: "",
     managerCode: "",
     managerName: "",
-    taxType: "부가세율 적용",
     warehouseCode: "",
     warehouseName: "",
+    taxType: "부가세율 적용",
+    currency: "내자",
     projectCode: "",
     projectName: "",
-    currency: "내자",
-    dueDate: today,
-    receiptDate: "",
-    closed: false,
   };
 }
 
@@ -147,9 +146,11 @@ function recalcLine(row: LineRow, taxType: string): LineRow {
 const LINE_TOOLBAR: { label: string; icon?: ReactNode }[] = [
   { label: "찾기(F3)", icon: <Search className="h-3 w-3" /> },
   { label: "정렬", icon: <ArrowUpDown className="h-3 w-3" /> },
+  { label: "거래내역보기(구매)", icon: <History className="h-3 w-3" /> },
   { label: "My품목", icon: <Package className="h-3 w-3" /> },
   { label: "발주" },
-  { label: "입고" },
+  { label: "주문" },
+  { label: "할인", icon: <Percent className="h-3 w-3" /> },
   { label: "전표불러오기", icon: <FileInput className="h-3 w-3" /> },
   { label: "재고불러오기", icon: <Warehouse className="h-3 w-3" /> },
   { label: "바코드", icon: <ScanLine className="h-3 w-3" /> },
@@ -295,9 +296,6 @@ export function PurchaseForm({
       if (key === "taxType") {
         setLines((rows) => rows.map((r) => recalcLine(r, String(value))));
       }
-      if (key === "purchaseDate" && (!m.dueDate || m.dueDate === m.purchaseDate)) {
-        next.dueDate = String(value);
-      }
       return next;
     });
   }
@@ -331,7 +329,6 @@ export function PurchaseForm({
       (l) =>
         l.itemName.trim() ||
         l.itemCode.trim() ||
-        l.vendorName.trim() ||
         (l.qty !== "" && Number(l.qty) > 0)
     );
   }
@@ -340,6 +337,10 @@ export function PurchaseForm({
     const filled = filledLines();
     if (filled.length === 0) {
       alert("품목 행을 하나 이상 입력하세요.");
+      return null;
+    }
+    if (!master.vendorName.trim() && !master.vendorCode.trim()) {
+      alert("거래처를 입력하세요.");
       return null;
     }
     const first = filled[0];
@@ -351,22 +352,24 @@ export function PurchaseForm({
     return {
       id: mode === "edit" && editId ? editId : nextPurchaseId(),
       purchaseDate: master.purchaseDate,
-      vendor: first.vendorName.trim() || first.vendorCode.trim() || "(미지정)",
+      orderNo: master.orderNo || undefined,
+      vendor: master.vendorName.trim() || master.vendorCode.trim() || "(미지정)",
+      vendorCode: master.vendorCode || undefined,
       item:
         filled.length === 1
           ? first.itemName.trim() || first.itemCode.trim() || "(미지정)"
           : `${first.itemName.trim() || first.itemCode.trim() || "품목"} 외 ${filled.length - 1}건`,
-      dueDate: master.dueDate || master.purchaseDate,
-      receiptDate: master.receiptDate || undefined,
       quantity,
       amount,
       status: "unconfirmed",
-      closed: master.closed,
       manager: master.managerName || master.managerCode,
       taxType: master.taxType,
       warehouse: master.warehouseName || master.warehouseCode,
       project: master.projectName || master.projectCode,
       currency: master.currency,
+      sent: false,
+      accountingReflect: false,
+      printed: false,
     };
   }
 
@@ -465,25 +468,34 @@ export function PurchaseForm({
             도움말
           </Button>
           {isModal && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={finishClose}
-            aria-label="닫기"
-          >
-            <X className="h-3.5 w-3.5" />
-          </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={finishClose}
+              aria-label="닫기"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
           )}
         </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-        {/* Master header — dense 2-col Ecount-like */}
+        {/* Master header — Ecount 구매입력 */}
         <div className="shrink-0 border-b border-slate-200 bg-slate-50/80 px-3 py-2.5">
           <div className="grid grid-cols-1 gap-x-6 gap-y-1.5 md:grid-cols-2">
-            {/* 일자-No.: date picker + No. display */}
+            <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
+              <span className={labelCls}>오더관리번호</span>
+              <Input
+                className={cn(fieldCls, "rounded-none border-0")}
+                value={master.orderNo}
+                onChange={(e) => setMasterField("orderNo", e.target.value)}
+                placeholder="오더관리번호"
+              />
+            </div>
+
             <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
               <span className={labelCls}>일자-No.</span>
               <Input
@@ -503,10 +515,19 @@ export function PurchaseForm({
                 placeholder="자동"
                 value={master.slipNo}
                 readOnly
-                onChange={(e) => setMasterField("slipNo", e.target.value)}
                 aria-label="전표번호"
               />
             </div>
+
+            <CodeNameField
+              label="거래처"
+              code={master.vendorCode}
+              name={master.vendorName}
+              onCodeChange={(v) => setMasterField("vendorCode", v)}
+              onNameChange={(v) => setMasterField("vendorName", v)}
+              onSearch={() => stub("거래처 검색")}
+              namePlaceholder="거래처명"
+            />
 
             <CodeNameField
               label="담당자"
@@ -516,6 +537,16 @@ export function PurchaseForm({
               onNameChange={(v) => setMasterField("managerName", v)}
               onSearch={() => stub("담당자 검색")}
               namePlaceholder="담당자명"
+            />
+
+            <CodeNameField
+              label="입고창고"
+              code={master.warehouseCode}
+              name={master.warehouseName}
+              onCodeChange={(v) => setMasterField("warehouseCode", v)}
+              onNameChange={(v) => setMasterField("warehouseName", v)}
+              onSearch={() => stub("입고창고 검색")}
+              namePlaceholder="창고명"
             />
 
             <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
@@ -533,26 +564,6 @@ export function PurchaseForm({
               </select>
             </div>
 
-            <CodeNameField
-              label="창고"
-              code={master.warehouseCode}
-              name={master.warehouseName}
-              onCodeChange={(v) => setMasterField("warehouseCode", v)}
-              onNameChange={(v) => setMasterField("warehouseName", v)}
-              onSearch={() => stub("창고 검색")}
-              namePlaceholder="창고명"
-            />
-
-            <CodeNameField
-              label="프로젝트"
-              code={master.projectCode}
-              name={master.projectName}
-              onCodeChange={(v) => setMasterField("projectCode", v)}
-              onNameChange={(v) => setMasterField("projectName", v)}
-              onSearch={() => stub("프로젝트 검색")}
-              namePlaceholder="프로젝트명"
-            />
-
             <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
               <span className={labelCls}>통화</span>
               <select
@@ -568,40 +579,16 @@ export function PurchaseForm({
               </select>
             </div>
 
-            <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
-              <span className={labelCls}>납기/입고예정</span>
-              <Input
-                type="date"
-                className={cn(fieldCls, "rounded-none border-0")}
-                value={master.dueDate}
-                onChange={(e) => setMasterField("dueDate", e.target.value)}
-              />
-            </div>
+            <CodeNameField
+              label="프로젝트"
+              code={master.projectCode}
+              name={master.projectName}
+              onCodeChange={(v) => setMasterField("projectCode", v)}
+              onNameChange={(v) => setMasterField("projectName", v)}
+              onSearch={() => stub("프로젝트 검색")}
+              namePlaceholder="프로젝트명"
+            />
 
-            <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
-              <span className={labelCls}>입고일</span>
-              <Input
-                type="date"
-                className={cn(fieldCls, "rounded-none border-0")}
-                value={master.receiptDate}
-                onChange={(e) => setMasterField("receiptDate", e.target.value)}
-              />
-            </div>
-
-            <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
-              <span className={labelCls}>종결여부</span>
-              <label className="flex h-7 flex-1 items-center gap-2 bg-white px-2 text-xs text-slate-700">
-                <input
-                  type="checkbox"
-                  className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600"
-                  checked={master.closed}
-                  onChange={(e) => setMasterField("closed", e.target.checked)}
-                />
-                종결
-              </label>
-            </div>
-
-            {/* 첨부: wide click area */}
             <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
               <span className={labelCls}>첨부</span>
               <button
@@ -619,7 +606,6 @@ export function PurchaseForm({
               </button>
             </div>
 
-            {/* Master placeholder: 새로운 항목 추가 */}
             <div className="flex items-stretch overflow-hidden rounded border border-dashed border-slate-200 md:col-span-2">
               <span className={cn(labelCls, "bg-slate-50 text-slate-400")}>새로운 항목 추가</span>
               <Input
@@ -673,9 +659,9 @@ export function PurchaseForm({
           </div>
         </div>
 
-        {/* Line grid */}
+        {/* Line grid — no vendor columns */}
         <div className="min-h-0 flex-1 overflow-auto scrollbar-thin">
-          <table className="w-full min-w-[1180px] border-collapse text-left text-[11px]">
+          <table className="w-full min-w-[980px] border-collapse text-left text-[11px]">
             <thead className="sticky top-0 z-10">
               <tr className="border-b bg-indigo-50/80 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
                 <th className="w-8 px-2 py-1.5">
@@ -683,9 +669,7 @@ export function PurchaseForm({
                 </th>
                 <th className="w-8 px-1 py-1.5 text-center">+</th>
                 <th className="min-w-[88px] px-2 py-1.5">품목코드</th>
-                <th className="min-w-[140px] px-2 py-1.5">품목명</th>
-                <th className="min-w-[88px] px-2 py-1.5">거래처코드</th>
-                <th className="min-w-[120px] px-2 py-1.5">거래처명</th>
+                <th className="min-w-[160px] px-2 py-1.5">품목명</th>
                 <th className="min-w-[80px] px-2 py-1.5">규격</th>
                 <th className="min-w-[72px] px-2 py-1.5 text-right">수량</th>
                 <th className="min-w-[88px] px-2 py-1.5 text-right">단가</th>
@@ -726,8 +710,6 @@ export function PurchaseForm({
                     [
                       ["itemCode", "left"],
                       ["itemName", "left"],
-                      ["vendorCode", "left"],
-                      ["vendorName", "left"],
                       ["spec", "left"],
                       ["qty", "right"],
                       ["unitPrice", "right"],
@@ -746,11 +728,11 @@ export function PurchaseForm({
                             "h-7 rounded border-slate-200 px-1.5 text-[11px] focus-visible:ring-1 focus-visible:ring-indigo-500",
                             align === "right" && "text-right tabular-nums",
                             readOnly && "bg-slate-50 text-slate-600",
-                            isExtra && "border-dashed border-slate-200 bg-slate-50/50 placeholder:text-slate-300"
+                            isExtra &&
+                              "border-dashed border-slate-200 bg-slate-50/50 placeholder:text-slate-300"
                           )}
                           value={line[key]}
                           readOnly={readOnly}
-                          placeholder={isExtra ? "" : undefined}
                           onChange={(e) => updateLine(line.id, { [key]: e.target.value })}
                         />
                       </td>
@@ -761,7 +743,7 @@ export function PurchaseForm({
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold text-slate-800">
-                <td colSpan={7} className="px-3 py-2 text-right text-[11px] text-slate-500">
+                <td colSpan={5} className="px-3 py-2 text-right text-[11px] text-slate-500">
                   합계
                 </td>
                 <td className="px-2 py-2 text-right tabular-nums">
@@ -783,7 +765,7 @@ export function PurchaseForm({
           </table>
         </div>
 
-        {/* Footer actions — Ecount parity */}
+        {/* Footer — Ecount 구매입력 */}
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 px-3 py-2.5">
           <div className="flex items-center gap-1">
             <Button
@@ -876,18 +858,22 @@ export function PurchaseForm({
             <Button type="button" size="sm" variant="outline" className="h-8" onClick={resetForm}>
               다시 작성
             </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1"
+              onClick={() => stub("현금지급")}
+            >
+              <Banknote className="h-3.5 w-3.5" />
+              현금지급
+            </Button>
             {!isModal ? (
               <Button type="button" size="sm" variant="outline" className="h-8" onClick={finishClose}>
                 리스트
               </Button>
             ) : (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8"
-                onClick={finishClose}
-              >
+              <Button type="button" size="sm" variant="outline" className="h-8" onClick={finishClose}>
                 닫기
               </Button>
             )}
