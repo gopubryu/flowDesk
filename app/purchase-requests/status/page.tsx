@@ -27,6 +27,9 @@ import { cn, formatKRW } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { WarehouseSearchDialog } from "@/components/warehouses/warehouse-search-dialog";
+import { VendorSearchDialog } from "@/components/vendors/vendor-search-dialog";
+import { ItemSearchDialog } from "@/components/items/item-search-dialog";
 
 type ViewMode = "status" | "aggregate";
 type DomesticFilter = "all" | "domestic" | "foreign";
@@ -121,6 +124,45 @@ type ResultRow =
       count: number;
     };
 
+
+function FilterSearchField({
+  label,
+  value,
+  onChange,
+  onSearch,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  onSearch: () => void;
+  placeholder?: string;
+}) {
+  return (
+    <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
+      <span className="flex h-7 min-w-[88px] shrink-0 items-center bg-slate-100 px-2 text-[11px] font-medium text-slate-600">
+        {label}
+      </span>
+      <Input
+        className="h-7 min-w-0 flex-1 rounded-none border-0 bg-white px-2 text-xs focus-visible:ring-1 focus-visible:ring-indigo-500"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onDoubleClick={onSearch}
+        placeholder={placeholder}
+        aria-label={label}
+      />
+      <button
+        type="button"
+        className="flex h-7 w-7 shrink-0 items-center justify-center border-l border-slate-200 bg-white text-slate-400 hover:bg-indigo-50 hover:text-indigo-600"
+        onClick={onSearch}
+        aria-label={`${label} 검색`}
+      >
+        <Search className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
+
 export default function PurchaseRequestStatusPage() {
   const router = useRouter();
   const defaults = useMemo(() => defaultPurchaseRequestDateRange(), []);
@@ -139,10 +181,12 @@ export default function PurchaseRequestStatusPage() {
   const [slipNo, setSlipNo] = useState("");
   const [domestic, setDomestic] = useState<DomesticFilter>("all");
   const [warehouse, setWarehouse] = useState("");
-  const [project, setProject] = useState("");
   const [vendorCode, setVendorCode] = useState("");
   const [itemCode, setItemCode] = useState("");
   const [sortBy, setSortBy] = useState("일자");
+  const [warehouseSearchOpen, setWarehouseSearchOpen] = useState(false);
+  const [vendorSearchOpen, setVendorSearchOpen] = useState(false);
+  const [itemSearchOpen, setItemSearchOpen] = useState(false);
 
   // 집계 stub
   const [agg1, setAgg1] = useState<(typeof AGG_DIMS)[number]>("월별");
@@ -156,7 +200,6 @@ export default function PurchaseRequestStatusPage() {
     slipNo: "",
     domestic: "all" as DomesticFilter,
     warehouse: "",
-    project: "",
     vendorCode: "",
     itemCode: "",
     sortBy: "일자",
@@ -189,7 +232,6 @@ export default function PurchaseRequestStatusPage() {
       slipNo,
       domestic,
       warehouse,
-      project,
       vendorCode,
       itemCode,
       sortBy,
@@ -255,7 +297,6 @@ export default function PurchaseRequestStatusPage() {
       setSlipNo("");
       setDomestic("all");
       setWarehouse("");
-      setProject("");
       setVendorCode("");
       setItemCode("");
       setSortBy("일자");
@@ -269,7 +310,6 @@ export default function PurchaseRequestStatusPage() {
         slipNo: "",
         domestic: "all",
         warehouse: "",
-        project: "",
         vendorCode: "",
         itemCode: "",
         sortBy: "일자",
@@ -287,7 +327,7 @@ export default function PurchaseRequestStatusPage() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateFrom, dateTo, dueFrom, dueTo, slipNo, domestic, warehouse, project, vendorCode, itemCode, sortBy]);
+  }, [dateFrom, dateTo, dueFrom, dueTo, slipNo, domestic, warehouse, vendorCode, itemCode, sortBy]);
 
   const filtered = useMemo(() => {
     let list = rows.filter((r) => {
@@ -302,22 +342,33 @@ export default function PurchaseRequestStatusPage() {
       }
       if (applied.vendorCode.trim()) {
         const q = applied.vendorCode.trim().toLowerCase();
-        if (!r.vendor.toLowerCase().includes(q)) return false;
+        const hay = [
+          r.vendor,
+          r.vendorCode ?? "",
+          r.vendorName ?? "",
+        ]
+          .join(" ")
+          .toLowerCase();
+        if (!hay.includes(q)) return false;
       }
       if (applied.itemCode.trim()) {
         const q = applied.itemCode.trim().toLowerCase();
-        if (!r.item.toLowerCase().includes(q)) return false;
+        const lineHit = (r.lines ?? []).some((l) => {
+          const hay = [l.itemCode ?? "", l.itemName ?? ""].join(" ").toLowerCase();
+          return hay.includes(q);
+        });
+        if (!r.item.toLowerCase().includes(q) && !lineHit) return false;
       }
-      if (applied.warehouse.trim() && r.warehouse) {
-        if (!r.warehouse.toLowerCase().includes(applied.warehouse.trim().toLowerCase()))
-          return false;
-      } else if (applied.warehouse.trim() && !r.warehouse) {
-        return false;
-      }
-      if (applied.project.trim() && r.project) {
-        if (!r.project.toLowerCase().includes(applied.project.trim().toLowerCase())) return false;
-      } else if (applied.project.trim() && !r.project) {
-        return false;
+      if (applied.warehouse.trim()) {
+        const q = applied.warehouse.trim().toLowerCase();
+        const hay = [
+          r.warehouse ?? "",
+          r.warehouseCode ?? "",
+          r.warehouseName ?? "",
+        ]
+          .join(" ")
+          .toLowerCase();
+        if (!hay.includes(q)) return false;
       }
       if (applied.domestic === "domestic") {
         if (r.currency && r.currency !== "내자") return false;
@@ -551,49 +602,27 @@ export default function PurchaseRequestStatusPage() {
                   />
                 </div>
               </div>
-              <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
-                <span className={labelCls}>창고</span>
-                <Input
-                  className={cn(fieldCls, "flex-1 rounded-none border-0")}
-                  value={warehouse}
-                  onChange={(e) => setWarehouse(e.target.value)}
-                />
-              </div>
-              <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
-                <span className={labelCls}>프로젝트</span>
-                <Input
-                  className={cn(fieldCls, "flex-1 rounded-none border-0")}
-                  value={project}
-                  onChange={(e) => setProject(e.target.value)}
-                />
-              </div>
-              <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
-                <span className={labelCls}>관리항목</span>
-                <Input
-                  className={cn(fieldCls, "flex-1 rounded-none border-0")}
-                  placeholder="(선택)"
-                  onChange={() => undefined}
-                  readOnly
-                />
-              </div>
-              <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
-                <span className={labelCls}>거래처코드</span>
-                <Input
-                  className={cn(fieldCls, "flex-1 rounded-none border-0")}
-                  value={vendorCode}
-                  onChange={(e) => setVendorCode(e.target.value)}
-                  placeholder="거래처명/코드"
-                />
-              </div>
-              <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
-                <span className={labelCls}>품목코드</span>
-                <Input
-                  className={cn(fieldCls, "flex-1 rounded-none border-0")}
-                  value={itemCode}
-                  onChange={(e) => setItemCode(e.target.value)}
-                  placeholder="품목명/코드"
-                />
-              </div>
+              <FilterSearchField
+                label="창고"
+                value={warehouse}
+                onChange={setWarehouse}
+                onSearch={() => setWarehouseSearchOpen(true)}
+                placeholder="창고명/코드"
+              />
+              <FilterSearchField
+                label="거래처코드"
+                value={vendorCode}
+                onChange={setVendorCode}
+                onSearch={() => setVendorSearchOpen(true)}
+                placeholder="거래처명/코드"
+              />
+              <FilterSearchField
+                label="품목코드"
+                value={itemCode}
+                onChange={setItemCode}
+                onSearch={() => setItemSearchOpen(true)}
+                placeholder="품목명/코드"
+              />
               <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
                 <span className={labelCls}>정렬기준</span>
                 <select
@@ -904,6 +933,28 @@ export default function PurchaseRequestStatusPage() {
           </div>
         </CardContent>
       </Card>
+
+      <WarehouseSearchDialog
+        open={warehouseSearchOpen}
+        onOpenChange={setWarehouseSearchOpen}
+        onSelect={(wh) => {
+          setWarehouse(wh.code || wh.name);
+        }}
+      />
+      <VendorSearchDialog
+        open={vendorSearchOpen}
+        onOpenChange={setVendorSearchOpen}
+        onSelect={(vendor) => {
+          setVendorCode(vendor.code || vendor.name);
+        }}
+      />
+      <ItemSearchDialog
+        open={itemSearchOpen}
+        onOpenChange={setItemSearchOpen}
+        onSelect={(item) => {
+          setItemCode(item.code || item.name);
+        }}
+      />
     </div>
   );
 }
