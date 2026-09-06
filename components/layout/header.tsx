@@ -14,6 +14,10 @@ const titles: Record<string, { title: string; desc: string }> = {
     desc: "팀 일정을 한곳에서 보고 잡으세요.",
   },
   "/finance": { title: "매출·정산", desc: "입금·미수금과 매출 추이" },
+  "/purchase-requests": {
+    title: "발주요청",
+    desc: "발주요청 전표를 조회하고 진행상태를 관리합니다.",
+  },
   "/mail": {
     title: "메일",
     desc: "업무 메일을 한곳에서 읽고 보내세요.",

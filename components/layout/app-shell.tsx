@@ -10,6 +10,7 @@ import {
   Wallet,
   Mail,
   ArrowLeftRight,
+  ClipboardList,
   X,
 } from "lucide-react";
 import { Sidebar } from "./sidebar";
@@ -23,6 +24,7 @@ const mobileNav = [
   { href: "/tasks", label: "할 일", icon: CheckSquare },
   { href: "/calendar", label: "캘린더", icon: CalendarDays },
   { href: "/finance", label: "매출", icon: Wallet },
+  { href: "/purchase-requests", label: "발주요청", icon: ClipboardList },
   { href: "/exchange", label: "환율", icon: ArrowLeftRight },
   { href: "/mail", label: "메일", icon: Mail },
 ];
