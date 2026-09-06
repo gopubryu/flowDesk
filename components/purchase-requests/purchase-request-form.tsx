@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   Paperclip,
@@ -15,6 +15,10 @@ import {
   X,
   Settings2,
   CircleHelp,
+  Send,
+  Bell,
+  ChevronDown,
+  Printer,
 } from "lucide-react";
 import {
   CURRENCY_OPTIONS,
@@ -40,19 +44,35 @@ export type LineRow = {
   unitPrice: string;
   supply: string;
   vat: string;
+  extra: string;
   total: string;
 };
 
 type Master = {
   requestDate: string;
   slipNo: string;
-  manager: string;
+  managerCode: string;
+  managerName: string;
   taxType: string;
-  warehouse: string;
-  project: string;
+  warehouseCode: string;
+  warehouseName: string;
+  projectCode: string;
+  projectName: string;
   currency: string;
   dueDate: string;
 };
+
+const OPTION_MENU_ITEMS = [
+  "업무설정",
+  "기능설정",
+  "입력화면설정",
+  "조건양식설정",
+  "My코드/문구설정",
+  "매핑센터",
+  "진행상태 변경 설정",
+] as const;
+
+const INITIAL_LINE_COUNT = 3;
 
 function todayISO() {
   const d = new Date();
@@ -75,7 +95,25 @@ function emptyLine(): LineRow {
     unitPrice: "",
     supply: "",
     vat: "",
+    extra: "",
     total: "",
+  };
+}
+
+function defaultMaster(): Master {
+  const today = todayISO();
+  return {
+    requestDate: today,
+    slipNo: "",
+    managerCode: "",
+    managerName: "",
+    taxType: "부가세율 적용",
+    warehouseCode: "",
+    warehouseName: "",
+    projectCode: "",
+    projectName: "",
+    currency: "내자",
+    dueDate: today,
   };
 }
 
@@ -129,6 +167,54 @@ type Props = {
   onSaved?: () => void;
 };
 
+function CodeNameField({
+  label,
+  code,
+  name,
+  onCodeChange,
+  onNameChange,
+  onSearch,
+  codePlaceholder = "코드",
+  namePlaceholder = "명칭",
+}: {
+  label: string;
+  code: string;
+  name: string;
+  onCodeChange: (v: string) => void;
+  onNameChange: (v: string) => void;
+  onSearch: () => void;
+  codePlaceholder?: string;
+  namePlaceholder?: string;
+}) {
+  return (
+    <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
+      <span className={labelCls}>{label}</span>
+      <Input
+        className={cn(fieldCls, "w-[72px] shrink-0 rounded-none border-0 border-r border-slate-200")}
+        value={code}
+        onChange={(e) => onCodeChange(e.target.value)}
+        placeholder={codePlaceholder}
+        aria-label={`${label} 코드`}
+      />
+      <button
+        type="button"
+        className="flex h-7 w-7 shrink-0 items-center justify-center border-r border-slate-200 bg-white text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+        onClick={onSearch}
+        aria-label={`${label} 검색`}
+      >
+        <Search className="h-3 w-3" />
+      </button>
+      <Input
+        className={cn(fieldCls, "min-w-0 flex-1 rounded-none border-0")}
+        value={name}
+        onChange={(e) => onNameChange(e.target.value)}
+        placeholder={namePlaceholder}
+        aria-label={`${label} 명칭`}
+      />
+    </div>
+  );
+}
+
 export function PurchaseRequestForm({
   mode = "new",
   editId,
@@ -138,19 +224,14 @@ export function PurchaseRequestForm({
 }: Props) {
   const router = useRouter();
   const isModal = variant === "modal";
-  const [master, setMaster] = useState<Master>({
-    requestDate: todayISO(),
-    slipNo: "",
-    manager: "",
-    taxType: "부가세불적용",
-    warehouse: "",
-    project: "",
-    currency: "내자",
-    dueDate: "",
-  });
+  const [master, setMaster] = useState<Master>(() => defaultMaster());
   const [lines, setLines] = useState<LineRow[]>(() =>
-    Array.from({ length: 8 }, () => emptyLine())
+    Array.from({ length: INITIAL_LINE_COUNT }, () => emptyLine())
   );
+  const [optionOpen, setOptionOpen] = useState(false);
+  const [saveMenuOpen, setSaveMenuOpen] = useState(false);
+  const optionRef = useRef<HTMLDivElement>(null);
+  const saveMenuRef = useRef<HTMLDivElement>(null);
 
   const totals = useMemo(() => {
     let qty = 0;
@@ -169,6 +250,16 @@ export function PurchaseRequestForm({
     }
     return { qty, supply, vat, total };
   }, [lines]);
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      const t = e.target as Node;
+      if (optionRef.current && !optionRef.current.contains(t)) setOptionOpen(false);
+      if (saveMenuRef.current && !saveMenuRef.current.contains(t)) setSaveMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -199,6 +290,9 @@ export function PurchaseRequestForm({
       const next = { ...m, [key]: value };
       if (key === "taxType") {
         setLines((rows) => rows.map((r) => recalcLine(r, String(value))));
+      }
+      if (key === "requestDate" && (!m.dueDate || m.dueDate === m.requestDate)) {
+        next.dueDate = String(value);
       }
       return next;
     });
@@ -262,10 +356,10 @@ export function PurchaseRequestForm({
       quantity,
       amount,
       status: "unconfirmed",
-      manager: master.manager,
+      manager: master.managerName || master.managerCode,
       taxType: master.taxType,
-      warehouse: master.warehouse,
-      project: master.project,
+      warehouse: master.warehouseName || master.warehouseCode,
+      project: master.projectName || master.projectCode,
       currency: master.currency,
     };
   }
@@ -295,17 +389,8 @@ export function PurchaseRequestForm({
   }
 
   function resetForm() {
-    setMaster({
-      requestDate: todayISO(),
-      slipNo: "",
-      manager: "",
-      taxType: "부가세불적용",
-      warehouse: "",
-      project: "",
-      currency: "내자",
-      dueDate: "",
-    });
-    setLines(Array.from({ length: 8 }, () => emptyLine()));
+    setMaster(defaultMaster());
+    setLines(Array.from({ length: INITIAL_LINE_COUNT }, () => emptyLine()));
   }
 
   const title = mode === "edit" ? "발주요청입력 (수정)" : "발주요청입력";
@@ -327,16 +412,42 @@ export function PurchaseRequestForm({
           )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1 px-2 text-[11px] text-slate-600"
-            onClick={() => stub("Option")}
-          >
-            <Settings2 className="h-3.5 w-3.5" />
-            Option
-          </Button>
+          <div className="relative" ref={optionRef}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1 px-2 text-[11px] text-slate-600"
+              onClick={() => setOptionOpen((o) => !o)}
+              aria-expanded={optionOpen}
+              aria-haspopup="menu"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+              Option
+              <ChevronDown className="h-3 w-3 opacity-60" />
+            </Button>
+            {optionOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 z-40 mt-1 min-w-[180px] rounded-md border border-slate-200 bg-white py-1 shadow-lg"
+              >
+                {OPTION_MENU_ITEMS.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    role="menuitem"
+                    className="block w-full px-3 py-1.5 text-left text-[11px] text-slate-700 hover:bg-indigo-50 hover:text-indigo-800"
+                    onClick={() => {
+                      setOptionOpen(false);
+                      stub(item);
+                    }}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <Button
             type="button"
             variant="ghost"
@@ -364,41 +475,40 @@ export function PurchaseRequestForm({
         {/* Master header — dense 2-col Ecount-like */}
         <div className="shrink-0 border-b border-slate-200 bg-slate-50/80 px-3 py-2.5">
           <div className="grid grid-cols-1 gap-x-6 gap-y-1.5 md:grid-cols-2">
+            {/* 일자-No.: date picker + No. display */}
             <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
               <span className={labelCls}>일자-No.</span>
               <Input
                 type="date"
-                className={cn(fieldCls, "rounded-none border-0 border-r border-slate-200")}
+                className={cn(fieldCls, "min-w-[128px] rounded-none border-0 border-r border-slate-200")}
                 value={master.requestDate}
                 onChange={(e) => setMasterField("requestDate", e.target.value)}
               />
+              <span className="flex h-7 shrink-0 items-center border-r border-slate-200 bg-slate-50 px-2 text-[10px] font-medium text-slate-500">
+                No.
+              </span>
               <Input
-                className={cn(fieldCls, "w-24 rounded-none border-0")}
+                className={cn(
+                  fieldCls,
+                  "w-[88px] rounded-none border-0 bg-slate-50 text-slate-500"
+                )}
                 placeholder="자동"
                 value={master.slipNo}
+                readOnly
                 onChange={(e) => setMasterField("slipNo", e.target.value)}
+                aria-label="전표번호"
               />
             </div>
 
-            <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
-              <span className={labelCls}>담당자</span>
-              <div className="relative flex-1">
-                <Input
-                  className={cn(fieldCls, "rounded-none border-0 pr-7")}
-                  value={master.manager}
-                  onChange={(e) => setMasterField("manager", e.target.value)}
-                  placeholder="담당자 검색"
-                />
-                <button
-                  type="button"
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                  onClick={() => stub("담당자 검색")}
-                  aria-label="담당자 검색"
-                >
-                  <Search className="h-3 w-3" />
-                </button>
-              </div>
-            </div>
+            <CodeNameField
+              label="담당자"
+              code={master.managerCode}
+              name={master.managerName}
+              onCodeChange={(v) => setMasterField("managerCode", v)}
+              onNameChange={(v) => setMasterField("managerName", v)}
+              onSearch={() => stub("담당자 검색")}
+              namePlaceholder="담당자명"
+            />
 
             <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
               <span className={labelCls}>거래유형</span>
@@ -415,45 +525,25 @@ export function PurchaseRequestForm({
               </select>
             </div>
 
-            <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
-              <span className={labelCls}>창고</span>
-              <div className="relative flex-1">
-                <Input
-                  className={cn(fieldCls, "rounded-none border-0 pr-7")}
-                  value={master.warehouse}
-                  onChange={(e) => setMasterField("warehouse", e.target.value)}
-                  placeholder="창고 검색"
-                />
-                <button
-                  type="button"
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                  onClick={() => stub("창고 검색")}
-                  aria-label="창고 검색"
-                >
-                  <Search className="h-3 w-3" />
-                </button>
-              </div>
-            </div>
+            <CodeNameField
+              label="창고"
+              code={master.warehouseCode}
+              name={master.warehouseName}
+              onCodeChange={(v) => setMasterField("warehouseCode", v)}
+              onNameChange={(v) => setMasterField("warehouseName", v)}
+              onSearch={() => stub("창고 검색")}
+              namePlaceholder="창고명"
+            />
 
-            <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
-              <span className={labelCls}>프로젝트</span>
-              <div className="relative flex-1">
-                <Input
-                  className={cn(fieldCls, "rounded-none border-0 pr-7")}
-                  value={master.project}
-                  onChange={(e) => setMasterField("project", e.target.value)}
-                  placeholder="프로젝트 검색"
-                />
-                <button
-                  type="button"
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                  onClick={() => stub("프로젝트 검색")}
-                  aria-label="프로젝트 검색"
-                >
-                  <Search className="h-3 w-3" />
-                </button>
-              </div>
-            </div>
+            <CodeNameField
+              label="프로젝트"
+              code={master.projectCode}
+              name={master.projectName}
+              onCodeChange={(v) => setMasterField("projectCode", v)}
+              onNameChange={(v) => setMasterField("projectName", v)}
+              onSearch={() => stub("프로젝트 검색")}
+              namePlaceholder="프로젝트명"
+            />
 
             <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
               <span className={labelCls}>통화</span>
@@ -480,21 +570,36 @@ export function PurchaseRequestForm({
               />
             </div>
 
+            {/* 첨부: wide click area */}
             <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
               <span className={labelCls}>첨부</span>
-              <div className="flex flex-1 items-center gap-2 bg-white px-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="h-6 gap-1 px-2 text-[11px]"
-                  onClick={() => stub("첨부")}
-                >
+              <button
+                type="button"
+                className="flex min-h-7 flex-1 items-center gap-2 bg-white px-3 text-left hover:bg-indigo-50/50"
+                onClick={() => stub("첨부")}
+              >
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded border border-dashed border-slate-300 text-slate-400">
                   <Plus className="h-3 w-3" />
-                  <Paperclip className="h-3 w-3" />
-                </Button>
-                <span className="text-[11px] text-slate-400">첨부 없음</span>
-              </div>
+                </span>
+                <Paperclip className="h-3.5 w-3.5 text-slate-400" />
+                <span className="text-[11px] text-slate-400">
+                  파일을 첨부하려면 클릭하세요
+                </span>
+              </button>
+            </div>
+
+            {/* Master placeholder: 새로운 항목 추가 */}
+            <div className="flex items-stretch overflow-hidden rounded border border-dashed border-slate-200 md:col-span-2">
+              <span className={cn(labelCls, "bg-slate-50 text-slate-400")}>새로운 항목 추가</span>
+              <Input
+                className={cn(
+                  fieldCls,
+                  "rounded-none border-0 bg-slate-50/80 text-slate-400 placeholder:text-slate-400"
+                )}
+                disabled
+                placeholder="다양한 항목을 추가하여 활용할 수 있습니다."
+                aria-label="새로운 항목 추가"
+              />
             </div>
           </div>
         </div>
@@ -539,7 +644,7 @@ export function PurchaseRequestForm({
 
         {/* Line grid */}
         <div className="min-h-0 flex-1 overflow-auto scrollbar-thin">
-          <table className="w-full min-w-[1100px] border-collapse text-left text-[11px]">
+          <table className="w-full min-w-[1180px] border-collapse text-left text-[11px]">
             <thead className="sticky top-0 z-10">
               <tr className="border-b bg-indigo-50/80 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
                 <th className="w-8 px-2 py-1.5">
@@ -555,6 +660,9 @@ export function PurchaseRequestForm({
                 <th className="min-w-[88px] px-2 py-1.5 text-right">단가</th>
                 <th className="min-w-[96px] px-2 py-1.5 text-right">공급가액</th>
                 <th className="min-w-[80px] px-2 py-1.5 text-right">부가세</th>
+                <th className="min-w-[100px] px-2 py-1.5 font-medium text-slate-400 normal-case">
+                  새로운 항목 추가
+                </th>
                 <th className="min-w-[96px] px-2 py-1.5 text-right">합계</th>
               </tr>
             </thead>
@@ -594,20 +702,24 @@ export function PurchaseRequestForm({
                       ["unitPrice", "right"],
                       ["supply", "right"],
                       ["vat", "right"],
+                      ["extra", "left"],
                       ["total", "right"],
                     ] as const
                   ).map(([key, align]) => {
                     const readOnly = key === "supply" || key === "vat" || key === "total";
+                    const isExtra = key === "extra";
                     return (
                       <td key={key} className="px-1 py-0.5">
                         <Input
                           className={cn(
                             "h-7 rounded border-slate-200 px-1.5 text-[11px] focus-visible:ring-1 focus-visible:ring-indigo-500",
                             align === "right" && "text-right tabular-nums",
-                            readOnly && "bg-slate-50 text-slate-600"
+                            readOnly && "bg-slate-50 text-slate-600",
+                            isExtra && "border-dashed border-slate-200 bg-slate-50/50 placeholder:text-slate-300"
                           )}
                           value={line[key]}
                           readOnly={readOnly}
+                          placeholder={isExtra ? "" : undefined}
                           onChange={(e) => updateLine(line.id, { [key]: e.target.value })}
                         />
                       </td>
@@ -631,6 +743,7 @@ export function PurchaseRequestForm({
                 <td className="px-2 py-2 text-right tabular-nums">
                   {totals.vat ? totals.vat.toLocaleString("ko-KR") : ""}
                 </td>
+                <td className="px-2 py-2" />
                 <td className="px-2 py-2 text-right tabular-nums text-indigo-700">
                   {totals.total ? totals.total.toLocaleString("ko-KR") : ""}
                 </td>
@@ -641,18 +754,85 @@ export function PurchaseRequestForm({
 
         {/* Footer actions — Ecount parity */}
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 px-3 py-2.5">
-          <p className="text-[11px] text-muted-foreground">
-            {mode === "edit" ? `수정 모드 · ${editId}` : "신규 입력"} · F8 저장 · F7 저장/전표
-          </p>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex items-center gap-1">
             <Button
               type="button"
               size="sm"
-              className="h-8 min-w-[88px]"
-              onClick={() => handleSave(false)}
+              variant="ghost"
+              className="h-8 w-8 p-0 text-slate-500"
+              onClick={() => stub("보내기")}
+              aria-label="보내기"
+              title="보내기"
             >
-              저장(F8)
+              <Send className="h-3.5 w-3.5" />
             </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-8 w-8 p-0 text-slate-500"
+              onClick={() => stub("알림")}
+              aria-label="알림"
+              title="알림"
+            >
+              <Bell className="h-3.5 w-3.5" />
+            </Button>
+            <p className="ml-1 text-[11px] text-muted-foreground">
+              {mode === "edit" ? `수정 모드 · ${editId}` : "신규 입력"} · F8 저장 · F7 저장/전표
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <div className="relative flex" ref={saveMenuRef}>
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 min-w-[72px] rounded-r-none"
+                onClick={() => handleSave(false)}
+              >
+                저장(F8)
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 rounded-l-none border-l border-indigo-400/40 px-1.5"
+                onClick={() => setSaveMenuOpen((o) => !o)}
+                aria-expanded={saveMenuOpen}
+                aria-haspopup="menu"
+                aria-label="저장 옵션"
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </Button>
+              {saveMenuOpen && (
+                <div
+                  role="menu"
+                  className="absolute bottom-full right-0 z-40 mb-1 min-w-[140px] rounded-md border border-slate-200 bg-white py-1 shadow-lg"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="block w-full px-3 py-1.5 text-left text-[11px] text-slate-700 hover:bg-indigo-50"
+                    onClick={() => {
+                      setSaveMenuOpen(false);
+                      handleSave(false);
+                    }}
+                  >
+                    저장
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-[11px] text-slate-700 hover:bg-indigo-50"
+                    onClick={() => {
+                      setSaveMenuOpen(false);
+                      stub("저장 후 인쇄");
+                    }}
+                  >
+                    <Printer className="h-3 w-3" />
+                    저장 후 인쇄
+                  </button>
+                </div>
+              )}
+            </div>
             <Button
               type="button"
               size="sm"
