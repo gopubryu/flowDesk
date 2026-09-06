@@ -938,21 +938,21 @@ export default function PurchaseRequestStatusPage() {
         open={warehouseSearchOpen}
         onOpenChange={setWarehouseSearchOpen}
         onSelect={(wh) => {
-          setWarehouse(wh.code || wh.name);
+          setWarehouse(wh.name || wh.code);
         }}
       />
       <VendorSearchDialog
         open={vendorSearchOpen}
         onOpenChange={setVendorSearchOpen}
         onSelect={(vendor) => {
-          setVendorCode(vendor.code || vendor.name);
+          setVendorCode(vendor.name || vendor.code);
         }}
       />
       <ItemSearchDialog
         open={itemSearchOpen}
         onOpenChange={setItemSearchOpen}
         onSelect={(item) => {
-          setItemCode(item.code || item.name);
+          setItemCode(item.name || item.code);
         }}
       />
     </div>
