@@ -401,10 +401,20 @@ export function PurchaseRequestForm({
     );
   }
 
+  /** Rows that are checked and have content — only these are saved. */
+  function checkedFilledLines() {
+    return filledLines().filter((l) => l.checked);
+  }
+
   function buildPayloadFromForm(): Parameters<typeof savePurchaseRequestApi>[0] | null {
-    const filled = filledLines();
-    if (filled.length === 0) {
+    const filledAll = filledLines();
+    if (filledAll.length === 0) {
       alert("품목 행을 하나 이상 입력하세요.");
+      return null;
+    }
+    const filled = checkedFilledLines();
+    if (filled.length === 0) {
+      alert("저장할 품목을 체크해 주세요.");
       return null;
     }
     const first = filled[0];
