@@ -37,8 +37,6 @@ export type LineRow = {
   checked: boolean;
   itemCode: string;
   itemName: string;
-  vendorCode: string;
-  vendorName: string;
   spec: string;
   qty: string;
   unitPrice: string;
@@ -56,8 +54,8 @@ type Master = {
   taxType: string;
   warehouseCode: string;
   warehouseName: string;
-  projectCode: string;
-  projectName: string;
+  vendorCode: string;
+  vendorName: string;
   currency: string;
   dueDate: string;
 };
@@ -88,8 +86,6 @@ function emptyLine(): LineRow {
     checked: false,
     itemCode: "",
     itemName: "",
-    vendorCode: "",
-    vendorName: "",
     spec: "",
     qty: "",
     unitPrice: "",
@@ -107,19 +103,19 @@ function defaultMaster(): Master {
     slipNo: "",
     managerCode: "",
     managerName: "",
-    taxType: "부가세율 적용",
+    taxType: "과세",
     warehouseCode: "",
     warehouseName: "",
-    projectCode: "",
-    projectName: "",
+    vendorCode: "",
+    vendorName: "",
     currency: "내자",
     dueDate: today,
   };
 }
 
-/** 과세 / 부가세율 적용 → 10% VAT */
+/** 과세 → 10% VAT */
 function vatRate(taxType: string) {
-  if (taxType === "과세" || taxType === "부가세율 적용") return 0.1;
+  if (taxType === "과세") return 0.1;
   return 0;
 }
 
@@ -327,7 +323,6 @@ export function PurchaseRequestForm({
       (l) =>
         l.itemName.trim() ||
         l.itemCode.trim() ||
-        l.vendorName.trim() ||
         (l.qty !== "" && Number(l.qty) > 0)
     );
   }
@@ -347,7 +342,7 @@ export function PurchaseRequestForm({
     return {
       id: mode === "edit" && editId ? editId : nextPurchaseRequestId(),
       requestDate: master.requestDate,
-      vendor: first.vendorName.trim() || first.vendorCode.trim() || "(미지정)",
+      vendor: master.vendorName.trim() || master.vendorCode.trim() || "(미지정)",
       item:
         filled.length === 1
           ? first.itemName.trim() || first.itemCode.trim() || "(미지정)"
@@ -359,7 +354,7 @@ export function PurchaseRequestForm({
       manager: master.managerName || master.managerCode,
       taxType: master.taxType,
       warehouse: master.warehouseName || master.warehouseCode,
-      project: master.projectName || master.projectCode,
+      project: undefined,
       currency: master.currency,
     };
   }
@@ -538,13 +533,13 @@ export function PurchaseRequestForm({
             />
 
             <CodeNameField
-              label="프로젝트"
-              code={master.projectCode}
-              name={master.projectName}
-              onCodeChange={(v) => setMasterField("projectCode", v)}
-              onNameChange={(v) => setMasterField("projectName", v)}
-              onSearch={() => stub("프로젝트 검색")}
-              namePlaceholder="프로젝트명"
+              label="거래처"
+              code={master.vendorCode}
+              name={master.vendorName}
+              onCodeChange={(v) => setMasterField("vendorCode", v)}
+              onNameChange={(v) => setMasterField("vendorName", v)}
+              onSearch={() => stub("거래처 검색")}
+              namePlaceholder="거래처명"
             />
 
             <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
@@ -646,7 +641,7 @@ export function PurchaseRequestForm({
 
         {/* Line grid */}
         <div className="min-h-0 flex-1 overflow-auto scrollbar-thin">
-          <table className="w-full min-w-[1180px] border-collapse text-left text-[11px]">
+          <table className="w-full min-w-[1020px] border-collapse text-left text-[11px]">
             <thead className="sticky top-0 z-10">
               <tr className="border-b bg-indigo-50/80 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
                 <th className="w-8 px-2 py-1.5">
@@ -655,8 +650,6 @@ export function PurchaseRequestForm({
                 <th className="w-8 px-1 py-1.5 text-center">+</th>
                 <th className="min-w-[88px] px-2 py-1.5">품목코드</th>
                 <th className="min-w-[140px] px-2 py-1.5">품목명</th>
-                <th className="min-w-[88px] px-2 py-1.5">거래처코드</th>
-                <th className="min-w-[120px] px-2 py-1.5">거래처명</th>
                 <th className="min-w-[80px] px-2 py-1.5">규격</th>
                 <th className="min-w-[72px] px-2 py-1.5 text-right">수량</th>
                 <th className="min-w-[88px] px-2 py-1.5 text-right">단가</th>
@@ -697,8 +690,6 @@ export function PurchaseRequestForm({
                     [
                       ["itemCode", "left"],
                       ["itemName", "left"],
-                      ["vendorCode", "left"],
-                      ["vendorName", "left"],
                       ["spec", "left"],
                       ["qty", "right"],
                       ["unitPrice", "right"],
@@ -732,7 +723,7 @@ export function PurchaseRequestForm({
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold text-slate-800">
-                <td colSpan={7} className="px-3 py-2 text-right text-[11px] text-slate-500">
+                <td colSpan={5} className="px-3 py-2 text-right text-[11px] text-slate-500">
                   합계
                 </td>
                 <td className="px-2 py-2 text-right tabular-nums">
