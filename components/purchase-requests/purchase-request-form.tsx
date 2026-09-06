@@ -34,6 +34,7 @@ import { Label } from "@/components/ui/label";
 import { EmployeeSearchDialog } from "@/components/employees/employee-search-dialog";
 import { WarehouseSearchDialog } from "@/components/warehouses/warehouse-search-dialog";
 import { ItemSearchDialog } from "@/components/items/item-search-dialog";
+import { VendorSearchDialog } from "@/components/vendors/vendor-search-dialog";
 
 export type LineRow = {
   id: string;
@@ -199,6 +200,7 @@ function CodeNameField({
         className={cn(fieldCls, "w-[72px] shrink-0 rounded-none border-0 border-r border-slate-200")}
         value={code}
         onChange={(e) => onCodeChange(e.target.value)}
+        onDoubleClick={onSearch}
         placeholder={codePlaceholder}
         aria-label={`${label} 코드`}
       />
@@ -266,6 +268,7 @@ export function PurchaseRequestForm({
   const [warehouseSearchOpen, setWarehouseSearchOpen] = useState(false);
   const [itemSearchOpen, setItemSearchOpen] = useState(false);
   const [itemSearchLineId, setItemSearchLineId] = useState<string | null>(null);
+  const [vendorSearchOpen, setVendorSearchOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const saveMenuRef = useRef<HTMLDivElement>(null);
 
@@ -663,7 +666,7 @@ export function PurchaseRequestForm({
               name={master.vendorName}
               onCodeChange={(v) => setMasterField("vendorCode", v)}
               onNameChange={(v) => setMasterField("vendorName", v)}
-              onSearch={() => stub("거래처 검색")}
+              onSearch={() => setVendorSearchOpen(true)}
               namePlaceholder="거래처명"
             />
 
@@ -1086,6 +1089,18 @@ export function PurchaseRequestForm({
             ...(item.spec ? { spec: item.spec } : {}),
           });
           setItemSearchLineId(null);
+        }}
+      />
+
+      <VendorSearchDialog
+        open={vendorSearchOpen}
+        onOpenChange={setVendorSearchOpen}
+        onSelect={(vendor) => {
+          setMaster((m) => ({
+            ...m,
+            vendorCode: vendor.code,
+            vendorName: vendor.name,
+          }));
         }}
       />
 
