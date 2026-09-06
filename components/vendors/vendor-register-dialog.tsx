@@ -29,6 +29,7 @@ type FormState = {
   code: string;
   name: string;
   codeType: VendorCodeType;
+  bizRegNo: string;
   ceo: string;
   businessType: string;
   businessItem: string;
@@ -48,7 +49,8 @@ function emptyForm(): FormState {
   return {
     code: nextVendorCode(),
     name: "",
-    codeType: "사업자등록번호",
+    codeType: "비사업자(내국인)",
+    bizRegNo: "",
     ceo: "",
     businessType: "",
     businessItem: "",
@@ -86,6 +88,7 @@ export function VendorRegisterDialog({ open, onOpenChange, onSaved }: Props) {
       code: form.code.trim(),
       name: form.name.trim(),
       codeType: form.codeType,
+      bizRegNo: form.bizRegNo.trim() || undefined,
       ceo: form.ceo.trim() || undefined,
       businessType: form.businessType.trim() || undefined,
       businessItem: form.businessItem.trim() || undefined,
@@ -166,6 +169,21 @@ export function VendorRegisterDialog({ open, onOpenChange, onSaved }: Props) {
                 </option>
               ))}
             </select>
+          </div>
+
+
+          <div className="grid gap-1.5">
+            <Label htmlFor="vendor-biz-reg-no" className="text-xs text-slate-600">
+              사업자등록번호
+            </Label>
+            <Input
+              id="vendor-biz-reg-no"
+              className={fieldCls}
+              value={form.bizRegNo}
+              onChange={(e) => setField("bizRegNo", e.target.value)}
+              placeholder="000-00-00000"
+              inputMode="numeric"
+            />
           </div>
 
           <div className="grid gap-1.5">

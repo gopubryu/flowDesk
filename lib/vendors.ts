@@ -1,12 +1,10 @@
 export type VendorCodeType =
-  | "사업자등록번호"
-  | "비사업자내국인"
-  | "비사업자외국인";
+  | "비사업자(내국인)"
+  | "비사업자(외국인)";
 
 export const VENDOR_CODE_TYPE_OPTIONS: VendorCodeType[] = [
-  "사업자등록번호",
-  "비사업자내국인",
-  "비사업자외국인",
+  "비사업자(내국인)",
+  "비사업자(외국인)",
 ];
 
 export type Vendor = {
@@ -15,6 +13,8 @@ export type Vendor = {
   name: string;
   /** 거래처코드구분 */
   codeType: VendorCodeType;
+  /** 사업자등록번호 */
+  bizRegNo?: string;
   /** 대표자명 */
   ceo?: string;
   /** 업태 */
@@ -33,18 +33,31 @@ export type Vendor = {
 
 const STORAGE_KEY = "flowdesk-vendors";
 
+
+function normalizeCodeType(value: unknown): VendorCodeType {
+  const raw = String(value ?? "").trim();
+  // migrate legacy labels (no parentheses)
+  if (raw === "비사업자내국인" || raw === "비사업자(내국인)") return "비사업자(내국인)";
+  if (raw === "비사업자외국인" || raw === "비사업자(외국인)") return "비사업자(외국인)";
+  // old code-type option "사업자등록번호" -> default
+  if (raw === "사업자등록번호") return "비사업자(내국인)";
+  if (raw === "비사업자(내국인)" || raw === "비사업자(외국인)") {
+    return raw;
+  }
+  return "비사업자(내국인)";
+}
+
+
+
 function withDefaults(
   row: Partial<Vendor> & Pick<Vendor, "code" | "name">
 ): Vendor {
-  const codeType = VENDOR_CODE_TYPE_OPTIONS.includes(
-    row.codeType as VendorCodeType
-  )
-    ? (row.codeType as VendorCodeType)
-    : "사업자등록번호";
+  const codeType = normalizeCodeType(row.codeType);
   return {
     code: row.code,
     name: row.name,
     codeType,
+    bizRegNo: row.bizRegNo?.trim() || undefined,
     ceo: row.ceo,
     businessType: row.businessType,
     businessItem: row.businessItem,
@@ -63,7 +76,7 @@ export const SEED_VENDORS: Vendor[] = [
   withDefaults({
     code: "V001",
     name: "한빛상사",
-    codeType: "사업자등록번호",
+    codeType: "비사업자(내국인)",
     ceo: "김한빛",
     businessType: "도매 및 소매업",
     businessItem: "산업자재",
@@ -78,7 +91,7 @@ export const SEED_VENDORS: Vendor[] = [
   withDefaults({
     code: "V002",
     name: "동양부품",
-    codeType: "사업자등록번호",
+    codeType: "비사업자(내국인)",
     ceo: "박동양",
     businessType: "제조업",
     businessItem: "기계부품",
@@ -91,7 +104,7 @@ export const SEED_VENDORS: Vendor[] = [
   withDefaults({
     code: "V003",
     name: "서울철강",
-    codeType: "사업자등록번호",
+    codeType: "비사업자(내국인)",
     ceo: "이철강",
     businessType: "도매업",
     businessItem: "철강·금속",
@@ -104,7 +117,7 @@ export const SEED_VENDORS: Vendor[] = [
   withDefaults({
     code: "V004",
     name: "부산포장재",
-    codeType: "비사업자내국인",
+    codeType: "비사업자(내국인)",
     ceo: "최포장",
     businessType: "제조업",
     businessItem: "포장재",
@@ -117,7 +130,7 @@ export const SEED_VENDORS: Vendor[] = [
   withDefaults({
     code: "V005",
     name: "그린케미칼",
-    codeType: "사업자등록번호",
+    codeType: "비사업자(내국인)",
     ceo: "정그린",
     businessType: "도매업",
     businessItem: "화학제품",
