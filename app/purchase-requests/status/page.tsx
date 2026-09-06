@@ -518,9 +518,6 @@ export default function PurchaseRequestStatusPage() {
 
       <div>
         <h2 className="text-base font-semibold tracking-tight text-slate-900">발주요청현황</h2>
-        <p className="text-xs text-muted-foreground">
-          Ecount형 현황·집계 조회
-        </p>
       </div>
 
       {viewMode === "status" ? (

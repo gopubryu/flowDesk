@@ -432,9 +432,6 @@ export default function PurchaseStatusPage() {
 
       <div>
         <h2 className="text-base font-semibold tracking-tight text-slate-900">구매현황</h2>
-        <p className="text-xs text-muted-foreground">
-          Ecount형 현황·집계 조회 (목업 · localStorage 연동)
-        </p>
       </div>
 
       {viewMode === "status" ? (
