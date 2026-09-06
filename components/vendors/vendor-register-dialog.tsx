@@ -10,6 +10,7 @@ import {
   type VendorCodeType,
 } from "@/lib/vendors";
 import { Button } from "@/components/ui/button";
+import { useAppDialog } from "@/components/ui/app-alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -142,6 +143,7 @@ function emptyForm(): FormState {
 }
 
 export function VendorRegisterDialog({ open, onOpenChange, onSaved }: Props) {
+  const { alert: appAlert, dialog: appDialog } = useAppDialog();
   const [form, setForm] = useState<FormState>(() => emptyForm());
   const [postcodeOpen, setPostcodeOpen] = useState(false);
   const [postcodeStep, setPostcodeStep] = useState<"search" | "detail">("search");
@@ -193,7 +195,7 @@ export function VendorRegisterDialog({ open, onOpenChange, onSaved }: Props) {
         }).embed(postcodeContainerRef.current);
       } catch {
         if (!cancelled) {
-          alert("주소 검색 서비스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+          void appAlert({ title: "알림", description: "주소 검색 서비스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요." });
           setPostcodeOpen(false);
         }
       }
@@ -263,9 +265,9 @@ export function VendorRegisterDialog({ open, onOpenChange, onSaved }: Props) {
     onOpenChange(next);
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.code.trim() || !form.name.trim()) {
-      alert("거래처코드와 상호(이름)는 필수입니다.");
+      await appAlert({ title: "알림", description: "거래처코드와 상호(이름)는 필수입니다." });
       return;
     }
     const saved: Vendor = {
@@ -634,6 +636,7 @@ export function VendorRegisterDialog({ open, onOpenChange, onSaved }: Props) {
           </div>
         </div>
       ) : null}
+      {appDialog}
     </>
   );
 }

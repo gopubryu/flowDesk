@@ -21,6 +21,7 @@ import {
 } from "@/lib/sales-plans";
 import { cn, formatKRW } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useAppDialog } from "@/components/ui/app-alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,7 @@ const statusVariant: Record<
 };
 
 export default function SalesPlansPage() {
+  const { alert: appAlert, dialog: appDialog } = useAppDialog();
   const [rows, setRows] = useState<SalesPlan[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [tab, setTab] = useState<TabKey>("all");
@@ -137,8 +139,8 @@ export default function SalesPlansPage() {
     setApplied({ query, dateFrom, dateTo });
   }
 
-  function stub(action: string) {
-    alert(`${action} (데모)`);
+  async function stub(action: string) {
+    await appAlert({ title: "알림", description: `${action} (데모)` });
   }
 
   function slipNo(id: string) {
@@ -425,6 +427,7 @@ export default function SalesPlansPage() {
           />
         </DialogContent>
       </Dialog>
+      {appDialog}
     </div>
   );
 }

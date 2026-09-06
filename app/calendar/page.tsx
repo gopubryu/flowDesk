@@ -33,6 +33,7 @@ import { TEAM_MEMBERS } from "@/lib/mock-data";
 import type { CalendarEvent, EventType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useAppDialog } from "@/components/ui/app-alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -264,6 +265,7 @@ function layoutWeekSegments(weekDays: Date[], events: CalendarEvent[]): WeekSegm
 }
 
 export default function CalendarPage() {
+  const { confirm: appConfirm, dialog: appDialog } = useAppDialog();
   const { events, addEvent, updateEvent, deleteEvent } = useStore();
   const [cursor, setCursor] = useState(() => new Date(2026, 8, 4));
   const [view, setView] = useState<ViewMode>("month");
@@ -457,8 +459,14 @@ export default function CalendarPage() {
     showToast(editing ? "일정이 수정되었습니다." : "일정이 등록되었습니다.");
   }
 
-  function confirmDelete(ev: CalendarEvent) {
-    if (!confirm(`「${ev.title}」 일정을 삭제할까요?`)) return;
+  async function confirmDelete(ev: CalendarEvent) {
+    const ok = await appConfirm({
+      title: "삭제",
+      description: `「${ev.title}」 일정을 삭제할까요?`,
+      confirmLabel: "삭제",
+      confirmVariant: "danger",
+    });
+    if (!ok) return;
     deleteEvent(ev.id);
     setDetail(null);
     showToast("일정이 삭제되었습니다.");
@@ -1261,6 +1269,7 @@ export default function CalendarPage() {
           {toast}
         </div>
       )}
+      {appDialog}
     </div>
   );
 }

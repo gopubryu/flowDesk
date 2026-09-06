@@ -25,6 +25,7 @@ import {
 import { useRouter } from "next/navigation";
 import { cn, formatKRW } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useAppDialog } from "@/components/ui/app-alert-dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { WarehouseSearchDialog } from "@/components/warehouses/warehouse-search-dialog";
@@ -164,6 +165,7 @@ function FilterSearchField({
 }
 
 export default function PurchaseRequestStatusPage() {
+  const { alert: appAlert, dialog: appDialog } = useAppDialog();
   const router = useRouter();
   const defaults = useMemo(() => defaultPurchaseRequestDateRange(), []);
   const [rows, setRows] = useState<PurchaseRequest[]>([]);
@@ -238,8 +240,8 @@ export default function PurchaseRequestStatusPage() {
     });
   }
 
-  function stub(action: string) {
-    alert(`${action} (데모)`);
+  async function stub(action: string) {
+    await appAlert({ title: "알림", description: `${action} (데모)` });
   }
 
   function setRange(from: string, to: string) {
@@ -952,6 +954,7 @@ export default function PurchaseRequestStatusPage() {
           setItemCode(item.name || item.code);
         }}
       />
+      {appDialog}
     </div>
   );
 }

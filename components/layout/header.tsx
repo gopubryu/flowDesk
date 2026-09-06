@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bell, Menu, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAppDialog } from "@/components/ui/app-alert-dialog";
 import { useStore } from "@/lib/store";
 
 const titles: { match: (pathname: string) => boolean; title: string; desc: string }[] = [
@@ -92,6 +93,7 @@ function resolveMeta(pathname: string) {
 }
 
 export function Header({ onMenu }: { onMenu?: () => void }) {
+  const { confirm: appConfirm, dialog: appDialog } = useAppDialog();
   const pathname = usePathname();
   const { resetDemo } = useStore();
   const meta = resolveMeta(pathname);
@@ -111,7 +113,15 @@ export function Header({ onMenu }: { onMenu?: () => void }) {
           size="sm"
           type="button"
           onClick={() => {
-            if (confirm("데모 데이터를 초기화할까요?")) void resetDemo();
+            void (async () => {
+              const ok = await appConfirm({
+                title: "확인",
+                description: "데모 데이터를 초기화할까요?",
+                confirmLabel: "초기화",
+                confirmVariant: "danger",
+              });
+              if (ok) void resetDemo();
+            })();
           }}
         >
           <RotateCcw className="h-3.5 w-3.5" />
@@ -127,6 +137,7 @@ export function Header({ onMenu }: { onMenu?: () => void }) {
           JD
         </Link>
       </div>
+      {appDialog}
     </header>
   );
 }

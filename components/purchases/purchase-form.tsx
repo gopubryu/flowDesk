@@ -30,6 +30,7 @@ import {
 } from "@/lib/purchases";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useAppDialog } from "@/components/ui/app-alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WarehouseSearchDialog } from "@/components/warehouses/warehouse-search-dialog";
@@ -216,6 +217,7 @@ export function PurchaseForm({
   onClose,
   onSaved,
 }: Props) {
+  const { alert: appAlert, dialog: appDialog } = useAppDialog();
   const router = useRouter();
   const isModal = variant === "modal";
   const [master, setMaster] = useState<Master>(() => defaultMaster());
@@ -273,8 +275,8 @@ export function PurchaseForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [master, lines, mode, editId, isModal]);
 
-  function stub(action: string) {
-    alert(`${action} (데모)`);
+  async function stub(action: string) {
+    await appAlert({ title: "알림", description: `${action} (데모)` });
   }
 
   function setMasterField<K extends keyof Master>(key: K, value: Master[K]) {
@@ -320,14 +322,14 @@ export function PurchaseForm({
     );
   }
 
-  function buildRowFromForm(): Purchase | null {
+  async function buildRowFromForm(): Promise<Purchase | null> {
     const filled = filledLines();
     if (filled.length === 0) {
-      alert("품목 행을 하나 이상 입력하세요.");
+      await appAlert({ title: "알림", description: "품목 행을 하나 이상 입력하세요." });
       return null;
     }
     if (!master.vendorName.trim() && !master.vendorCode.trim()) {
-      alert("거래처를 입력하세요.");
+      await appAlert({ title: "알림", description: "거래처를 입력하세요." });
       return null;
     }
     const first = filled[0];
@@ -368,12 +370,12 @@ export function PurchaseForm({
     router.push("/purchases");
   }
 
-  function handleSave(andSlip: boolean) {
+  async function handleSave(andSlip: boolean) {
     if (andSlip) {
       stub("저장/전표");
       return;
     }
-    const row = buildRowFromForm();
+    const row = await buildRowFromForm();
     if (!row) return;
     appendPurchase(row);
     onSaved?.();
@@ -831,6 +833,7 @@ export function PurchaseForm({
       />
 
       <Label className="sr-only">구매입력 양식</Label>
+      {appDialog}
     </div>
   );
 }

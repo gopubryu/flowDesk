@@ -35,6 +35,7 @@ import { EmployeeSearchDialog } from "@/components/employees/employee-search-dia
 import { WarehouseSearchDialog } from "@/components/warehouses/warehouse-search-dialog";
 import { ItemSearchDialog } from "@/components/items/item-search-dialog";
 import { VendorSearchDialog } from "@/components/vendors/vendor-search-dialog";
+import { useAppDialog } from "@/components/ui/app-alert-dialog";
 
 export type LineRow = {
   id: string;
@@ -256,6 +257,7 @@ export function PurchaseRequestForm({
   onSaved,
 }: Props) {
   const router = useRouter();
+  const { alert: appAlert, dialog: appDialog } = useAppDialog();
   const isModal = variant === "modal";
   const [master, setMaster] = useState<Master>(() => defaultMaster());
   const [lines, setLines] = useState<LineRow[]>(() =>
@@ -329,7 +331,7 @@ export function PurchaseRequestForm({
         );
       } catch (err) {
         console.error(err);
-        alert("발주요청을 불러오지 못했습니다.");
+        void appAlert({ title: "알림", description: "발주요청을 불러오지 못했습니다." });
       }
     })();
     return () => {
@@ -376,7 +378,7 @@ export function PurchaseRequestForm({
       }
       if (e.key === "F3") {
         e.preventDefault();
-        stub("찾기");
+        void stub("찾기");
       }
     }
     window.addEventListener("keydown", onKey);
@@ -384,8 +386,8 @@ export function PurchaseRequestForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [master, lines, attachments, mode, editId, isModal]);
 
-  function stub(action: string) {
-    alert(`${action} (데모)`);
+  async function stub(action: string) {
+    await appAlert({ title: "알림", description: `${action} (데모)` });
   }
 
   function setMasterField<K extends keyof Master>(key: K, value: Master[K]) {
@@ -445,7 +447,7 @@ export function PurchaseRequestForm({
     const next: PurchaseRequestAttachment[] = [];
     for (const file of Array.from(fileList)) {
       if (file.size > MAX_ATTACHMENT_BYTES) {
-        alert(`"${file.name}" 파일이 5MB를 초과합니다. (최대 5MB)`);
+        await appAlert({ title: "알림", description: `"${file.name}" 파일이 5MB를 초과합니다. (최대 5MB)` });
         continue;
       }
       try {
@@ -460,7 +462,7 @@ export function PurchaseRequestForm({
         });
       } catch (err) {
         console.error(err);
-        alert(`"${file.name}" 파일을 읽지 못했습니다.`);
+        await appAlert({ title: "알림", description: `"${file.name}" 파일을 읽지 못했습니다.` });
       }
     }
     if (next.length) {
@@ -473,15 +475,15 @@ export function PurchaseRequestForm({
     setAttachments((prev) => prev.filter((a) => a.id !== id));
   }
 
-  function buildPayloadFromForm(): Parameters<typeof savePurchaseRequestApi>[0] | null {
+  async function buildPayloadFromForm(): Promise<Parameters<typeof savePurchaseRequestApi>[0] | null> {
     const filledAll = filledLines();
     if (filledAll.length === 0) {
-      alert("품목 행을 하나 이상 입력하세요.");
+      await appAlert({ title: "알림", description: "품목 행을 하나 이상 입력하세요." });
       return null;
     }
     const filled = checkedFilledLines();
     if (filled.length === 0) {
-      alert("저장할 품목을 체크해 주세요.");
+      await appAlert({ title: "알림", description: "저장할 품목을 체크해 주세요." });
       return null;
     }
     const first = filled[0];
@@ -545,13 +547,13 @@ export function PurchaseRequestForm({
   }
 
   async function handleSave() {
-    const row = buildPayloadFromForm();
+    const row = await buildPayloadFromForm();
     if (!row) return;
     if (saving) return;
     setSaving(true);
     try {
       await savePurchaseRequestApi(row);
-      alert("저장되었습니다. (헤더·품목·첨부)");
+      await appAlert({ title: "알림", description: "저장되었습니다. (헤더·품목·첨부)" });
       onSaved?.();
       if (isModal) {
         finishClose();
@@ -560,11 +562,13 @@ export function PurchaseRequestForm({
       router.push("/purchase-requests");
     } catch (err) {
       console.error(err);
-      alert(
-        err instanceof Error
-          ? `저장 실패: ${err.message}`
-          : "저장에 실패했습니다."
-      );
+      await appAlert({
+        title: "알림",
+        description:
+          err instanceof Error
+            ? `저장 실패: ${err.message}`
+            : "저장에 실패했습니다.",
+      });
     } finally {
       setSaving(false);
     }
@@ -1105,6 +1109,7 @@ export function PurchaseRequestForm({
       />
 
       <Label className="sr-only">발주요청입력 양식</Label>
+      {appDialog}
     </div>
   );
 }

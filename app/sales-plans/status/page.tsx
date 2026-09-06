@@ -23,6 +23,7 @@ import {
 } from "@/lib/sales-plans";
 import { cn, formatKRW } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useAppDialog } from "@/components/ui/app-alert-dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
@@ -117,6 +118,7 @@ type ResultRow =
     };
 
 export default function SalesPlanStatusPage() {
+  const { alert: appAlert, dialog: appDialog } = useAppDialog();
   const defaults = useMemo(() => defaultSalesPlanDateRange(), []);
   const [rows, setRows] = useState<SalesPlan[]>([]);
   const [hydrated, setHydrated] = useState(false);
@@ -175,8 +177,8 @@ export default function SalesPlanStatusPage() {
     });
   }
 
-  function stub(action: string) {
-    alert(`${action} (데모)`);
+  async function stub(action: string) {
+    await appAlert({ title: "알림", description: `${action} (데모)` });
   }
 
   function setRange(from: string, to: string) {
@@ -887,6 +889,7 @@ export default function SalesPlanStatusPage() {
           </div>
         </CardContent>
       </Card>
+      {appDialog}
     </div>
   );
 }

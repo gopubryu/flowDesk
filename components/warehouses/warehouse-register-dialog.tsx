@@ -7,6 +7,7 @@ import {
   type Warehouse,
 } from "@/lib/warehouses";
 import { Button } from "@/components/ui/button";
+import { useAppDialog } from "@/components/ui/app-alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -38,6 +39,7 @@ function emptyForm(): FormState {
 }
 
 export function WarehouseRegisterDialog({ open, onOpenChange, onSaved }: Props) {
+  const { alert: appAlert, dialog: appDialog } = useAppDialog();
   const [form, setForm] = useState<FormState>(() => emptyForm());
 
   useEffect(() => {
@@ -52,9 +54,9 @@ export function WarehouseRegisterDialog({ open, onOpenChange, onSaved }: Props) 
     setForm(emptyForm());
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.code.trim() || !form.name.trim()) {
-      alert("창고코드와 창고명은 필수입니다.");
+      await appAlert({ title: "알림", description: "창고코드와 창고명은 필수입니다." });
       return;
     }
     const saved: Warehouse = {
@@ -68,6 +70,7 @@ export function WarehouseRegisterDialog({ open, onOpenChange, onSaved }: Props) 
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="max-w-md rounded-2xl border-slate-200 p-0 shadow-xl"
@@ -146,5 +149,7 @@ export function WarehouseRegisterDialog({ open, onOpenChange, onSaved }: Props) 
         </DialogFooter>
       </DialogContent>
     </Dialog>
+      {appDialog}
+    </>
   );
 }

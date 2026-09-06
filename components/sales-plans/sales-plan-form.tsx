@@ -27,6 +27,7 @@ import {
 } from "@/lib/sales-plans";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useAppDialog } from "@/components/ui/app-alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -208,6 +209,7 @@ export function SalesPlanForm({
   onClose,
   onSaved,
 }: Props) {
+  const { alert: appAlert, dialog: appDialog } = useAppDialog();
   const router = useRouter();
   const isModal = variant === "modal";
   const [master, setMaster] = useState<Master>(() => defaultMaster());
@@ -264,8 +266,8 @@ export function SalesPlanForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [master, lines, mode, editId, isModal]);
 
-  function stub(action: string) {
-    alert(`${action} (데모)`);
+  async function stub(action: string) {
+    await appAlert({ title: "알림", description: `${action} (데모)` });
   }
 
   function setMasterField<K extends keyof Master>(key: K, value: Master[K]) {
@@ -315,10 +317,10 @@ export function SalesPlanForm({
     );
   }
 
-  function buildRowFromForm(): SalesPlan | null {
+  async function buildRowFromForm(): Promise<SalesPlan | null> {
     const filled = filledLines();
     if (filled.length === 0) {
-      alert("품목 행을 하나 이상 입력하세요.");
+      await appAlert({ title: "알림", description: "품목 행을 하나 이상 입력하세요." });
       return null;
     }
     const first = filled[0];
@@ -365,12 +367,12 @@ export function SalesPlanForm({
     router.push("/sales-plans");
   }
 
-  function handleSave(andSlip: boolean) {
+  async function handleSave(andSlip: boolean) {
     if (andSlip) {
       stub("저장/전표");
       return;
     }
-    const row = buildRowFromForm();
+    const row = await buildRowFromForm();
     if (!row) return;
     appendSalesPlan(row);
     onSaved?.();
@@ -799,6 +801,7 @@ export function SalesPlanForm({
       </div>
 
       <Label className="sr-only">판매계획입력 양식</Label>
+      {appDialog}
     </div>
   );
 }

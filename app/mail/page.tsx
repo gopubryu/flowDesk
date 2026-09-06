@@ -18,6 +18,7 @@ import { useStore } from "@/lib/store";
 import type { MailMessage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useAppDialog } from "@/components/ui/app-alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -107,6 +108,7 @@ const emptyCompose = (): ComposeState => ({
 });
 
 export default function MailPage() {
+  const { alert: appAlert, confirm: appConfirm, dialog: appDialog } = useAppDialog();
   const {
     mails,
     sendMail,
@@ -206,9 +208,9 @@ export default function MailPage() {
     });
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!compose.to.trim()) {
-      alert("받는 사람을 입력해 주세요.");
+      await appAlert({ title: "알림", description: "받는 사람을 입력해 주세요." });
       return;
     }
     sendMail({
@@ -357,11 +359,18 @@ export default function MailPage() {
                 setSelectedId(null);
               }}
               onDeleteForever={() => {
-                if (confirm("이 메일을 영구 삭제할까요?")) {
+                void (async () => {
+                  const ok = await appConfirm({
+                    title: "삭제",
+                    description: "이 메일을 영구 삭제할까요?",
+                    confirmLabel: "삭제",
+                    confirmVariant: "danger",
+                  });
+                  if (!ok) return;
                   deleteMail(selected.id);
                   setMobileShowDetail(false);
                   setSelectedId(null);
-                }
+                })();
               }}
             />
           )}
@@ -395,10 +404,17 @@ export default function MailPage() {
                   setSelectedId(null);
                 }}
                 onDeleteForever={() => {
-                  if (confirm("이 메일을 영구 삭제할까요?")) {
+                  void (async () => {
+                    const ok = await appConfirm({
+                      title: "삭제",
+                      description: "이 메일을 영구 삭제할까요?",
+                      confirmLabel: "삭제",
+                      confirmVariant: "danger",
+                    });
+                    if (!ok) return;
                     deleteMail(selected.id);
                     setSelectedId(null);
-                  }
+                  })();
                 }}
               />
             ) : (
@@ -479,6 +495,7 @@ export default function MailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {appDialog}
     </div>
   );
 }

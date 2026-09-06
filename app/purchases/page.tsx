@@ -27,6 +27,7 @@ import {
 } from "@/lib/purchases";
 import { cn, formatKRW } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useAppDialog } from "@/components/ui/app-alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -53,6 +54,7 @@ const labelCls =
   "flex h-7 min-w-[88px] shrink-0 items-center bg-slate-100 px-2 text-[11px] font-medium text-slate-600";
 
 export default function PurchasesPage() {
+  const { alert: appAlert, confirm: appConfirm, dialog: appDialog } = useAppDialog();
   const [rows, setRows] = useState<Purchase[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [tab, setTab] = useState<TabKey>("all");
@@ -126,8 +128,8 @@ export default function PurchasesPage() {
     });
   }
 
-  function stub(action: string) {
-    alert(`${action} (데모)`);
+  async function stub(action: string) {
+    await appAlert({ title: "알림", description: `${action} (데모)` });
   }
 
   const filtered = useMemo(() => {
@@ -221,12 +223,18 @@ export default function PurchasesPage() {
     });
   }
 
-  function deleteSelected() {
+  async function deleteSelected() {
     if (selected.size === 0) {
-      alert("삭제할 항목을 선택하세요.");
+      await appAlert({ title: "알림", description: "삭제할 항목을 선택하세요." });
       return;
     }
-    if (!confirm(`선택한 ${selected.size}건을 삭제할까요?`)) return;
+    const ok = await appConfirm({
+      title: "삭제",
+      description: `선택한 ${selected.size}건을 삭제할까요?`,
+      confirmLabel: "삭제",
+      confirmVariant: "danger",
+    });
+    if (!ok) return;
     setRows((prev) => prev.filter((r) => !selected.has(r.id)));
     setSelected(new Set());
   }
@@ -553,7 +561,7 @@ export default function PurchasesPage() {
                 size="sm"
                 variant="outline"
                 className="h-8 gap-1.5"
-                onClick={deleteSelected}
+                onClick={() => void deleteSelected()}
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 선택삭제
@@ -595,6 +603,7 @@ export default function PurchasesPage() {
       </Dialog>
 
       <Label className="sr-only">구매조회</Label>
+      {appDialog}
     </div>
   );
 }
