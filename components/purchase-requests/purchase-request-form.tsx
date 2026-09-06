@@ -13,6 +13,8 @@ import {
   ScanLine,
   ShieldCheck,
   X,
+  Settings2,
+  CircleHelp,
 } from "lucide-react";
 import {
   CURRENCY_OPTIONS,
@@ -77,8 +79,9 @@ function emptyLine(): LineRow {
   };
 }
 
+/** 과세 / 부가세율 적용 → 10% VAT */
 function vatRate(taxType: string) {
-  if (taxType === "과세") return 0.1;
+  if (taxType === "과세" || taxType === "부가세율 적용") return 0.1;
   return 0;
 }
 
@@ -120,10 +123,21 @@ const labelCls =
 type Props = {
   mode?: "new" | "edit";
   editId?: string;
+  /** page = standalone route; modal = dialog over list */
+  variant?: "page" | "modal";
+  onClose?: () => void;
+  onSaved?: () => void;
 };
 
-export function PurchaseRequestForm({ mode = "new", editId }: Props) {
+export function PurchaseRequestForm({
+  mode = "new",
+  editId,
+  variant = "page",
+  onClose,
+  onSaved,
+}: Props) {
   const router = useRouter();
+  const isModal = variant === "modal";
   const [master, setMaster] = useState<Master>({
     requestDate: todayISO(),
     slipNo: "",
@@ -156,18 +170,25 @@ export function PurchaseRequestForm({ mode = "new", editId }: Props) {
     return { qty, supply, vat, total };
   }, [lines]);
 
-
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "F8") {
         e.preventDefault();
         handleSave(false);
       }
+      if (e.key === "F7") {
+        e.preventDefault();
+        stub("저장/전표(F7)");
+      }
+      if (e.key === "F3") {
+        e.preventDefault();
+        stub("찾기(F3)");
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [master, lines, mode, editId]);
+  }, [master, lines, mode, editId, isModal]);
 
   function stub(action: string) {
     alert(`${action} (데모)`);
@@ -225,7 +246,10 @@ export function PurchaseRequestForm({ mode = "new", editId }: Props) {
     }
     const first = filled[0];
     const quantity = filled.reduce((acc, l) => acc + (Number(l.qty) || 0), 0);
-    const amount = filled.reduce((acc, l) => acc + (Number(l.total) || Number(l.supply) || 0), 0);
+    const amount = filled.reduce(
+      (acc, l) => acc + (Number(l.total) || Number(l.supply) || 0),
+      0
+    );
     return {
       id: mode === "edit" && editId ? editId : nextPurchaseRequestId(),
       requestDate: master.requestDate,
@@ -246,12 +270,25 @@ export function PurchaseRequestForm({ mode = "new", editId }: Props) {
     };
   }
 
-  function handleSave(andNew: boolean) {
+  function finishClose() {
+    if (onClose) {
+      onClose();
+      return;
+    }
+    router.push("/purchase-requests");
+  }
+
+  function handleSave(andSlip: boolean) {
+    if (andSlip) {
+      stub("저장/전표(F7)");
+      return;
+    }
     const row = buildRowFromForm();
     if (!row) return;
     appendPurchaseRequest(row);
-    if (andNew) {
-      resetForm();
+    onSaved?.();
+    if (isModal) {
+      finishClose();
       return;
     }
     router.push("/purchase-requests");
@@ -271,30 +308,61 @@ export function PurchaseRequestForm({ mode = "new", editId }: Props) {
     setLines(Array.from({ length: 8 }, () => emptyLine()));
   }
 
-  function close() {
-    router.push("/purchase-requests");
-  }
-
   const title = mode === "edit" ? "발주요청입력 (수정)" : "발주요청입력";
 
   return (
-    <div className="flex min-h-[calc(100vh-7rem)] flex-col">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div>
+    <div
+      className={cn(
+        "flex flex-col",
+        isModal ? "h-full min-h-0" : "min-h-[calc(100vh-7rem)]"
+      )}
+    >
+      <div className="mb-2 flex items-center justify-between gap-2 shrink-0">
+        <div className="min-w-0">
           <h2 className="text-base font-semibold tracking-tight text-slate-900">{title}</h2>
-          <p className="text-xs text-muted-foreground">
-            발주요청 전표를 입력합니다. 저장 시 조회 목록에 반영됩니다. (클라이언트 목업)
-          </p>
+          {!isModal && (
+            <p className="text-xs text-muted-foreground">
+              발주요청 전표를 입력합니다. 저장 시 조회 목록에 반영됩니다. (클라이언트 목업)
+            </p>
+          )}
         </div>
-        <Button type="button" variant="ghost" size="sm" className="h-8 gap-1" onClick={close}>
-          <X className="h-3.5 w-3.5" />
-          닫기
-        </Button>
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1 px-2 text-[11px] text-slate-600"
+            onClick={() => stub("Option")}
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+            Option
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1 px-2 text-[11px] text-slate-600"
+            onClick={() => stub("도움말")}
+          >
+            <CircleHelp className="h-3.5 w-3.5" />
+            도움말
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0"
+            onClick={finishClose}
+            aria-label="닫기"
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
 
-      <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         {/* Master header — dense 2-col Ecount-like */}
-        <div className="border-b border-slate-200 bg-slate-50/80 px-3 py-2.5">
+        <div className="shrink-0 border-b border-slate-200 bg-slate-50/80 px-3 py-2.5">
           <div className="grid grid-cols-1 gap-x-6 gap-y-1.5 md:grid-cols-2">
             <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
               <span className={labelCls}>일자-No.</span>
@@ -321,7 +389,14 @@ export function PurchaseRequestForm({ mode = "new", editId }: Props) {
                   onChange={(e) => setMasterField("manager", e.target.value)}
                   placeholder="담당자 검색"
                 />
-                <Search className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
+                <button
+                  type="button"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                  onClick={() => stub("담당자 검색")}
+                  aria-label="담당자 검색"
+                >
+                  <Search className="h-3 w-3" />
+                </button>
               </div>
             </div>
 
@@ -349,7 +424,14 @@ export function PurchaseRequestForm({ mode = "new", editId }: Props) {
                   onChange={(e) => setMasterField("warehouse", e.target.value)}
                   placeholder="창고 검색"
                 />
-                <Search className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
+                <button
+                  type="button"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                  onClick={() => stub("창고 검색")}
+                  aria-label="창고 검색"
+                >
+                  <Search className="h-3 w-3" />
+                </button>
               </div>
             </div>
 
@@ -362,7 +444,14 @@ export function PurchaseRequestForm({ mode = "new", editId }: Props) {
                   onChange={(e) => setMasterField("project", e.target.value)}
                   placeholder="프로젝트 검색"
                 />
-                <Search className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
+                <button
+                  type="button"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                  onClick={() => stub("프로젝트 검색")}
+                  aria-label="프로젝트 검색"
+                >
+                  <Search className="h-3 w-3" />
+                </button>
               </div>
             </div>
 
@@ -401,8 +490,8 @@ export function PurchaseRequestForm({ mode = "new", editId }: Props) {
                   className="h-6 gap-1 px-2 text-[11px]"
                   onClick={() => stub("첨부")}
                 >
+                  <Plus className="h-3 w-3" />
                   <Paperclip className="h-3 w-3" />
-                  파일
                 </Button>
                 <span className="text-[11px] text-slate-400">첨부 없음</span>
               </div>
@@ -411,7 +500,7 @@ export function PurchaseRequestForm({ mode = "new", editId }: Props) {
         </div>
 
         {/* Line toolbar */}
-        <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 bg-white px-2 py-1.5">
+        <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-slate-200 bg-white px-2 py-1.5">
           {LINE_TOOLBAR.map((t) => (
             <Button
               key={t.label}
@@ -449,7 +538,7 @@ export function PurchaseRequestForm({ mode = "new", editId }: Props) {
         </div>
 
         {/* Line grid */}
-        <div className="flex-1 overflow-auto scrollbar-thin">
+        <div className="min-h-0 flex-1 overflow-auto scrollbar-thin">
           <table className="w-full min-w-[1100px] border-collapse text-left text-[11px]">
             <thead className="sticky top-0 z-10">
               <tr className="border-b bg-indigo-50/80 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
@@ -550,10 +639,10 @@ export function PurchaseRequestForm({ mode = "new", editId }: Props) {
           </table>
         </div>
 
-        {/* Footer actions */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 px-3 py-2.5">
+        {/* Footer actions — Ecount parity */}
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 px-3 py-2.5">
           <p className="text-[11px] text-muted-foreground">
-            {mode === "edit" ? `수정 모드 · ${editId}` : "신규 입력"} · F8 저장
+            {mode === "edit" ? `수정 모드 · ${editId}` : "신규 입력"} · F8 저장 · F7 저장/전표
           </p>
           <div className="flex flex-wrap gap-1.5">
             <Button
@@ -571,21 +660,21 @@ export function PurchaseRequestForm({ mode = "new", editId }: Props) {
               className="h-8"
               onClick={() => handleSave(true)}
             >
-              저장/신규
+              저장/전표(F7)
+            </Button>
+            <Button type="button" size="sm" variant="outline" className="h-8" onClick={resetForm}>
+              다시 작성
+            </Button>
+            <Button type="button" size="sm" variant="outline" className="h-8" onClick={finishClose}>
+              리스트
             </Button>
             <Button
               type="button"
               size="sm"
               variant="outline"
               className="h-8"
-              onClick={() => stub("저장/전표")}
+              onClick={finishClose}
             >
-              저장/전표
-            </Button>
-            <Button type="button" size="sm" variant="outline" className="h-8" onClick={resetForm}>
-              다시 작성
-            </Button>
-            <Button type="button" size="sm" variant="outline" className="h-8" onClick={close}>
               닫기
             </Button>
             <Button
@@ -601,7 +690,6 @@ export function PurchaseRequestForm({ mode = "new", editId }: Props) {
         </div>
       </div>
 
-      {/* visually hidden label helper for a11y balance */}
       <Label className="sr-only">발주요청입력 양식</Label>
     </div>
   );

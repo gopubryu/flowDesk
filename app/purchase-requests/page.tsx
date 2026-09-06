@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   FilePlus2,
   Mail,
@@ -25,6 +24,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { PurchaseRequestForm } from "@/components/purchase-requests/purchase-request-form";
 
 type TabKey = "all" | PurchaseRequestStatus;
 
@@ -40,7 +41,6 @@ const statusVariant: Record<
 };
 
 export default function PurchaseRequestsPage() {
-  const router = useRouter();
   const [rows, setRows] = useState<PurchaseRequest[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [tab, setTab] = useState<TabKey>("all");
@@ -53,6 +53,7 @@ export default function PurchaseRequestsPage() {
     dateTo: "2026-09-30",
   });
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [newOpen, setNewOpen] = useState(false);
 
   useEffect(() => {
     const loaded = loadPurchaseRequests();
@@ -64,6 +65,15 @@ export default function PurchaseRequestsPage() {
     if (!hydrated) return;
     savePurchaseRequests(rows);
   }, [rows, hydrated]);
+
+  function refreshFromStorage() {
+    setRows(loadPurchaseRequests());
+  }
+
+  function closeNewModal() {
+    setNewOpen(false);
+    refreshFromStorage();
+  }
 
   const filtered = useMemo(() => {
     return rows.filter((r) => {
@@ -302,7 +312,7 @@ export default function PurchaseRequestsPage() {
                 type="button"
                 size="sm"
                 className="h-8 gap-1.5"
-                onClick={() => router.push("/purchase-requests/new")}
+                onClick={() => setNewOpen(true)}
               >
                 <FilePlus2 className="h-3.5 w-3.5" />
                 신규
@@ -361,6 +371,20 @@ export default function PurchaseRequestsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Ecount-style 신규 popup over the list */}
+      <Dialog open={newOpen} onOpenChange={(open) => (open ? setNewOpen(true) : closeNewModal())}>
+        <DialogContent
+          className="pointer-events-auto flex h-[min(92vh,920px)] w-[min(96vw,1280px)] max-w-none flex-col overflow-hidden p-3 sm:p-4"
+        >
+          <PurchaseRequestForm
+            mode="new"
+            variant="modal"
+            onClose={closeNewModal}
+            onSaved={refreshFromStorage}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

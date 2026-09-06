@@ -43,6 +43,7 @@ export const PURCHASE_REQUEST_STATUS_LABEL: Record<PurchaseRequestStatus, string
 };
 
 export const TAX_TYPE_OPTIONS = [
+  "부가세율 적용",
   "부가세불적용",
   "과세",
   "영세",
