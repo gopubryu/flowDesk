@@ -164,6 +164,7 @@ export function serializePurchaseRequest(r: {
   quantity: number;
   amount: number;
   project: string | null;
+  attachments?: unknown;
   createdAt?: Date;
   updatedAt?: Date;
   lines?: {
@@ -201,6 +202,7 @@ export function serializePurchaseRequest(r: {
     quantity: r.quantity,
     amount: r.amount,
     project: r.project ?? undefined,
+    attachments: Array.isArray(r.attachments) ? r.attachments : [],
     createdAt: r.createdAt?.toISOString(),
     updatedAt: r.updatedAt?.toISOString(),
     lines: r.lines?.map((l) => ({

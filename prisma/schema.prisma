@@ -159,6 +159,8 @@ model PurchaseRequest {
   quantity      Float                 @default(0)
   amount        Float                 @default(0)
   project       String?
+  /// MVP attachments: [{ id, fileName, mimeType, size, dataUrl, createdAt }]
+  attachments   Json?
   createdAt     DateTime              @default(now())
   updatedAt     DateTime              @updatedAt
   lines         PurchaseRequestLine[]

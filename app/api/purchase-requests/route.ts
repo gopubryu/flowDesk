@@ -52,6 +52,65 @@ function mapLines(lines: LineInput[] | undefined) {
     );
 }
 
+
+type AttachmentInput = {
+  id?: string | null;
+  fileName?: string | null;
+  mimeType?: string | null;
+  size?: number | string | null;
+  dataUrl?: string | null;
+  url?: string | null;
+  createdAt?: string | null;
+};
+
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+
+function mapAttachments(raw: unknown): {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  dataUrl: string;
+  createdAt: string;
+}[] {
+  if (!Array.isArray(raw)) return [];
+  const out: {
+    id: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+    dataUrl: string;
+    createdAt: string;
+  }[] = [];
+  for (const item of raw as AttachmentInput[]) {
+    const fileName = String(item?.fileName ?? "").trim();
+    const dataUrl = String(item?.dataUrl ?? item?.url ?? "").trim();
+    if (!fileName || !dataUrl) continue;
+    const size = num(item?.size);
+    if (size > MAX_ATTACHMENT_BYTES) {
+      throw new Error(`첨부파일 "${fileName}"이(가) 5MB를 초과합니다.`);
+    }
+    // Rough base64 payload check (~4/3 of binary size)
+    const comma = dataUrl.indexOf(",");
+    const b64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+    const approxBytes = Math.floor((b64.length * 3) / 4);
+    if (approxBytes > MAX_ATTACHMENT_BYTES + 1024) {
+      throw new Error(`첨부파일 "${fileName}"이(가) 5MB를 초과합니다.`);
+    }
+    out.push({
+      id: item?.id ? String(item.id) : `att-${Date.now()}-${out.length}`,
+      fileName,
+      mimeType: String(item?.mimeType ?? "application/octet-stream"),
+      size: size || approxBytes,
+      dataUrl,
+      createdAt: item?.createdAt
+        ? String(item.createdAt)
+        : new Date().toISOString(),
+    });
+  }
+  return out;
+}
+
 export async function GET() {
   try {
     await ensureDemoWorkspace();
@@ -75,6 +134,10 @@ export async function POST(req: Request) {
     await ensureDemoWorkspace();
     const body = await req.json();
     const lineRows = mapLines(body.lines as LineInput[] | undefined);
+    const attachments =
+      body.attachments !== undefined
+        ? mapAttachments(body.attachments)
+        : [];
 
     const vendorName =
       String(body.vendorName ?? body.vendor ?? "").trim() || "(미지정)";
@@ -120,6 +183,7 @@ export async function POST(req: Request) {
         quantity,
         amount,
         project: body.project ? String(body.project) : null,
+        attachments,
         lines: lineRows.length
           ? { create: lineRows }
           : undefined,
@@ -130,9 +194,11 @@ export async function POST(req: Request) {
     return NextResponse.json(serializePurchaseRequest(created), { status: 201 });
   } catch (e) {
     console.error("POST /api/purchase-requests", e);
+    const msg = e instanceof Error ? e.message : "Failed to create purchase request";
+    const status = msg.includes("5MB") ? 400 : 500;
     return NextResponse.json(
-      { error: "Failed to create purchase request" },
-      { status: 500 }
+      { error: msg },
+      { status }
     );
   }
 }

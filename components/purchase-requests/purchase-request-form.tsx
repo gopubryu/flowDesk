@@ -20,6 +20,7 @@ import {
   TAX_TYPE_OPTIONS,
   fetchPurchaseRequest,
   savePurchaseRequestApi,
+  type PurchaseRequestAttachment,
 } from "@/lib/purchase-requests";
 import { cn } from "@/lib/utils";
 import {
@@ -70,6 +71,21 @@ function todayISO() {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error ?? new Error("file read failed"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function newAttachmentId() {
+  return `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function emptyLine(): LineRow {
@@ -243,6 +259,8 @@ export function PurchaseRequestForm({
   const [lines, setLines] = useState<LineRow[]>(() =>
     Array.from({ length: INITIAL_LINE_COUNT }, () => emptyLine())
   );
+  const [attachments, setAttachments] = useState<PurchaseRequestAttachment[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const [employeeSearchOpen, setEmployeeSearchOpen] = useState(false);
   const [warehouseSearchOpen, setWarehouseSearchOpen] = useState(false);
@@ -293,6 +311,18 @@ export function PurchaseRequestForm({
           linesFromApi.length
             ? linesFromApi
             : Array.from({ length: INITIAL_LINE_COUNT }, () => emptyLine())
+        );
+        setAttachments(
+          Array.isArray(row.attachments)
+            ? row.attachments.map((a) => ({
+                id: a.id || newAttachmentId(),
+                fileName: a.fileName,
+                mimeType: a.mimeType || "application/octet-stream",
+                size: a.size || 0,
+                dataUrl: a.dataUrl,
+                createdAt: a.createdAt || new Date().toISOString(),
+              }))
+            : []
         );
       } catch (err) {
         console.error(err);
@@ -349,7 +379,7 @@ export function PurchaseRequestForm({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [master, lines, mode, editId, isModal]);
+  }, [master, lines, attachments, mode, editId, isModal]);
 
   function stub(action: string) {
     alert(`${action} (데모)`);
@@ -406,6 +436,40 @@ export function PurchaseRequestForm({
     return filledLines().filter((l) => l.checked);
   }
 
+
+  async function handlePickAttachments(fileList: FileList | null) {
+    if (!fileList || fileList.length === 0) return;
+    const next: PurchaseRequestAttachment[] = [];
+    for (const file of Array.from(fileList)) {
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        alert(`"${file.name}" 파일이 5MB를 초과합니다. (최대 5MB)`);
+        continue;
+      }
+      try {
+        const dataUrl = await readFileAsDataUrl(file);
+        next.push({
+          id: newAttachmentId(),
+          fileName: file.name,
+          mimeType: file.type || "application/octet-stream",
+          size: file.size,
+          dataUrl,
+          createdAt: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error(err);
+        alert(`"${file.name}" 파일을 읽지 못했습니다.`);
+      }
+    }
+    if (next.length) {
+      setAttachments((prev) => [...prev, ...next]);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function removeAttachment(id: string) {
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
+  }
+
   function buildPayloadFromForm(): Parameters<typeof savePurchaseRequestApi>[0] | null {
     const filledAll = filledLines();
     if (filledAll.length === 0) {
@@ -453,6 +517,7 @@ export function PurchaseRequestForm({
       warehouseCode: master.warehouseCode.trim() || undefined,
       currency: master.currency,
       slipNo: master.slipNo.trim() || undefined,
+      attachments,
       lines: filled.map((l, i) => ({
         itemCode: l.itemCode.trim() || undefined,
         itemName: l.itemName.trim() || l.itemCode.trim() || "(미지정)",
@@ -505,6 +570,7 @@ export function PurchaseRequestForm({
   function resetForm() {
     setMaster(defaultMaster());
     setLines(Array.from({ length: INITIAL_LINE_COUNT }, () => emptyLine()));
+    setAttachments([]);
   }
 
   const title = mode === "edit" ? "발주요청입력 (수정)" : "발주요청입력";
@@ -545,28 +611,14 @@ export function PurchaseRequestForm({
         {/* Master header */}
         <div className="shrink-0 border-b border-slate-200 bg-slate-50/80 px-3 py-2.5">
           <div className="grid grid-cols-1 gap-x-6 gap-y-1.5 md:grid-cols-2">
-            {/* 일자-No.: date picker + No. display */}
+            {/* 일자 */}
             <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
-              <span className={labelCls}>일자-No.</span>
+              <span className={labelCls}>일자</span>
               <Input
                 type="date"
-                className={cn(fieldCls, "min-w-[128px] rounded-none border-0 border-r border-slate-200")}
+                className={cn(fieldCls, "rounded-none border-0")}
                 value={master.requestDate}
                 onChange={(e) => setMasterField("requestDate", e.target.value)}
-              />
-              <span className="flex h-7 shrink-0 items-center border-r border-slate-200 bg-slate-50 px-2 text-[10px] font-medium text-slate-500">
-                No.
-              </span>
-              <Input
-                className={cn(
-                  fieldCls,
-                  "w-[88px] rounded-none border-0 bg-slate-50 text-slate-500"
-                )}
-                placeholder="자동"
-                value={master.slipNo}
-                readOnly
-                onChange={(e) => setMasterField("slipNo", e.target.value)}
-                aria-label="전표번호"
               />
             </div>
 
@@ -640,22 +692,66 @@ export function PurchaseRequestForm({
               />
             </div>
 
-            {/* 첨부: wide click area */}
-            <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
+            {/* 첨부: multi file picker + list */}
+            <div className="flex items-stretch overflow-hidden rounded border border-slate-200 md:col-span-2">
               <span className={labelCls}>첨부</span>
-              <button
-                type="button"
-                className="flex min-h-7 flex-1 items-center gap-2 bg-white px-3 text-left hover:bg-indigo-50/50"
-                onClick={() => stub("첨부")}
-              >
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded border border-dashed border-slate-300 text-slate-400">
-                  <Plus className="h-3 w-3" />
-                </span>
-                <Paperclip className="h-3.5 w-3.5 text-slate-400" />
-                <span className="text-[11px] text-slate-400">
-                  파일을 첨부하려면 클릭하세요
-                </span>
-              </button>
+              <div className="flex min-h-7 min-w-0 flex-1 flex-col gap-1 bg-white px-2 py-1">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => void handlePickAttachments(e.target.files)}
+                />
+                <button
+                  type="button"
+                  className="flex min-h-7 w-full items-center gap-2 text-left hover:bg-indigo-50/50"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded border border-dashed border-slate-300 text-slate-400">
+                    <Plus className="h-3 w-3" />
+                  </span>
+                  <Paperclip className="h-3.5 w-3.5 text-slate-400" />
+                  <span className="text-[11px] text-slate-400">
+                    파일을 첨부하려면 클릭하세요 (최대 5MB/파일)
+                  </span>
+                </button>
+                {attachments.length > 0 && (
+                  <ul className="flex flex-wrap gap-1.5 pb-0.5">
+                    {attachments.map((att) => (
+                      <li
+                        key={att.id}
+                        className="inline-flex max-w-full items-center gap-1 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[11px] text-slate-700"
+                      >
+                        <a
+                          href={att.dataUrl}
+                          download={att.fileName}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="truncate text-indigo-600 hover:underline"
+                          title={att.fileName}
+                        >
+                          {att.fileName}
+                        </a>
+                        <span className="shrink-0 text-[10px] text-slate-400">
+                          {att.size
+                            ? `(${(att.size / 1024).toFixed(0)}KB)`
+                            : ""}
+                        </span>
+                        <button
+                          type="button"
+                          className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+                          onClick={() => removeAttachment(att.id)}
+                          aria-label={`${att.fileName} 제거`}
+                          title="제거"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
 
             {/* Master placeholder: 새로운 항목 추가 */}

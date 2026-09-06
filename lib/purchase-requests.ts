@@ -5,6 +5,15 @@ export type PurchaseRequestStatus =
   | "in_progress"
   | "completed";
 
+export interface PurchaseRequestAttachment {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  dataUrl: string;
+  createdAt: string;
+}
+
 export interface PurchaseRequestLine {
   id?: string;
   itemCode?: string;
@@ -42,6 +51,7 @@ export interface PurchaseRequest {
   warehouseCode?: string;
   warehouseName?: string;
   lines?: PurchaseRequestLine[];
+  attachments?: PurchaseRequestAttachment[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -236,6 +246,7 @@ export async function fetchPurchaseRequest(
 export type PurchaseRequestInput = Omit<PurchaseRequest, "id"> & {
   id?: string;
   lines?: PurchaseRequestLine[];
+  attachments?: PurchaseRequestAttachment[];
 };
 
 /** Create (POST) or update (PATCH) a purchase request via API */
@@ -263,6 +274,7 @@ export async function savePurchaseRequestApi(
     amount: row.amount,
     project: row.project,
     lines: row.lines,
+    attachments: row.attachments,
   };
   if (row.id) {
     return apiJson<PurchaseRequest>(`/api/purchase-requests/${row.id}`, {
