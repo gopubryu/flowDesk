@@ -3,6 +3,8 @@ import type { PurchaseRequestStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   DEMO_WORKSPACE_ID,
+  allocateNextSlipNo,
+  backfillMissingPurchaseRequestSlipNos,
   ensureDemoWorkspace,
   parseDateOnly,
   serializePurchaseRequest,
@@ -114,6 +116,7 @@ function mapAttachments(raw: unknown): {
 export async function GET() {
   try {
     await ensureDemoWorkspace();
+    await backfillMissingPurchaseRequestSlipNos(DEMO_WORKSPACE_ID);
     const rows = await prisma.purchaseRequest.findMany({
       where: { workspaceId: DEMO_WORKSPACE_ID },
       include: { lines: { orderBy: { sortOrder: "asc" } } },
@@ -158,11 +161,16 @@ export async function POST(req: Request) {
         ? num(body.amount)
         : lineRows.reduce((s, l) => s + (l.total || l.supply), 0);
 
+    const requestDate = parseDateOnly(body.requestDate) ?? new Date();
+    const slipNo = body.slipNo
+      ? String(body.slipNo)
+      : await allocateNextSlipNo(DEMO_WORKSPACE_ID, requestDate);
+
     const created = await prisma.purchaseRequest.create({
       data: {
         workspaceId: DEMO_WORKSPACE_ID,
-        requestDate: parseDateOnly(body.requestDate) ?? new Date(),
-        slipNo: body.slipNo ? String(body.slipNo) : null,
+        requestDate,
+        slipNo,
         vendorCode: body.vendorCode ? String(body.vendorCode) : null,
         vendorName,
         managerCode: body.managerCode ? String(body.managerCode) : null,

@@ -17,10 +17,12 @@ import {
   countByPurchaseRequestStatus,
   defaultPurchaseRequestDateRange,
   fetchPurchaseRequests,
+  formatPurchaseRequestDateNo,
   summarizePurchaseRequests,
   type PurchaseRequest,
   type PurchaseRequestStatus,
 } from "@/lib/purchase-requests";
+import { useRouter } from "next/navigation";
 import { cn, formatKRW } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -120,6 +122,7 @@ type ResultRow =
     };
 
 export default function PurchaseRequestStatusPage() {
+  const router = useRouter();
   const defaults = useMemo(() => defaultPurchaseRequestDateRange(), []);
   const [rows, setRows] = useState<PurchaseRequest[]>([]);
   const [hydrated, setHydrated] = useState(false);
@@ -293,7 +296,9 @@ export default function PurchaseRequestStatusPage() {
       if (applied.dueTo && r.dueDate > applied.dueTo) return false;
       if (applied.slipNo.trim()) {
         const q = applied.slipNo.trim().toLowerCase();
-        if (!r.id.toLowerCase().includes(q)) return false;
+        const label = formatPurchaseRequestDateNo(r.requestDate, r.slipNo).toLowerCase();
+        const sn = (r.slipNo ?? "").toLowerCase();
+        if (!label.includes(q) && !sn.includes(q)) return false;
       }
       if (applied.vendorCode.trim()) {
         const q = applied.vendorCode.trim().toLowerCase();
@@ -334,9 +339,11 @@ export default function PurchaseRequestStatusPage() {
         if (v !== 0) return v;
         return a.requestDate.localeCompare(b.requestDate);
       }
-      // 일자 default
+      // 일자 default, then human slip No.
       const d = a.requestDate.localeCompare(b.requestDate);
       if (d !== 0) return d;
+      const sn = (a.slipNo ?? "").localeCompare(b.slipNo ?? "", undefined, { numeric: true });
+      if (sn !== 0) return sn;
       return a.id.localeCompare(b.id);
     });
     return list;
@@ -379,7 +386,7 @@ export default function PurchaseRequestStatusPage() {
         kind: "data",
         id: r.id,
         requestDate: r.requestDate,
-        slipNo: r.id.replace(/^pr-/i, ""),
+        slipNo: (r.slipNo ?? "").trim(),
         item: r.item,
         quantity: r.quantity,
         unitPrice: up,
@@ -839,11 +846,12 @@ export default function PurchaseRequestStatusPage() {
                     return (
                       <tr
                         key={`${r.id}-${idx}`}
-                        className="border-b border-slate-100 hover:bg-indigo-50/40"
+                        className="cursor-pointer border-b border-slate-100 hover:bg-indigo-50/40"
                         title={PURCHASE_REQUEST_STATUS_LABEL[r.status]}
+                        onClick={() => router.push(`/purchase-requests/${r.id}/edit`)}
                       >
-                        <td className="whitespace-nowrap px-3 py-2 text-slate-700">
-                          {r.requestDate}-{r.slipNo}
+                        <td className="whitespace-nowrap px-3 py-2 font-medium text-slate-700">
+                          {formatPurchaseRequestDateNo(r.requestDate, r.slipNo)}
                         </td>
                         <td className="px-3 py-2 text-slate-800">{r.item}</td>
                         <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-700">

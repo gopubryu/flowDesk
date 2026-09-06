@@ -146,6 +146,84 @@ export function serializeMail(m: {
   };
 }
 
+
+/** Parse numeric sequence from slipNo ("0003" or "2026-09-06-0003"). */
+export function parseSlipSeq(slipNo: string | null | undefined): number {
+  if (!slipNo) return 0;
+  const trimmed = String(slipNo).trim();
+  if (/^\d+$/.test(trimmed)) return Number(trimmed);
+  const m = /-(\d+)$/.exec(trimmed);
+  return m ? Number(m[1]) : 0;
+}
+
+export function formatSlipSeq(n: number): string {
+  return String(Math.max(1, n)).padStart(4, "0");
+}
+
+/** Next daily slip sequence (0001…) for workspace + request date (UTC YMD). */
+export async function allocateNextSlipNo(
+  workspaceId: string,
+  requestDate: Date
+): Promise<string> {
+  const ymd = toDateString(requestDate)!;
+  const dayStart = new Date(`${ymd}T00:00:00.000Z`);
+  const dayEnd = new Date(`${ymd}T23:59:59.999Z`);
+  const rows = await prisma.purchaseRequest.findMany({
+    where: {
+      workspaceId,
+      requestDate: { gte: dayStart, lte: dayEnd },
+      NOT: [{ slipNo: null }, { slipNo: "" }],
+    },
+    select: { slipNo: true },
+  });
+  let max = 0;
+  for (const r of rows) {
+    max = Math.max(max, parseSlipSeq(r.slipNo));
+  }
+  return formatSlipSeq(max + 1);
+}
+
+/** Assign daily sequential slipNos to rows missing one (idempotent). */
+export async function backfillMissingPurchaseRequestSlipNos(
+  workspaceId: string
+): Promise<number> {
+  const missing = await prisma.purchaseRequest.findMany({
+    where: {
+      workspaceId,
+      OR: [{ slipNo: null }, { slipNo: "" }],
+    },
+    orderBy: [{ requestDate: "asc" }, { createdAt: "asc" }],
+    select: { id: true, requestDate: true },
+  });
+  if (missing.length === 0) return 0;
+
+  const dayMax = new Map<string, number>();
+  const assigned = await prisma.purchaseRequest.findMany({
+    where: {
+      workspaceId,
+      NOT: [{ slipNo: null }, { slipNo: "" }],
+    },
+    select: { requestDate: true, slipNo: true },
+  });
+  for (const r of assigned) {
+    const ymd = toDateString(r.requestDate)!;
+    dayMax.set(ymd, Math.max(dayMax.get(ymd) ?? 0, parseSlipSeq(r.slipNo)));
+  }
+
+  let updated = 0;
+  for (const row of missing) {
+    const ymd = toDateString(row.requestDate)!;
+    const next = (dayMax.get(ymd) ?? 0) + 1;
+    dayMax.set(ymd, next);
+    await prisma.purchaseRequest.update({
+      where: { id: row.id },
+      data: { slipNo: formatSlipSeq(next) },
+    });
+    updated += 1;
+  }
+  return updated;
+}
+
 export function serializePurchaseRequest(r: {
   id: string;
   requestDate: Date;

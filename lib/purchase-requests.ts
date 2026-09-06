@@ -90,6 +90,20 @@ export const CURRENCY_OPTIONS = [
   "유로",
 ] as const;
 
+
+/** Human-readable 일자-No. label (never exposes cuid). */
+export function formatPurchaseRequestDateNo(
+  requestDate: string,
+  slipNo?: string | null
+): string {
+  const date = (requestDate || "").trim();
+  const no = (slipNo || "").trim();
+  if (date && no) return `${date}-${no}`;
+  if (date) return date;
+  if (no) return no;
+  return "—";
+}
+
 const STORAGE_KEY = "flowdesk-purchase-requests";
 
 /** Seed samples used when DB is empty / optional seed */

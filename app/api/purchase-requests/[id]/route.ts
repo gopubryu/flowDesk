@@ -3,6 +3,7 @@ import type { PurchaseRequestStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   DEMO_WORKSPACE_ID,
+  allocateNextSlipNo,
   parseDateOnly,
   serializePurchaseRequest,
 } from "@/lib/demo";
@@ -153,6 +154,17 @@ export async function PATCH(req: Request, ctx: Ctx) {
       data.requestDate = parseDateOnly(body.requestDate) ?? existing.requestDate;
     if (body.slipNo !== undefined)
       data.slipNo = body.slipNo ? String(body.slipNo) : null;
+
+    // Keep human-readable daily No. even if form omitted it (No. field removed from UI)
+    const nextRequestDate =
+      (data.requestDate as Date | undefined) ?? existing.requestDate;
+    const nextSlip =
+      data.slipNo !== undefined
+        ? (data.slipNo as string | null)
+        : existing.slipNo;
+    if (!nextSlip) {
+      data.slipNo = await allocateNextSlipNo(DEMO_WORKSPACE_ID, nextRequestDate);
+    }
     if (body.vendorCode !== undefined)
       data.vendorCode = body.vendorCode ? String(body.vendorCode) : null;
     if (body.vendorName !== undefined || body.vendor !== undefined)
