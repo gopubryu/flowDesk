@@ -145,12 +145,21 @@ export function VendorRegisterDialog({ open, onOpenChange, onSaved }: Props) {
   const [form, setForm] = useState<FormState>(() => emptyForm());
   const [postcodeOpen, setPostcodeOpen] = useState(false);
   const postcodeContainerRef = useRef<HTMLDivElement>(null);
+  const postcodeOpenRef = useRef(false);
+  const suppressRegisterCloseUntilRef = useRef(0);
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
-    if (open) {
+    postcodeOpenRef.current = postcodeOpen;
+  }, [postcodeOpen]);
+
+  useEffect(() => {
+    // Reset form only on false → true open transition (not on reopen flicker)
+    if (open && !wasOpenRef.current) {
       setForm(emptyForm());
       setPostcodeOpen(false);
     }
+    wasOpenRef.current = open;
   }, [open]);
 
   useEffect(() => {
@@ -167,8 +176,12 @@ export function VendorRegisterDialog({ open, onOpenChange, onSaved }: Props) {
         postcodeContainerRef.current.innerHTML = "";
         new window.daum.Postcode({
           oncomplete: (data) => {
-            setForm((f) => ({ ...f, address: formatPostcodeAddress(data) }));
-            setPostcodeOpen(false);
+            const address = formatPostcodeAddress(data);
+            setForm((f) => ({ ...f, address }));
+            // Suppress parent dialog close while the select-click falls through
+            // after the postcode overlay unmounts.
+            suppressRegisterCloseUntilRef.current = Date.now() + 800;
+            setTimeout(() => setPostcodeOpen(false), 150);
           },
           width: "100%",
           height: "100%",
@@ -195,7 +208,10 @@ export function VendorRegisterDialog({ open, onOpenChange, onSaved }: Props) {
   }
 
   function handleRegisterOpenChange(next: boolean) {
-    if (!next && postcodeOpen) {
+    if (
+      next === false &&
+      (postcodeOpenRef.current || Date.now() < suppressRegisterCloseUntilRef.current)
+    ) {
       setPostcodeOpen(false);
       return;
     }
