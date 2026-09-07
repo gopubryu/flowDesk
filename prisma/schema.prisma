@@ -203,6 +203,8 @@ model SalesPlan {
   vendorCode   String?
   vendorName   String
   item         String
+  itemCode     String?
+  spec         String?
   quantity     Float           @default(0)
   unitPrice    Float           @default(0)
   amount       Float           @default(0)

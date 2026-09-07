@@ -371,6 +371,8 @@ export function serializeSalesPlan(r: {
   vendorCode: string | null;
   vendorName: string;
   item: string;
+  itemCode?: string | null;
+  spec?: string | null;
   quantity: number;
   unitPrice: number;
   amount: number;
@@ -395,6 +397,8 @@ export function serializeSalesPlan(r: {
     vendor: r.vendorName,
     vendorCode: r.vendorCode ?? undefined,
     item: r.item,
+    itemCode: r.itemCode ?? undefined,
+    spec: r.spec ?? undefined,
     quantity: r.quantity,
     unitPrice: r.unitPrice,
     amount: r.amount,

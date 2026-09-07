@@ -56,6 +56,8 @@ export async function POST(req: Request) {
         vendorCode: body.vendorCode ? String(body.vendorCode) : null,
         vendorName,
         item,
+        itemCode: body.itemCode ? String(body.itemCode) : null,
+        spec: body.spec ? String(body.spec) : null,
         quantity: num(body.quantity),
         unitPrice: num(body.unitPrice),
         amount: num(body.amount),

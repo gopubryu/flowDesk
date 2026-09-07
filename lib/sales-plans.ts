@@ -12,6 +12,8 @@ export interface SalesPlan {
   vendor: string;
   vendorCode?: string;
   item: string;
+  itemCode?: string;
+  spec?: string;
   quantity: number;
   unitPrice: number;
   /** 공급가액(금액) */

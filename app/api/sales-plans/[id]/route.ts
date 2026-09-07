@@ -60,6 +60,12 @@ export async function PATCH(req: Request, ctx: Ctx) {
         String(body.vendorName ?? body.vendor ?? "").trim() || existing.vendorName;
     }
     if (body.item !== undefined) data.item = String(body.item);
+    if (body.itemCode !== undefined) {
+      data.itemCode = body.itemCode ? String(body.itemCode) : null;
+    }
+    if (body.spec !== undefined) {
+      data.spec = body.spec ? String(body.spec) : null;
+    }
     if (body.quantity !== undefined) data.quantity = num(body.quantity);
     if (body.unitPrice !== undefined) data.unitPrice = num(body.unitPrice);
     if (body.amount !== undefined) data.amount = num(body.amount);

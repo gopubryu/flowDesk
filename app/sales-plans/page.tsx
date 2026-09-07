@@ -300,7 +300,7 @@ export default function SalesPlansPage() {
                     />
                   </th>
                   <th className="px-3 py-2.5">일자-No.</th>
-                  <th className="px-3 py-2.5">거래처코드명</th>
+                  <th className="px-3 py-2.5">거래처명</th>
                   <th className="px-3 py-2.5">품목명</th>
                   <th className="px-3 py-2.5 text-right">수량</th>
                   <th className="px-3 py-2.5 text-right">단가</th>

@@ -274,6 +274,8 @@ export function SalesPlanForm({
         const tax = row.taxType ?? "과세";
         const hasItem =
           (Boolean(row.item?.trim()) && row.item !== "(미지정)") ||
+          Boolean(row.itemCode?.trim()) ||
+          Boolean(row.spec?.trim()) ||
           row.quantity > 0 ||
           row.amount > 0;
         if (hasItem) {
@@ -282,9 +284,9 @@ export function SalesPlanForm({
             recalcLine(
               {
                 ...base,
-                itemCode: "",
+                itemCode: row.itemCode ?? "",
                 itemName: row.item && row.item !== "(미지정)" ? row.item : "",
-                spec: "",
+                spec: row.spec ?? "",
                 qty: row.quantity ? String(row.quantity) : "",
                 unitPrice: row.unitPrice ? String(row.unitPrice) : "",
                 supply: row.amount ? String(row.amount) : "",
@@ -451,6 +453,8 @@ export function SalesPlanForm({
         filled.length === 1
           ? first.itemName.trim() || first.itemCode.trim() || "(미지정)"
           : `${first.itemName.trim() || first.itemCode.trim() || "품목"} 외 ${filled.length - 1}건`,
+      itemCode: first.itemCode.trim() || undefined,
+      spec: first.spec.trim() || undefined,
       quantity,
       unitPrice,
       amount,
