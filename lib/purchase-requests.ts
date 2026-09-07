@@ -79,7 +79,7 @@ export const PURCHASE_REQUEST_STATUS_LABEL: Record<PurchaseRequestStatus, string
 export const TAX_TYPE_OPTIONS = [
   "과세",
   "영세",
-  "수입",
+  "면세",
 ] as const;
 
 export const CURRENCY_OPTIONS = [

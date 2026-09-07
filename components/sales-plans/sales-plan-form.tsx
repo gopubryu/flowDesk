@@ -30,14 +30,16 @@ import { Button } from "@/components/ui/button";
 import { useAppDialog } from "@/components/ui/app-alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { EmployeeSearchDialog } from "@/components/employees/employee-search-dialog";
+import { WarehouseSearchDialog } from "@/components/warehouses/warehouse-search-dialog";
+import { ItemSearchDialog } from "@/components/items/item-search-dialog";
+import { VendorSearchDialog } from "@/components/vendors/vendor-search-dialog";
 
 export type LineRow = {
   id: string;
   checked: boolean;
   itemCode: string;
   itemName: string;
-  vendorCode: string;
-  vendorName: string;
   spec: string;
   qty: string;
   unitPrice: string;
@@ -55,8 +57,8 @@ type Master = {
   taxType: string;
   warehouseCode: string;
   warehouseName: string;
-  projectCode: string;
-  projectName: string;
+  vendorCode: string;
+  vendorName: string;
   currency: string;
   dueDate: string;
 };
@@ -77,8 +79,6 @@ function emptyLine(): LineRow {
     checked: false,
     itemCode: "",
     itemName: "",
-    vendorCode: "",
-    vendorName: "",
     spec: "",
     qty: "",
     unitPrice: "",
@@ -96,18 +96,19 @@ function defaultMaster(): Master {
     slipNo: "",
     managerCode: "",
     managerName: "",
-    taxType: "부가세율 적용",
+    taxType: "과세",
     warehouseCode: "",
     warehouseName: "",
-    projectCode: "",
-    projectName: "",
+    vendorCode: "",
+    vendorName: "",
     currency: "내자",
     dueDate: today,
   };
 }
 
+/** 과세 → 10% VAT */
 function vatRate(taxType: string) {
-  if (taxType === "과세" || taxType === "부가세율 적용") return 0.1;
+  if (taxType === "과세") return 0.1;
   return 0;
 }
 
@@ -180,6 +181,7 @@ function CodeNameField({
         className={cn(fieldCls, "w-[72px] shrink-0 rounded-none border-0 border-r border-slate-200")}
         value={code}
         onChange={(e) => onCodeChange(e.target.value)}
+        onDoubleClick={onSearch}
         placeholder={codePlaceholder}
         aria-label={`${label} 코드`}
       />
@@ -217,6 +219,11 @@ export function SalesPlanForm({
     Array.from({ length: INITIAL_LINE_COUNT }, () => emptyLine())
   );
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
+  const [employeeSearchOpen, setEmployeeSearchOpen] = useState(false);
+  const [warehouseSearchOpen, setWarehouseSearchOpen] = useState(false);
+  const [itemSearchOpen, setItemSearchOpen] = useState(false);
+  const [itemSearchLineId, setItemSearchLineId] = useState<string | null>(null);
+  const [vendorSearchOpen, setVendorSearchOpen] = useState(false);
   const saveMenuRef = useRef<HTMLDivElement>(null);
 
   const totals = useMemo(() => {
@@ -312,7 +319,6 @@ export function SalesPlanForm({
       (l) =>
         l.itemName.trim() ||
         l.itemCode.trim() ||
-        l.vendorName.trim() ||
         (l.qty !== "" && Number(l.qty) > 0)
     );
   }
@@ -336,8 +342,8 @@ export function SalesPlanForm({
     return {
       id: mode === "edit" && editId ? editId : undefined,
       planDate: master.planDate,
-      vendor: first.vendorName.trim() || first.vendorCode.trim() || "(미지정)",
-      vendorCode: first.vendorCode.trim() || undefined,
+      vendor: master.vendorName.trim() || master.vendorCode.trim() || "(미지정)",
+      vendorCode: master.vendorCode.trim() || undefined,
       item:
         filled.length === 1
           ? first.itemName.trim() || first.itemCode.trim() || "(미지정)"
@@ -353,7 +359,6 @@ export function SalesPlanForm({
       manager: master.managerName || master.managerCode,
       taxType: master.taxType,
       warehouse: master.warehouseName || master.warehouseCode,
-      project: master.projectName || master.projectCode,
       currency: master.currency,
       dueDate: master.dueDate || master.planDate,
     };
@@ -407,7 +412,7 @@ export function SalesPlanForm({
           <h2 className="text-base font-semibold tracking-tight text-slate-900">{title}</h2>
           {!isModal && (
             <p className="text-xs text-muted-foreground">
-              판매계획 전표를 입력합니다. 저장 시 조회 목록에 반영됩니다. (클라이언트 목업)
+              판매계획 전표를 입력합니다. 저장 시 서버(DB)에 반영됩니다.
             </p>
           )}
         </div>
@@ -430,6 +435,16 @@ export function SalesPlanForm({
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="shrink-0 border-b border-slate-200 bg-slate-50/80 px-3 py-2.5">
           <div className="grid grid-cols-1 gap-x-6 gap-y-1.5 md:grid-cols-2">
+            <CodeNameField
+              label="거래처"
+              code={master.vendorCode}
+              name={master.vendorName}
+              onCodeChange={(v) => setMasterField("vendorCode", v)}
+              onNameChange={(v) => setMasterField("vendorName", v)}
+              onSearch={() => setVendorSearchOpen(true)}
+              namePlaceholder="거래처명"
+            />
+
             <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
               <span className={labelCls}>일자-No.</span>
               <Input
@@ -459,7 +474,7 @@ export function SalesPlanForm({
               name={master.managerName}
               onCodeChange={(v) => setMasterField("managerCode", v)}
               onNameChange={(v) => setMasterField("managerName", v)}
-              onSearch={() => stub("담당자 검색")}
+              onSearch={() => setEmployeeSearchOpen(true)}
               namePlaceholder="담당자명"
             />
 
@@ -484,18 +499,8 @@ export function SalesPlanForm({
               name={master.warehouseName}
               onCodeChange={(v) => setMasterField("warehouseCode", v)}
               onNameChange={(v) => setMasterField("warehouseName", v)}
-              onSearch={() => stub("창고 검색")}
+              onSearch={() => setWarehouseSearchOpen(true)}
               namePlaceholder="창고명"
-            />
-
-            <CodeNameField
-              label="프로젝트"
-              code={master.projectCode}
-              name={master.projectName}
-              onCodeChange={(v) => setMasterField("projectCode", v)}
-              onNameChange={(v) => setMasterField("projectName", v)}
-              onSearch={() => stub("프로젝트 검색")}
-              namePlaceholder="프로젝트명"
             />
 
             <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
@@ -591,7 +596,7 @@ export function SalesPlanForm({
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto scrollbar-thin">
-          <table className="w-full min-w-[1180px] border-collapse text-left text-[11px]">
+          <table className="w-full min-w-[1020px] border-collapse text-left text-[11px]">
             <thead className="sticky top-0 z-10">
               <tr className="border-b bg-indigo-50/80 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
                 <th className="w-8 px-2 py-1.5">
@@ -600,8 +605,6 @@ export function SalesPlanForm({
                 <th className="w-8 px-1 py-1.5 text-center">+</th>
                 <th className="min-w-[88px] px-2 py-1.5">품목코드</th>
                 <th className="min-w-[140px] px-2 py-1.5">품목명</th>
-                <th className="min-w-[88px] px-2 py-1.5">거래처코드</th>
-                <th className="min-w-[120px] px-2 py-1.5">거래처명</th>
                 <th className="min-w-[80px] px-2 py-1.5">규격</th>
                 <th className="min-w-[72px] px-2 py-1.5 text-right">수량</th>
                 <th className="min-w-[88px] px-2 py-1.5 text-right">단가</th>
@@ -642,8 +645,6 @@ export function SalesPlanForm({
                     [
                       ["itemCode", "left"],
                       ["itemName", "left"],
-                      ["vendorCode", "left"],
-                      ["vendorName", "left"],
                       ["spec", "left"],
                       ["qty", "right"],
                       ["unitPrice", "right"],
@@ -667,6 +668,17 @@ export function SalesPlanForm({
                           value={line[key]}
                           readOnly={readOnly}
                           onChange={(e) => updateLine(line.id, { [key]: e.target.value })}
+                          onDoubleClick={() => {
+                            if (key === "itemCode") {
+                              setItemSearchLineId(line.id);
+                              setItemSearchOpen(true);
+                            }
+                          }}
+                          title={
+                            key === "itemCode"
+                              ? "더블클릭하여 품목 검색"
+                              : undefined
+                          }
                         />
                       </td>
                     );
@@ -676,7 +688,7 @@ export function SalesPlanForm({
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold text-slate-800">
-                <td colSpan={7} className="px-3 py-2 text-right text-[11px] text-slate-500">
+                <td colSpan={5} className="px-3 py-2 text-right text-[11px] text-slate-500">
                   합계
                 </td>
                 <td className="px-2 py-2 text-right tabular-nums">
@@ -802,6 +814,51 @@ export function SalesPlanForm({
           </div>
         </div>
       </div>
+
+      <EmployeeSearchDialog
+        open={employeeSearchOpen}
+        onOpenChange={setEmployeeSearchOpen}
+        onSelect={(emp) => {
+          setMaster((m) => ({ ...m, managerCode: emp.code, managerName: emp.name }));
+        }}
+      />
+
+      <WarehouseSearchDialog
+        open={warehouseSearchOpen}
+        onOpenChange={setWarehouseSearchOpen}
+        onSelect={(wh) => {
+          setMaster((m) => ({ ...m, warehouseCode: wh.code, warehouseName: wh.name }));
+        }}
+      />
+
+      <ItemSearchDialog
+        open={itemSearchOpen}
+        onOpenChange={(open) => {
+          setItemSearchOpen(open);
+          if (!open) setItemSearchLineId(null);
+        }}
+        onSelect={(item) => {
+          if (!itemSearchLineId) return;
+          updateLine(itemSearchLineId, {
+            itemCode: item.code,
+            itemName: item.name,
+            ...(item.spec ? { spec: item.spec } : {}),
+          });
+          setItemSearchLineId(null);
+        }}
+      />
+
+      <VendorSearchDialog
+        open={vendorSearchOpen}
+        onOpenChange={setVendorSearchOpen}
+        onSelect={(vendor) => {
+          setMaster((m) => ({
+            ...m,
+            vendorCode: vendor.code,
+            vendorName: vendor.name,
+          }));
+        }}
+      />
 
       <Label className="sr-only">판매계획입력 양식</Label>
       {appDialog}

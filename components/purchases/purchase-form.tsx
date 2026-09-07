@@ -103,16 +103,16 @@ function defaultMaster(): Master {
     managerName: "",
     warehouseCode: "",
     warehouseName: "",
-    taxType: "부가세율 적용",
+    taxType: "과세",
     currency: "내자",
     projectCode: "",
     projectName: "",
   };
 }
 
-/** 과세 / 부가세율 적용 → 10% VAT */
+/** 과세 → 10% VAT */
 function vatRate(taxType: string) {
-  if (taxType === "과세" || taxType === "부가세율 적용") return 0.1;
+  if (taxType === "과세") return 0.1;
   return 0;
 }
 
