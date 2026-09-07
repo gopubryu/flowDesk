@@ -14,8 +14,11 @@ import {
   Search,
 } from "lucide-react";
 import {
-  loadPurchases,
-  savePurchases,
+  fetchPurchases,
+  deletePurchaseApi,
+  updatePurchaseStatusApi,
+  updatePurchaseInboundStatusApi,
+  formatPurchaseDateNo,
   PURCHASE_STATUS_LABEL,
   PURCHASE_STATUS_TABS,
   INBOUND_STATUS_LABEL,
@@ -31,7 +34,7 @@ import { fetchRelatedQty } from "@/lib/inventory";
 import Link from "next/link";
 import { cn, formatKRW } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useAppDialog } from "@/components/ui/app-alert-dialog";
+import { AppAlertDialog, useAppDialog } from "@/components/ui/app-alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -42,6 +45,12 @@ import { PurchaseForm } from "@/components/purchases/purchase-form";
 type TabKey = "all" | PurchaseStatus;
 type DomesticFilter = "all" | "domestic" | "foreign";
 type SentFilter = "all" | "sent" | "unsent";
+
+const STATUS_OPTIONS: PurchaseStatus[] = [
+  "approval",
+  "unconfirmed",
+  "confirmed",
+];
 
 const statusVariant: Record<
   PurchaseStatus,
@@ -61,6 +70,9 @@ export default function PurchasesPage() {
   const { alert: appAlert, confirm: appConfirm, dialog: appDialog } = useAppDialog();
   const [rows, setRows] = useState<Purchase[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [nextStatus, setNextStatus] = useState<PurchaseStatus>("unconfirmed");
+  const [actionBusy, setActionBusy] = useState(false);
   const [tab, setTab] = useState<TabKey>("all");
   const [dateFrom, setDateFrom] = useState("2026-08-01");
   const [dateTo, setDateTo] = useState("2026-09-30");
@@ -87,31 +99,46 @@ export default function PurchasesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [newOpen, setNewOpen] = useState(false);
 
+  async function refreshFromApi() {
+    const loaded = await fetchPurchases();
+    try {
+      const confirmed = loaded.filter((p) => p.status === "confirmed");
+      if (confirmed.length) {
+        const related = await fetchRelatedQty({
+          relatedType: "purchase",
+          relatedIds: confirmed.map((p) => p.id),
+        });
+        const next = loaded.map((p) => {
+          if (p.status !== "confirmed") return p;
+          const received = related[p.id] || 0;
+          const inboundStatus = resolveInboundStatus(p.quantity, received);
+          if (inboundStatus !== (p.inboundStatus || "none")) {
+            void updatePurchaseInboundStatusApi(p.id, inboundStatus).catch(() => {});
+          }
+          return { ...p, inboundStatus };
+        });
+        setRows(next);
+      } else {
+        setRows(loaded);
+      }
+    } catch {
+      setRows(loaded);
+    }
+    try {
+      localStorage.removeItem("flowdesk-purchases");
+    } catch {
+      /* ignore */
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const local = loadPurchases();
       try {
-        const confirmed = local.filter((p) => p.status === "confirmed");
-        if (confirmed.length) {
-          const related = await fetchRelatedQty({
-            relatedType: "purchase",
-            relatedIds: confirmed.map((p) => p.id),
-          });
-          const next = local.map((p) => {
-            if (p.status !== "confirmed") return p;
-            const received = related[p.id] || 0;
-            return { ...p, inboundStatus: resolveInboundStatus(p.quantity, received) };
-          });
-          if (!cancelled) {
-            setRows(next);
-            savePurchases(next);
-          }
-        } else if (!cancelled) {
-          setRows(local);
-        }
-      } catch {
-        if (!cancelled) setRows(local);
+        await refreshFromApi();
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) setRows([]);
       } finally {
         if (!cancelled) setHydrated(true);
       }
@@ -119,12 +146,8 @@ export default function PurchasesPage() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    savePurchases(rows);
-  }, [rows, hydrated]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -137,13 +160,9 @@ export default function PurchasesPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  function refreshFromStorage() {
-    setRows(loadPurchases());
-  }
-
   function closeNewModal() {
     setNewOpen(false);
-    refreshFromStorage();
+    void refreshFromApi();
   }
 
   function runSearch() {
@@ -162,7 +181,49 @@ export default function PurchasesPage() {
   }
 
   async function stub(action: string) {
-    await appAlert({ title: "알림", description: `${action} (데모)` });
+    await appAlert({ title: "알림", description: `${action} 기능은 준비 중입니다.` });
+  }
+
+  async function openStatusChange() {
+    if (selected.size === 0) {
+      await appAlert({
+        title: "알림",
+        description: "진행상태를 변경할 항목을 선택해 주세요.",
+      });
+      return;
+    }
+    const first = rows.find((r) => selected.has(r.id));
+    setNextStatus(first?.status ?? "unconfirmed");
+    setStatusOpen(true);
+  }
+
+  async function applyStatusChange() {
+    if (selected.size === 0) {
+      await appAlert({
+        title: "알림",
+        description: "진행상태를 변경할 항목을 선택해 주세요.",
+      });
+      return;
+    }
+    setActionBusy(true);
+    try {
+      const ids = Array.from(selected);
+      for (const id of ids) {
+        await updatePurchaseStatusApi(id, nextStatus);
+      }
+      setStatusOpen(false);
+      setSelected(new Set());
+      await refreshFromApi();
+    } catch (err) {
+      console.error(err);
+      await appAlert({
+        title: "알림",
+        description:
+          err instanceof Error ? err.message : "진행상태 변경에 실패했습니다.",
+      });
+    } finally {
+      setActionBusy(false);
+    }
   }
 
   const filtered = useMemo(() => {
@@ -268,12 +329,22 @@ export default function PurchasesPage() {
       confirmVariant: "danger",
     });
     if (!ok) return;
-    setRows((prev) => prev.filter((r) => !selected.has(r.id)));
-    setSelected(new Set());
-  }
-
-  function slipNoOf(id: string) {
-    return id.replace(/^pu-/i, "");
+    setActionBusy(true);
+    try {
+      for (const id of Array.from(selected)) {
+        await deletePurchaseApi(id);
+      }
+      setSelected(new Set());
+      await refreshFromApi();
+    } catch (err) {
+      console.error(err);
+      await appAlert({
+        title: "알림",
+        description: err instanceof Error ? err.message : "삭제에 실패했습니다.",
+      });
+    } finally {
+      setActionBusy(false);
+    }
   }
 
   return (
@@ -282,7 +353,7 @@ export default function PurchasesPage() {
         <div>
           <h2 className="text-base font-semibold tracking-tight text-slate-900">구매조회</h2>
           <p className="text-xs text-muted-foreground">
-            구매 전표를 조회하고 진행상태를 관리합니다. (목업 데이터)
+            구매 전표를 조회하고 진행상태를 관리합니다.
           </p>
         </div>
       </div>
@@ -496,7 +567,7 @@ export default function PurchasesPage() {
                         />
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-slate-700">
-                        {r.purchaseDate}-{slipNoOf(r.id)}
+                        {formatPurchaseDateNo(r.purchaseDate, r.slipNo)}
                       </td>
                       <td className="px-3 py-2 font-medium text-slate-900">{r.vendor}</td>
                       <td className="px-3 py-2 text-slate-700">{r.item}</td>
@@ -578,7 +649,8 @@ export default function PurchasesPage() {
                 size="sm"
                 variant="outline"
                 className="h-8 gap-1.5"
-                onClick={() => stub("진행상태변경")}
+                onClick={() => void openStatusChange()}
+                disabled={actionBusy}
               >
                 <RefreshCw className="h-3.5 w-3.5" />
                 진행상태변경
@@ -654,10 +726,39 @@ export default function PurchasesPage() {
             mode="new"
             variant="modal"
             onClose={closeNewModal}
-            onSaved={refreshFromStorage}
+            onSaved={() => void refreshFromApi()}
           />
         </DialogContent>
       </Dialog>
+
+      <AppAlertDialog
+        open={statusOpen}
+        onOpenChange={(open) => {
+          if (!actionBusy) setStatusOpen(open);
+        }}
+        title="진행상태 변경"
+        description={`선택한 ${selected.size}건의 진행상태를 변경합니다.`}
+        confirmLabel={actionBusy ? "저장 중…" : "적용"}
+        confirmDisabled={actionBusy}
+        onConfirm={() => applyStatusChange()}
+      >
+        <Label htmlFor="pu-status-select" className="mb-1.5 block text-xs">
+          새 진행상태
+        </Label>
+        <select
+          id="pu-status-select"
+          className="h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+          value={nextStatus}
+          onChange={(e) => setNextStatus(e.target.value as PurchaseStatus)}
+          disabled={actionBusy}
+        >
+          {STATUS_OPTIONS.map((s) => (
+            <option key={s} value={s}>
+              {PURCHASE_STATUS_LABEL[s]}
+            </option>
+          ))}
+        </select>
+      </AppAlertDialog>
 
       <Label className="sr-only">구매조회</Label>
       {appDialog}

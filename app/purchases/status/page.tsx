@@ -16,7 +16,7 @@ import {
   PURCHASE_STATUS_LABEL,
   countByPurchaseStatus,
   defaultPurchaseDateRange,
-  loadPurchases,
+  fetchPurchases,
   summarizePurchases,
   type Purchase,
   type PurchaseStatus,
@@ -155,8 +155,21 @@ export default function PurchaseStatusPage() {
   });
 
   useEffect(() => {
-    setRows(loadPurchases());
-    setHydrated(true);
+    let cancelled = false;
+    (async () => {
+      try {
+        const loaded = await fetchPurchases();
+        if (!cancelled) setRows(loaded);
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) setRows([]);
+      } finally {
+        if (!cancelled) setHydrated(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function applyFilters() {
@@ -174,7 +187,7 @@ export default function PurchaseStatusPage() {
   }
 
   async function stub(action: string) {
-    await appAlert({ title: "알림", description: `${action} (데모)` });
+    await appAlert({ title: "알림", description: `${action} 기능은 준비 중입니다.` });
   }
 
   function setRange(from: string, to: string) {
@@ -267,7 +280,8 @@ export default function PurchaseStatusPage() {
       if (r.purchaseDate < applied.dateFrom || r.purchaseDate > applied.dateTo) return false;
       if (applied.slipNo.trim()) {
         const q = applied.slipNo.trim().toLowerCase();
-        if (!r.id.toLowerCase().includes(q)) return false;
+        const slip = (r.slipNo || r.orderNo || r.id || "").toLowerCase();
+        if (!slip.includes(q) && !r.id.toLowerCase().includes(q)) return false;
       }
       if (applied.vendorCode.trim()) {
         const q = applied.vendorCode.trim().toLowerCase();
@@ -353,7 +367,7 @@ export default function PurchaseStatusPage() {
         kind: "data",
         id: r.id,
         purchaseDate: r.purchaseDate,
-        slipNo: r.id.replace(/^pu-/i, ""),
+        slipNo: r.slipNo || r.orderNo || r.id,
         vendor: r.vendor,
         remarks: r.remarks || "",
         item: r.item,
@@ -566,7 +580,7 @@ export default function PurchaseStatusPage() {
         <Card className="border-slate-200 shadow-sm">
           <CardContent className="space-y-3 p-3">
             <p className="text-xs text-muted-foreground">
-              집계 조건 1·2는 필수입니다. (집계 결과 엔진은 데모 스텁)
+              집계 조건 1·2는 필수입니다.
             </p>
             <div className="grid gap-2 sm:grid-cols-2">
               <div className="flex items-stretch overflow-hidden rounded border border-slate-200">

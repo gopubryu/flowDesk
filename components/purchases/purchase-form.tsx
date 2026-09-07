@@ -22,8 +22,7 @@ import {
 import {
   CURRENCY_OPTIONS, formatCurrencyLabel,
   TAX_TYPE_OPTIONS,
-  appendPurchase,
-  nextPurchaseId,
+  savePurchaseApi,
   type Purchase,
 } from "@/lib/purchases";
 import { cn } from "@/lib/utils";
@@ -271,7 +270,7 @@ export function PurchaseForm({
   }, [master, lines, mode, editId, isModal]);
 
   async function stub(action: string) {
-    await appAlert({ title: "알림", description: `${action} (데모)` });
+    await appAlert({ title: "알림", description: `${action} 기능은 준비 중입니다.` });
   }
 
   function setMasterField<K extends keyof Master>(key: K, value: Master[K]) {
@@ -317,7 +316,7 @@ export function PurchaseForm({
     );
   }
 
-  async function buildRowFromForm(): Promise<Purchase | null> {
+  async function buildRowFromForm(): Promise<(Omit<Purchase, "id"> & { id?: string }) | null> {
     const filled = filledLines();
     if (filled.length === 0) {
       await appAlert({ title: "알림", description: "품목 행을 하나 이상 입력하세요." });
@@ -334,7 +333,7 @@ export function PurchaseForm({
       0
     );
     return {
-      id: mode === "edit" && editId ? editId : nextPurchaseId(),
+      id: mode === "edit" && editId ? editId : undefined,
       purchaseDate: master.purchaseDate,
       orderNo: master.orderNo || undefined,
       vendor: master.vendorName.trim() || master.vendorCode.trim() || "(미지정)",
@@ -381,13 +380,21 @@ export function PurchaseForm({
     }
     const row = await buildRowFromForm();
     if (!row) return;
-    appendPurchase(row);
-    onSaved?.();
-    if (isModal) {
-      finishClose();
-      return;
+    try {
+      await savePurchaseApi(row);
+      onSaved?.();
+      if (isModal) {
+        finishClose();
+        return;
+      }
+      router.push("/purchases");
+    } catch (err) {
+      console.error(err);
+      await appAlert({
+        title: "알림",
+        description: err instanceof Error ? err.message : "저장에 실패했습니다.",
+      });
     }
-    router.push("/purchases");
   }
 
   function resetForm() {
@@ -409,7 +416,7 @@ export function PurchaseForm({
           <h2 className="text-base font-semibold tracking-tight text-slate-900">{title}</h2>
           {!isModal && (
             <p className="text-xs text-muted-foreground">
-              구매 전표를 입력합니다. 저장 시 조회 목록에 반영됩니다. (클라이언트 목업)
+              구매 전표를 입력합니다. 저장 시 서버에 반영됩니다.
             </p>
           )}
         </div>

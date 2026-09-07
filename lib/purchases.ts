@@ -23,6 +23,8 @@ export interface Purchase {
   id: string;
   /** 구매일자 */
   purchaseDate: string;
+  /** Daily sequential slip no (0001…) */
+  slipNo?: string;
   /** 오더관리번호 */
   orderNo?: string;
   vendor: string;
@@ -104,9 +106,22 @@ export const SORT_OPTIONS = [
   "금액",
 ] as const;
 
+/** Human-readable 일자-No. label (never exposes cuid). */
+export function formatPurchaseDateNo(
+  purchaseDate: string,
+  slipNo?: string | null
+): string {
+  const date = (purchaseDate || "").trim();
+  const no = (slipNo || "").trim();
+  if (date && no) return `${date}-${no}`;
+  if (date) return date;
+  if (no) return no;
+  return "—";
+}
+
 const STORAGE_KEY = "flowdesk-purchases";
 
-/** Local mock rows for 구매조회 — not wired to Prisma/Neon */
+/** Seed samples used when DB is empty / optional seed */
 export const mockPurchases: Purchase[] = [
   {
     id: "pu-001",
@@ -342,6 +357,109 @@ export const mockPurchases: Purchase[] = [
   },
 ];
 
+async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+  });
+  if (!res.ok) {
+    let msg = res.statusText;
+    try {
+      const body = (await res.json()) as { error?: string };
+      if (body?.error) msg = body.error;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg || `Request failed (${res.status})`);
+  }
+  if (res.status === 204) return undefined as T;
+  return (await res.json()) as T;
+}
+
+/** Fetch all purchases from Neon/Prisma API */
+export async function fetchPurchases(): Promise<Purchase[]> {
+  return apiJson<Purchase[]>("/api/purchases");
+}
+
+export async function fetchPurchase(id: string): Promise<Purchase> {
+  return apiJson<Purchase>(`/api/purchases/${id}`);
+}
+
+export type PurchaseInput = Omit<Purchase, "id"> & {
+  id?: string;
+  lines?: PurchaseLine[];
+};
+
+/** Create (POST) or update (PATCH) a purchase via API */
+export async function savePurchaseApi(row: PurchaseInput): Promise<Purchase> {
+  const payload = {
+    purchaseDate: row.purchaseDate,
+    slipNo: row.slipNo,
+    orderNo: row.orderNo,
+    vendorCode: row.vendorCode,
+    vendorName: row.vendor,
+    vendor: row.vendor,
+    manager: row.manager,
+    taxType: row.taxType,
+    warehouseCode: row.warehouseCode,
+    warehouseName: row.warehouse,
+    warehouse: row.warehouse,
+    currency: row.currency,
+    project: row.project,
+    status: row.status,
+    inboundStatus: row.inboundStatus,
+    item: row.item,
+    itemCode: row.itemCode,
+    quantity: row.quantity,
+    amount: row.amount,
+    remarks: row.remarks,
+    sent: row.sent,
+    accountingReflect: row.accountingReflect,
+    printed: row.printed,
+    importedSlip: row.importedSlip,
+    lines: row.lines,
+  };
+  if (row.id) {
+    return apiJson<Purchase>(`/api/purchases/${row.id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  }
+  return apiJson<Purchase>("/api/purchases", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deletePurchaseApi(id: string): Promise<void> {
+  await apiJson(`/api/purchases/${id}`, { method: "DELETE" });
+}
+
+/** PATCH only status for selected rows on list */
+export async function updatePurchaseStatusApi(
+  id: string,
+  status: PurchaseStatus
+): Promise<Purchase> {
+  return apiJson<Purchase>(`/api/purchases/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function updatePurchaseInboundStatusApi(
+  id: string,
+  inboundStatus: InboundStatus
+): Promise<Purchase> {
+  return apiJson<Purchase>(`/api/purchases/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ inboundStatus }),
+  });
+}
+
+/** @deprecated Prefer fetchPurchases — kept for offline fallback */
 export function loadPurchases(): Purchase[] {
   if (typeof window === "undefined") return mockPurchases;
   try {
@@ -354,17 +472,20 @@ export function loadPurchases(): Purchase[] {
   }
 }
 
+/** @deprecated Prefer savePurchaseApi */
 export function savePurchases(rows: Purchase[]): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
 }
 
+/** @deprecated Prefer savePurchaseApi */
 export function appendPurchase(row: Purchase): Purchase[] {
   const next = [row, ...loadPurchases()];
   savePurchases(next);
   return next;
 }
 
+/** @deprecated IDs are now cuid from Prisma */
 export function nextPurchaseId(): string {
   const rows = loadPurchases();
   let max = 0;
@@ -432,7 +553,7 @@ export function defaultPurchaseDateRange(today = new Date()): {
   return { from: fmt(from), to: fmt(to) };
 }
 
-
+/** @deprecated Prefer updatePurchaseInboundStatusApi */
 export function updatePurchaseInboundStatus(
   id: string,
   inboundStatus: InboundStatus

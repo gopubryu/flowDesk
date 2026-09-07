@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Save, Search } from "lucide-react";
 import {
@@ -11,9 +11,10 @@ import {
 } from "@/lib/inventory";
 import {
   INBOUND_STATUS_LABEL,
-  loadPurchases,
+  fetchPurchases,
+  fetchPurchase,
   resolveInboundStatus,
-  savePurchases,
+  updatePurchaseInboundStatusApi,
   type Purchase,
   type InboundStatus,
 } from "@/lib/purchases";
@@ -141,20 +142,39 @@ function ReceiptNewPageInner() {
     setRows(grid);
   }
 
+  const [eligiblePurchases, setEligiblePurchases] = useState<Purchase[]>([]);
+
   useEffect(() => {
     const pid = searchParams.get("purchaseId");
     if (!pid) return;
-    const p = loadPurchases().find((x) => x.id === pid);
-    if (p) void applyPurchase(p);
+    void (async () => {
+      try {
+        const p = await fetchPurchase(pid);
+        await applyPurchase(p);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const eligiblePurchases = useMemo(() => {
-    return loadPurchases().filter((p) => {
-      if (p.status !== "confirmed") return false;
-      const st = p.inboundStatus || "none";
-      return st === "none" || st === "partial";
-    });
+  useEffect(() => {
+    if (!puOpen) return;
+    void (async () => {
+      try {
+        const all = await fetchPurchases();
+        setEligiblePurchases(
+          all.filter((p) => {
+            if (p.status !== "confirmed") return false;
+            const st = p.inboundStatus || "none";
+            return st === "none" || st === "partial";
+          })
+        );
+      } catch (e) {
+        console.error(e);
+        setEligiblePurchases([]);
+      }
+    })();
   }, [puOpen]);
 
   async function handleSave() {
@@ -239,18 +259,15 @@ function ReceiptNewPageInner() {
       });
 
       if (purchaseId) {
-        const purchases = loadPurchases();
-        const target = purchases.find((p) => p.id === purchaseId);
-        if (target) {
+        try {
+          const target = await fetchPurchase(purchaseId);
           const status = resolveInboundStatus(
             target.quantity,
             res.relatedReceivedQty
           );
-          savePurchases(
-            purchases.map((p) =>
-              p.id === purchaseId ? { ...p, inboundStatus: status } : p
-            )
-          );
+          await updatePurchaseInboundStatusApi(purchaseId, status);
+        } catch (e) {
+          console.error("inbound status update failed", e);
         }
       }
 

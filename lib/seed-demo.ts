@@ -4,6 +4,8 @@ import {
   type MailFolder,
   type PaymentStatus,
   type PurchaseRequestStatus,
+  type PurchaseStatus,
+  type InboundStatus,
   type TaskPriority,
   type TaskStatus,
 } from "@prisma/client";
@@ -21,6 +23,7 @@ import {
   initialTasks,
 } from "@/lib/mock-data";
 import { mockPurchaseRequests } from "@/lib/purchase-requests";
+import { mockPurchases } from "@/lib/purchases";
 
 export async function wipeAndSeedDemoWorkspace() {
   await prisma.workspace.upsert({
@@ -34,6 +37,10 @@ export async function wipeAndSeedDemoWorkspace() {
       where: { request: { workspaceId: DEMO_WORKSPACE_ID } },
     }),
     prisma.purchaseRequest.deleteMany({ where: { workspaceId: DEMO_WORKSPACE_ID } }),
+    prisma.purchaseLine.deleteMany({
+      where: { purchase: { workspaceId: DEMO_WORKSPACE_ID } },
+    }),
+    prisma.purchase.deleteMany({ where: { workspaceId: DEMO_WORKSPACE_ID } }),
     prisma.task.deleteMany({ where: { workspaceId: DEMO_WORKSPACE_ID } }),
     prisma.calendarEvent.deleteMany({ where: { workspaceId: DEMO_WORKSPACE_ID } }),
     prisma.financeRecord.deleteMany({ where: { workspaceId: DEMO_WORKSPACE_ID } }),
@@ -139,12 +146,60 @@ export async function wipeAndSeedDemoWorkspace() {
     });
   }
 
+
+  // Minimal purchase seed (header + one line) — stable ids for inventory QA
+  for (const pu of mockPurchases.slice(0, 8)) {
+    await prisma.purchase.create({
+      data: {
+        id: pu.id,
+        workspaceId: DEMO_WORKSPACE_ID,
+        purchaseDate: parseDateOnly(pu.purchaseDate)!,
+        slipNo: pu.id.replace(/^pu-/i, "") || undefined,
+        orderNo: pu.orderNo ?? null,
+        vendorCode: pu.vendorCode ?? null,
+        vendorName: pu.vendor,
+        manager: pu.manager ?? null,
+        taxType: pu.taxType ?? "과세",
+        warehouseName: pu.warehouse ?? null,
+        warehouseCode: pu.warehouseCode ?? null,
+        currency: pu.currency ?? "내자",
+        project: pu.project ?? null,
+        status: pu.status as PurchaseStatus,
+        inboundStatus: (pu.inboundStatus ?? "none") as InboundStatus,
+        item: pu.item,
+        itemCode: pu.itemCode ?? null,
+        quantity: pu.quantity,
+        amount: pu.amount,
+        remarks: pu.remarks ?? null,
+        sent: Boolean(pu.sent),
+        accountingReflect: Boolean(pu.accountingReflect),
+        printed: Boolean(pu.printed),
+        importedSlip: pu.importedSlip ?? null,
+        lines: {
+          create: [
+            {
+              itemCode: pu.itemCode ?? null,
+              itemName: pu.item,
+              qty: pu.quantity,
+              unitPrice: pu.quantity ? pu.amount / pu.quantity : 0,
+              supply: Math.round(pu.amount / 1.1),
+              vat: pu.amount - Math.round(pu.amount / 1.1),
+              total: pu.amount,
+              sortOrder: 0,
+            },
+          ],
+        },
+      },
+    });
+  }
+
   const counts = {
     tasks: initialTasks.length,
     events: initialEvents.length,
     finances: initialFinances.length,
     mails: initialMails.length,
     purchaseRequests: Math.min(5, mockPurchaseRequests.length),
+    purchases: Math.min(8, mockPurchases.length),
   };
 
   return { workspaceId: DEMO_WORKSPACE_ID, ...counts };

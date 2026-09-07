@@ -445,3 +445,153 @@ export function serializeSalesPlan(r: {
     })),
   };
 }
+
+/** Next daily slip sequence (0001…) for Purchase + purchase date (UTC YMD). */
+export async function allocateNextPurchaseSlipNo(
+  workspaceId: string,
+  purchaseDate: Date
+): Promise<string> {
+  const ymd = toDateString(purchaseDate)!;
+  const dayStart = new Date(`${ymd}T00:00:00.000Z`);
+  const dayEnd = new Date(`${ymd}T23:59:59.999Z`);
+  const rows = await prisma.purchase.findMany({
+    where: {
+      workspaceId,
+      purchaseDate: { gte: dayStart, lte: dayEnd },
+      NOT: [{ slipNo: null }, { slipNo: "" }],
+    },
+    select: { slipNo: true },
+  });
+  let max = 0;
+  for (const r of rows) {
+    max = Math.max(max, parseSlipSeq(r.slipNo));
+  }
+  return formatSlipSeq(max + 1);
+}
+
+/** Assign daily sequential slipNos to Purchase rows missing one (idempotent). */
+export async function backfillMissingPurchaseSlipNos(
+  workspaceId: string
+): Promise<number> {
+  const missing = await prisma.purchase.findMany({
+    where: {
+      workspaceId,
+      OR: [{ slipNo: null }, { slipNo: "" }],
+    },
+    orderBy: [{ purchaseDate: "asc" }, { createdAt: "asc" }],
+    select: { id: true, purchaseDate: true },
+  });
+  if (missing.length === 0) return 0;
+
+  const dayMax = new Map<string, number>();
+  const assigned = await prisma.purchase.findMany({
+    where: {
+      workspaceId,
+      NOT: [{ slipNo: null }, { slipNo: "" }],
+    },
+    select: { purchaseDate: true, slipNo: true },
+  });
+  for (const r of assigned) {
+    const ymd = toDateString(r.purchaseDate)!;
+    dayMax.set(ymd, Math.max(dayMax.get(ymd) ?? 0, parseSlipSeq(r.slipNo)));
+  }
+
+  let updated = 0;
+  for (const row of missing) {
+    const ymd = toDateString(row.purchaseDate)!;
+    const next = (dayMax.get(ymd) ?? 0) + 1;
+    dayMax.set(ymd, next);
+    await prisma.purchase.update({
+      where: { id: row.id },
+      data: { slipNo: formatSlipSeq(next) },
+    });
+    updated += 1;
+  }
+  return updated;
+}
+
+export function serializePurchase(r: {
+  id: string;
+  purchaseDate: Date;
+  slipNo: string | null;
+  orderNo: string | null;
+  vendorCode: string | null;
+  vendorName: string;
+  manager: string | null;
+  taxType: string | null;
+  warehouseCode: string | null;
+  warehouseName: string | null;
+  currency: string | null;
+  project: string | null;
+  status: string;
+  inboundStatus: string;
+  item: string;
+  itemCode: string | null;
+  quantity: number;
+  amount: number;
+  remarks: string | null;
+  sent: boolean;
+  accountingReflect: boolean;
+  printed: boolean;
+  importedSlip: string | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+  lines?: {
+    id: string;
+    itemCode: string | null;
+    itemName: string;
+    spec: string | null;
+    unit: string | null;
+    qty: number;
+    unitPrice: number;
+    supply: number;
+    vat: number;
+    total: number;
+    extra: string | null;
+    sortOrder: number;
+  }[];
+}) {
+  return {
+    id: r.id,
+    purchaseDate: toDateString(r.purchaseDate)!,
+    slipNo: r.slipNo ?? undefined,
+    orderNo: r.orderNo ?? undefined,
+    vendorCode: r.vendorCode ?? undefined,
+    vendor: r.vendorName,
+    vendorName: r.vendorName,
+    manager: r.manager ?? undefined,
+    taxType: r.taxType ?? undefined,
+    warehouseCode: r.warehouseCode ?? undefined,
+    warehouseName: r.warehouseName ?? undefined,
+    warehouse: r.warehouseName ?? r.warehouseCode ?? undefined,
+    currency: r.currency ?? undefined,
+    project: r.project ?? undefined,
+    status: r.status,
+    inboundStatus: r.inboundStatus,
+    item: r.item,
+    itemCode: r.itemCode ?? undefined,
+    quantity: r.quantity,
+    amount: r.amount,
+    remarks: r.remarks ?? undefined,
+    sent: r.sent,
+    accountingReflect: r.accountingReflect,
+    printed: r.printed,
+    importedSlip: r.importedSlip ?? undefined,
+    createdAt: r.createdAt?.toISOString(),
+    updatedAt: r.updatedAt?.toISOString(),
+    lines: r.lines?.map((l) => ({
+      id: l.id,
+      itemCode: l.itemCode ?? undefined,
+      itemName: l.itemName,
+      spec: l.spec ?? undefined,
+      unit: l.unit ?? undefined,
+      qty: l.qty,
+      unitPrice: l.unitPrice,
+      supply: l.supply,
+      vat: l.vat,
+      total: l.total,
+      extra: l.extra ?? undefined,
+      sortOrder: l.sortOrder,
+    })),
+  };
+}

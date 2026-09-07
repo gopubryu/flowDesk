@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { RefreshCw } from "lucide-react";
 import { fetchInventoryStatus, fetchRelatedQty, computeInboundStatus, type InventoryStatusSummary } from "@/lib/inventory";
-import { loadPurchases, INBOUND_STATUS_LABEL } from "@/lib/purchases";
+import { fetchPurchases, INBOUND_STATUS_LABEL } from "@/lib/purchases";
 import { loadItems } from "@/lib/items";
 import { OUTBOUND_STATUS_LABEL } from "@/lib/sales-plans";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ export default function InventoryStatusPage() {
       const st = await fetchInventoryStatus();
       setData(st);
 
-      const purchases = loadPurchases().filter((p) => p.status === "confirmed");
+      const purchases = (await fetchPurchases()).filter((p) => p.status === "confirmed");
       const ids = purchases.map((p) => p.id);
       const related = await fetchRelatedQty({ relatedType: "purchase", relatedIds: ids });
       const pending = purchases

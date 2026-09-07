@@ -67,6 +67,7 @@ model Workspace {
   finances         FinanceRecord[]
   mails            MailMessage[]
   purchaseRequests PurchaseRequest[]
+  purchases        Purchase[]
   salesPlans       SalesPlan[]
   stockMovements   StockMovement[]
   stockBalances    StockBalance[]
@@ -188,6 +189,73 @@ model PurchaseRequestLine {
   sortOrder Int             @default(0)
 
   @@index([requestId])
+}
+
+
+enum PurchaseStatus {
+  approval
+  unconfirmed
+  confirmed
+}
+
+enum InboundStatus {
+  none
+  partial
+  complete
+}
+
+model Purchase {
+  id                 String         @id @default(cuid())
+  workspaceId        String
+  workspace          Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  purchaseDate       DateTime
+  slipNo             String?
+  orderNo            String?
+  vendorCode         String?
+  vendorName         String
+  manager            String?
+  taxType            String?
+  warehouseCode      String?
+  warehouseName      String?
+  currency           String?
+  project            String?
+  status             PurchaseStatus @default(unconfirmed)
+  /// 미입고 / 부분입고 / 입고완료 — 입고전표 저장 시 갱신
+  inboundStatus      InboundStatus  @default(none)
+  item               String
+  itemCode           String?
+  quantity           Float          @default(0)
+  amount             Float          @default(0)
+  remarks            String?
+  sent               Boolean        @default(false)
+  accountingReflect  Boolean        @default(false)
+  printed            Boolean        @default(false)
+  importedSlip       String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  lines              PurchaseLine[]
+
+  @@index([workspaceId])
+  @@index([workspaceId, purchaseDate])
+}
+
+model PurchaseLine {
+  id         String   @id @default(cuid())
+  purchaseId String
+  purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  itemCode   String?
+  itemName   String
+  spec       String?
+  unit       String?
+  qty        Float    @default(0)
+  unitPrice  Float    @default(0)
+  supply     Float    @default(0)
+  vat        Float    @default(0)
+  total      Float    @default(0)
+  extra      String?
+  sortOrder  Int      @default(0)
+
+  @@index([purchaseId])
 }
 
 enum SalesPlanStatus {
