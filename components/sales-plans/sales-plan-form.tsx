@@ -18,6 +18,7 @@ import {
 import {
   CURRENCY_OPTIONS, formatCurrencyLabel,
   TAX_TYPE_OPTIONS,
+  fetchSalesPlan,
   saveSalesPlanApi,
   type SalesPlanInput,
   type SalesPlan,
@@ -249,6 +250,69 @@ export function SalesPlanForm({
   const [itemSearchLineId, setItemSearchLineId] = useState<string | null>(null);
   const [vendorSearchOpen, setVendorSearchOpen] = useState(false);
   const saveMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (mode !== "edit" || !editId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const row = await fetchSalesPlan(editId);
+        if (cancelled) return;
+        setMaster({
+          planDate: row.planDate,
+          slipNo: row.slipNo ?? "",
+          managerCode: "",
+          managerName: row.manager ?? "",
+          taxType: row.taxType ?? "과세",
+          warehouseCode: "",
+          warehouseName: row.warehouse ?? "",
+          vendorCode: row.vendorCode ?? "",
+          vendorName: row.vendor ?? "",
+          currency: row.currency ?? "내자",
+          dueDate: row.dueDate || row.planDate,
+        });
+        const tax = row.taxType ?? "과세";
+        const hasItem =
+          (Boolean(row.item?.trim()) && row.item !== "(미지정)") ||
+          row.quantity > 0 ||
+          row.amount > 0;
+        if (hasItem) {
+          const base = emptyLine();
+          setLines([
+            recalcLine(
+              {
+                ...base,
+                itemCode: "",
+                itemName: row.item && row.item !== "(미지정)" ? row.item : "",
+                spec: "",
+                qty: row.quantity ? String(row.quantity) : "",
+                unitPrice: row.unitPrice ? String(row.unitPrice) : "",
+                supply: row.amount ? String(row.amount) : "",
+                vat: row.vat ? String(row.vat) : "",
+                extra: "",
+                total: row.total ? String(row.total) : "",
+              },
+              tax
+            ),
+          ]);
+        } else {
+          setLines(
+            Array.from({ length: INITIAL_LINE_COUNT }, () => emptyLine())
+          );
+        }
+      } catch (err) {
+        console.error(err);
+        void appAlert({
+          title: "알림",
+          description: "판매계획을 불러오지 못했습니다.",
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, editId]);
 
   const totals = useMemo(() => {
     let qty = 0;
