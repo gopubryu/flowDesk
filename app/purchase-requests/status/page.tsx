@@ -816,7 +816,7 @@ export default function PurchaseRequestStatusPage() {
                   <th className="px-3 py-2.5 text-right">단가</th>
                   <th className="px-3 py-2.5 text-right">공급가액</th>
                   <th className="px-3 py-2.5">거래처명</th>
-                  <th className="px-3 py-2.5 text-slate-400">새로운 항목 추가</th>
+                  <th className="px-3 py-2.5 text-slate-400">비고</th>
                 </tr>
               </thead>
               <tbody>

@@ -474,16 +474,6 @@ export function SalesPlanForm({
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="shrink-0 border-b border-slate-200 bg-slate-50/80 px-3 py-2.5">
           <div className="grid grid-cols-1 gap-x-6 gap-y-1.5 md:grid-cols-2">
-            <CodeNameField
-              label="거래처"
-              code={master.vendorCode}
-              name={master.vendorName}
-              onCodeChange={(v) => setMasterField("vendorCode", v)}
-              onNameChange={(v) => setMasterField("vendorName", v)}
-              onSearch={() => setVendorSearchOpen(true)}
-              namePlaceholder="거래처명"
-            />
-
             <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
               <span className={labelCls}>일자</span>
               <Input
@@ -493,6 +483,16 @@ export function SalesPlanForm({
                 onChange={(e) => setMasterField("planDate", e.target.value)}
               />
             </div>
+
+            <CodeNameField
+              label="거래처"
+              code={master.vendorCode}
+              name={master.vendorName}
+              onCodeChange={(v) => setMasterField("vendorCode", v)}
+              onNameChange={(v) => setMasterField("vendorName", v)}
+              onSearch={() => setVendorSearchOpen(true)}
+              namePlaceholder="거래처명"
+            />
 
             <CodeNameField
               label="담당자"
@@ -542,15 +542,6 @@ export function SalesPlanForm({
               </select>
             </div>
 
-            <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
-              <span className={labelCls}>납기일자</span>
-              <Input
-                type="date"
-                className={cn(fieldCls, "rounded-none border-0")}
-                value={master.dueDate}
-                onChange={(e) => setMasterField("dueDate", e.target.value)}
-              />
-            </div>
 
             <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
               <span className={labelCls}>첨부</span>
@@ -570,7 +561,7 @@ export function SalesPlanForm({
             </div>
 
             <div className="flex items-stretch overflow-hidden rounded border border-dashed border-slate-200 md:col-span-2">
-              <span className={cn(labelCls, "bg-slate-50 text-slate-400")}>새로운 항목 추가</span>
+              <span className={cn(labelCls, "bg-slate-50 text-slate-400")}>비고</span>
               <Input
                 className={cn(
                   fieldCls,
@@ -578,7 +569,7 @@ export function SalesPlanForm({
                 )}
                 disabled
                 placeholder="다양한 항목을 추가하여 활용할 수 있습니다."
-                aria-label="새로운 항목 추가"
+                aria-label="비고"
               />
             </div>
           </div>
@@ -637,7 +628,7 @@ export function SalesPlanForm({
                 <th className="min-w-[96px] px-2 py-1.5 text-right">공급가액</th>
                 <th className="min-w-[80px] px-2 py-1.5 text-right">부가세</th>
                 <th className="min-w-[100px] px-2 py-1.5 font-medium text-slate-400 normal-case">
-                  새로운 항목 추가
+                  비고
                 </th>
                 <th className="min-w-[96px] px-2 py-1.5 text-right">합계</th>
               </tr>

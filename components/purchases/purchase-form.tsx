@@ -543,7 +543,7 @@ export function PurchaseForm({
             </div>
 
             <div className="flex items-stretch overflow-hidden rounded border border-dashed border-slate-200 md:col-span-2">
-              <span className={cn(labelCls, "bg-slate-50 text-slate-400")}>새로운 항목 추가</span>
+              <span className={cn(labelCls, "bg-slate-50 text-slate-400")}>비고</span>
               <Input
                 className={cn(
                   fieldCls,
@@ -551,7 +551,7 @@ export function PurchaseForm({
                 )}
                 disabled
                 placeholder="다양한 항목을 추가하여 활용할 수 있습니다."
-                aria-label="새로운 항목 추가"
+                aria-label="비고"
               />
             </div>
           </div>
@@ -612,7 +612,7 @@ export function PurchaseForm({
                 <th className="min-w-[96px] px-2 py-1.5 text-right">공급가액</th>
                 <th className="min-w-[80px] px-2 py-1.5 text-right">부가세</th>
                 <th className="min-w-[100px] px-2 py-1.5 font-medium text-slate-400 normal-case">
-                  새로운 항목 추가
+                  비고
                 </th>
                 <th className="min-w-[96px] px-2 py-1.5 text-right">합계</th>
               </tr>
