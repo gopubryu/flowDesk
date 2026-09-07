@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   FilePlus2,
   FileStack,
@@ -41,6 +42,7 @@ const statusVariant: Record<
 };
 
 export default function SalesPlansPage() {
+  const router = useRouter();
   const { alert: appAlert, confirm: appConfirm, dialog: appDialog } = useAppDialog();
   const [rows, setRows] = useState<SalesPlan[]>([]);
   const [hydrated, setHydrated] = useState(false);
@@ -107,6 +109,10 @@ export default function SalesPlansPage() {
   function closeNewModal() {
     setNewOpen(false);
     void refreshFromApi();
+  }
+
+  function openEdit(id: string) {
+    router.push(`/sales-plans/${id}/edit`);
   }
 
   const filtered = useMemo(() => {
@@ -323,9 +329,13 @@ export default function SalesPlansPage() {
                   filtered.map((r) => (
                     <tr
                       key={r.id}
-                      className="border-b border-slate-100 hover:bg-indigo-50/40"
+                      className="cursor-pointer border-b border-slate-100 hover:bg-indigo-50/40"
+                      onClick={() => openEdit(r.id)}
                     >
-                      <td className="px-3 py-2">
+                      <td
+                        className="px-3 py-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <input
                           type="checkbox"
                           className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600"

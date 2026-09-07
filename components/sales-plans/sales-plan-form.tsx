@@ -542,6 +542,15 @@ export function SalesPlanForm({
               </select>
             </div>
 
+            <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
+              <span className={labelCls}>납기일자</span>
+              <Input
+                type="date"
+                className={cn(fieldCls, "rounded-none border-0")}
+                value={master.dueDate}
+                onChange={(e) => setMasterField("dueDate", e.target.value)}
+              />
+            </div>
 
             <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
               <span className={labelCls}>첨부</span>
