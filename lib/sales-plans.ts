@@ -3,6 +3,14 @@ export type SalesPlanStatus =
   | "in_progress"
   | "completed";
 
+export type OutboundStatus = "none" | "partial" | "complete";
+
+export const OUTBOUND_STATUS_LABEL: Record<OutboundStatus, string> = {
+  none: "미출하",
+  partial: "부분출하",
+  complete: "출하완료",
+};
+
 export interface SalesPlanLine {
   id?: string;
   itemCode?: string;
@@ -40,6 +48,8 @@ export interface SalesPlan {
   lastModifier?: string;
   /** 종결여부 */
   closed?: boolean;
+  /** 미출하 / 부분출하 / 출하완료 — 「완료」 상태와 별개 */
+  outboundStatus?: OutboundStatus;
   manager?: string;
   taxType?: string;
   warehouse?: string;

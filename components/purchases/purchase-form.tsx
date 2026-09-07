@@ -354,6 +354,15 @@ export function PurchaseForm({
       sent: false,
       accountingReflect: false,
       printed: false,
+      warehouseCode: master.warehouseCode || undefined,
+      itemCode: first.itemCode.trim() || undefined,
+      inboundStatus: "none",
+      lines: filled.map((l) => ({
+        itemCode: l.itemCode.trim() || undefined,
+        itemName: l.itemName.trim() || l.itemCode.trim() || "(미지정)",
+        spec: l.spec.trim() || undefined,
+        qty: Number(l.qty) || 0,
+      })),
     };
   }
 

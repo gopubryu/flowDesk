@@ -3,6 +3,22 @@ export type PurchaseStatus =
   | "unconfirmed"
   | "confirmed";
 
+export type InboundStatus = "none" | "partial" | "complete";
+
+export const INBOUND_STATUS_LABEL: Record<InboundStatus, string> = {
+  none: "미입고",
+  partial: "부분입고",
+  complete: "입고완료",
+};
+
+export interface PurchaseLine {
+  itemCode?: string;
+  itemName: string;
+  spec?: string;
+  unit?: string;
+  qty: number;
+}
+
 export interface Purchase {
   id: string;
   /** 구매일자 */
@@ -22,6 +38,11 @@ export interface Purchase {
   taxType?: string;
   /** 입고창고 */
   warehouse?: string;
+  warehouseCode?: string;
+  itemCode?: string;
+  lines?: PurchaseLine[];
+  /** 미입고 / 부분입고 / 입고완료 — 입고전표 저장 시 갱신 */
+  inboundStatus?: InboundStatus;
   project?: string;
   /** 내외자/통화 */
   currency?: string;
@@ -409,4 +430,25 @@ export function defaultPurchaseDateRange(today = new Date()): {
     return `${y}-${m}-${day}`;
   };
   return { from: fmt(from), to: fmt(to) };
+}
+
+
+export function updatePurchaseInboundStatus(
+  id: string,
+  inboundStatus: InboundStatus
+): Purchase[] {
+  const rows = loadPurchases().map((r) =>
+    r.id === id ? { ...r, inboundStatus } : r
+  );
+  savePurchases(rows);
+  return rows;
+}
+
+export function resolveInboundStatus(
+  purchaseQty: number,
+  receivedQty: number
+): InboundStatus {
+  if (receivedQty <= 0) return "none";
+  if (receivedQty + 1e-9 >= purchaseQty) return "complete";
+  return "partial";
 }

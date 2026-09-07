@@ -381,6 +381,7 @@ export function serializeSalesPlan(r: {
   status: string;
   lastModifier: string | null;
   closed: boolean;
+  outboundStatus?: string;
   manager: string | null;
   taxType: string | null;
   warehouse: string | null;
@@ -420,6 +421,7 @@ export function serializeSalesPlan(r: {
     status: r.status,
     lastModifier: r.lastModifier ?? undefined,
     closed: r.closed,
+    outboundStatus: (r.outboundStatus as string | undefined) ?? "none",
     manager: r.manager ?? undefined,
     taxType: r.taxType ?? undefined,
     warehouse: r.warehouse ?? undefined,

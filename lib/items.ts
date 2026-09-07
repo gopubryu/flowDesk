@@ -5,6 +5,8 @@ export type Item = {
   unit?: string;
   /** 재고수량 */
   stockQty: number;
+  /** 안전재고 (선택) */
+  minStock?: number;
   /** 입고단가 */
   inboundPrice: number;
   /** 입고단가 VAT포함 */
@@ -24,6 +26,7 @@ function withDefaults(row: Partial<Item> & Pick<Item, "code" | "name">): Item {
     spec: row.spec,
     unit: row.unit,
     stockQty: typeof row.stockQty === "number" && !Number.isNaN(row.stockQty) ? row.stockQty : 0,
+    minStock: typeof row.minStock === "number" && !Number.isNaN(row.minStock) ? row.minStock : undefined,
     inboundPrice:
       typeof row.inboundPrice === "number" && !Number.isNaN(row.inboundPrice)
         ? row.inboundPrice
@@ -114,6 +117,7 @@ export function upsertItem(row: Item): Item[] {
       spec: row.spec?.trim() || undefined,
       unit: row.unit?.trim() || undefined,
       stockQty: row.stockQty,
+      minStock: row.minStock,
       inboundPrice: row.inboundPrice,
       inboundVatIncluded: row.inboundVatIncluded,
       outboundPrice: row.outboundPrice,

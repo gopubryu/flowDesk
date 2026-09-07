@@ -17,6 +17,7 @@ import {
   ShoppingCart,
   CalendarClock,
   ChevronDown,
+  Package,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +63,21 @@ const nav: NavItem[] = [
       { href: "/sales-plans", label: "판매계획조회", icon: ClipboardList, exact: true },
       { href: "/sales-plans/new", label: "판매계획입력", icon: FilePlus2, exact: true },
       { href: "/sales-plans/status", label: "판매계획현황", icon: BarChart3, exact: true },
+    ],
+  },
+  {
+    type: "group",
+    id: "inventory",
+    label: "재고",
+    icon: Package,
+    children: [
+      { href: "/inventory", label: "재고조회", icon: ClipboardList, exact: true },
+      { href: "/inventory/movements", label: "수불조회", icon: ClipboardList, exact: true },
+      { href: "/inventory/receipts/new", label: "입고입력", icon: FilePlus2, exact: true },
+      { href: "/inventory/receipts", label: "입고조회", icon: ClipboardList, exact: true },
+      { href: "/inventory/shipments/new", label: "출하입력", icon: FilePlus2, exact: true },
+      { href: "/inventory/adjustments/new", label: "조정입력", icon: FilePlus2, exact: true },
+      { href: "/inventory/status", label: "현황", icon: BarChart3, exact: true },
     ],
   },
   {

@@ -17,9 +17,12 @@ import {
   formatSalesPlanDateNo,
   SALES_PLAN_STATUS_LABEL,
   SALES_PLAN_STATUS_TABS,
+  OUTBOUND_STATUS_LABEL,
   type SalesPlan,
   type SalesPlanStatus,
+  type OutboundStatus,
 } from "@/lib/sales-plans";
+import Link from "next/link";
 import { cn, formatKRW } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAppDialog } from "@/components/ui/app-alert-dialog";
@@ -304,19 +307,21 @@ export default function SalesPlansPage() {
                   <th className="px-3 py-2.5 text-right">합계</th>
                   <th className="px-3 py-2.5">최종수정자</th>
                   <th className="px-3 py-2.5">종결여부</th>
+                  <th className="px-3 py-2.5">출하상태</th>
+                  <th className="px-3 py-2.5">출하</th>
                   <th className="px-3 py-2.5">진행상태</th>
                 </tr>
               </thead>
               <tbody>
                 {!hydrated ? (
                   <tr>
-                    <td colSpan={12} className="px-3 py-10 text-center text-muted-foreground">
+                    <td colSpan={14} className="px-3 py-10 text-center text-muted-foreground">
                       불러오는 중…
                     </td>
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="px-3 py-10 text-center text-muted-foreground">
+                    <td colSpan={14} className="px-3 py-10 text-center text-muted-foreground">
                       조회된 판매계획이 없습니다.
                     </td>
                   </tr>
@@ -366,6 +371,33 @@ export default function SalesPlansPage() {
                       </td>
                       <td className="px-3 py-2 text-slate-700">
                         {r.closed ? "종결" : "미종결"}
+                      </td>
+                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                        <Badge
+                          variant={
+                            (r.outboundStatus || "none") === "complete"
+                              ? "success"
+                              : (r.outboundStatus || "none") === "partial"
+                                ? "warning"
+                                : "secondary"
+                          }
+                          className="text-[10px]"
+                        >
+                          {OUTBOUND_STATUS_LABEL[(r.outboundStatus || "none") as OutboundStatus]}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                        {(r.status === "confirmed" || r.status === "in_progress") &&
+                        (r.outboundStatus || "none") !== "complete" ? (
+                          <Link
+                            href={`/inventory/shipments/new?salesPlanId=${r.id}`}
+                            className="text-[11px] font-medium text-indigo-600 hover:underline"
+                          >
+                            출하하기
+                          </Link>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
                       </td>
                       <td className="px-3 py-2">
                         <Badge

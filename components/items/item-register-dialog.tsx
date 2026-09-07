@@ -34,7 +34,7 @@ type FormState = {
   name: string;
   spec: string;
   unit: string;
-  stockQty: string;
+  minStock: string;
   inboundPrice: string;
   inboundVatIncluded: boolean;
   outboundPrice: string;
@@ -47,7 +47,7 @@ function emptyForm(): FormState {
     name: "",
     spec: "",
     unit: "",
-    stockQty: "0",
+    minStock: "0",
     inboundPrice: "0",
     inboundVatIncluded: false,
     outboundPrice: "0",
@@ -112,7 +112,8 @@ export function ItemRegisterDialog({ open, onOpenChange, onSaved }: Props) {
       name: form.name.trim(),
       spec: form.spec.trim() || undefined,
       unit: form.unit.trim() || undefined,
-      stockQty: parseNonNegNumber(form.stockQty),
+      stockQty: 0,
+      minStock: parseNonNegNumber(form.minStock) || undefined,
       inboundPrice: parseNonNegNumber(form.inboundPrice),
       inboundVatIncluded: form.inboundVatIncluded,
       outboundPrice: parseNonNegNumber(form.outboundPrice),
@@ -134,7 +135,7 @@ export function ItemRegisterDialog({ open, onOpenChange, onSaved }: Props) {
           <DialogHeader className="mb-0">
             <DialogTitle className="text-base text-slate-900">품목 등록</DialogTitle>
             <p className="mt-1 text-xs text-slate-500">
-              발주·구매에서 사용할 품목 정보를 등록합니다.
+              발주·구매에서 사용할 품목 정보를 등록합니다. 재고수량은 입고·출하·조정으로만 반영돼요.
             </p>
           </DialogHeader>
         </div>
@@ -198,14 +199,14 @@ export function ItemRegisterDialog({ open, onOpenChange, onSaved }: Props) {
           </div>
 
           <div className="grid gap-1.5">
-            <Label htmlFor="item-stock" className="text-xs text-slate-600">
-              재고수량
+            <Label htmlFor="item-min-stock" className="text-xs text-slate-600">
+              안전재고
             </Label>
             <CommaNumberInput
-              id="item-stock"
+              id="item-min-stock"
               className="h-9 rounded-lg border-slate-200 text-sm tabular-nums focus-visible:ring-indigo-500"
-              value={form.stockQty}
-              onChange={(v) => setField("stockQty", v)}
+              value={form.minStock}
+              onChange={(v) => setField("minStock", v)}
               placeholder="0"
             />
           </div>

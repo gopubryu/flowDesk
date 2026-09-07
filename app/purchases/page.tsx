@@ -18,12 +18,17 @@ import {
   savePurchases,
   PURCHASE_STATUS_LABEL,
   PURCHASE_STATUS_TABS,
+  INBOUND_STATUS_LABEL,
   TAX_TYPE_OPTIONS,
   SENT_FILTER_OPTIONS,
   SORT_OPTIONS,
+  resolveInboundStatus,
   type Purchase,
   type PurchaseStatus,
+  type InboundStatus,
 } from "@/lib/purchases";
+import { fetchRelatedQty } from "@/lib/inventory";
+import Link from "next/link";
 import { cn, formatKRW } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAppDialog } from "@/components/ui/app-alert-dialog";
@@ -83,8 +88,37 @@ export default function PurchasesPage() {
   const [newOpen, setNewOpen] = useState(false);
 
   useEffect(() => {
-    setRows(loadPurchases());
-    setHydrated(true);
+    let cancelled = false;
+    (async () => {
+      const local = loadPurchases();
+      try {
+        const confirmed = local.filter((p) => p.status === "confirmed");
+        if (confirmed.length) {
+          const related = await fetchRelatedQty({
+            relatedType: "purchase",
+            relatedIds: confirmed.map((p) => p.id),
+          });
+          const next = local.map((p) => {
+            if (p.status !== "confirmed") return p;
+            const received = related[p.id] || 0;
+            return { ...p, inboundStatus: resolveInboundStatus(p.quantity, received) };
+          });
+          if (!cancelled) {
+            setRows(next);
+            savePurchases(next);
+          }
+        } else if (!cancelled) {
+          setRows(local);
+        }
+      } catch {
+        if (!cancelled) setRows(local);
+      } finally {
+        if (!cancelled) setHydrated(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -424,7 +458,9 @@ export default function PurchasesPage() {
                   <th className="px-3 py-2.5">품목명</th>
                   <th className="px-3 py-2.5 text-right">금액합계</th>
                   <th className="px-3 py-2.5">거래유형명</th>
+                  <th className="px-3 py-2.5">입고상태</th>
                   <th className="px-3 py-2.5">창고명</th>
+                  <th className="px-3 py-2.5">입고</th>
                   <th className="px-3 py-2.5">회계반영여부</th>
                   <th className="px-3 py-2.5">인쇄</th>
                   <th className="px-3 py-2.5">불러온전표</th>
@@ -433,13 +469,13 @@ export default function PurchasesPage() {
               <tbody>
                 {!hydrated ? (
                   <tr>
-                    <td colSpan={10} className="px-3 py-10 text-center text-muted-foreground">
+                    <td colSpan={12} className="px-3 py-10 text-center text-muted-foreground">
                       불러오는 중…
                     </td>
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-3 py-10 text-center text-muted-foreground">
+                    <td colSpan={12} className="px-3 py-10 text-center text-muted-foreground">
                       조회된 구매가 없습니다.
                     </td>
                   </tr>
@@ -468,7 +504,39 @@ export default function PurchasesPage() {
                         {formatKRW(r.amount)}
                       </td>
                       <td className="px-3 py-2 text-slate-700">{r.taxType || "—"}</td>
+                                            <td className="px-3 py-2">
+                        {r.status === "confirmed" ? (
+                          <Badge
+                            variant={
+                              (r.inboundStatus || "none") === "complete"
+                                ? "success"
+                                : (r.inboundStatus || "none") === "partial"
+                                  ? "warning"
+                                  : "secondary"
+                            }
+                            className="text-[10px]"
+                          >
+                            {INBOUND_STATUS_LABEL[(r.inboundStatus || "none") as InboundStatus]}
+                          </Badge>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2 text-slate-700">{r.warehouse || "—"}</td>
+                      <td className="px-3 py-2">
+                        {r.status === "confirmed" &&
+                        (r.inboundStatus || "none") !== "complete" ? (
+                          <Link
+                            href={`/inventory/receipts/new?purchaseId=${r.id}`}
+                            className="text-[11px] font-medium text-indigo-600 hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            입고하기
+                          </Link>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2 text-slate-700">
                         {r.accountingReflect ? "반영" : "미반영"}
                       </td>

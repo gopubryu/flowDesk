@@ -68,6 +68,8 @@ model Workspace {
   mails            MailMessage[]
   purchaseRequests PurchaseRequest[]
   salesPlans       SalesPlan[]
+  stockMovements   StockMovement[]
+  stockBalances    StockBalance[]
 }
 
 model Task {
@@ -213,6 +215,8 @@ model SalesPlan {
   status       SalesPlanStatus @default(confirmed)
   lastModifier String?
   closed       Boolean         @default(false)
+  /// 미출하 / 부분출하 / 출하완료 (「완료」 flag와 별개)
+  outboundStatus OutboundStatus @default(none)
   manager      String?
   taxType      String?
   warehouse    String?
@@ -245,3 +249,62 @@ model SalesPlanLine {
   @@index([planId])
 }
 
+enum OutboundStatus {
+  none
+  partial
+  complete
+}
+
+enum StockMovementType {
+  receipt
+  shipment
+  adjustment
+}
+
+/// 품목×창고 수불 — 입고(+)/출하(-)/조정(±). 발주·구매확인·판매계획은 재고 미반영.
+model StockMovement {
+  id            String            @id @default(cuid())
+  workspaceId   String
+  workspace     Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  date          DateTime
+  type          StockMovementType
+  slipNo        String
+  warehouseCode String
+  warehouseName String?
+  itemCode      String
+  itemName      String?
+  itemSpec      String?
+  itemUnit      String?
+  /// 부호 있는 수량: 입고/조정+ = +, 출하/조정- = -
+  qty           Float
+  relatedType   String?
+  relatedId     String?
+  memo          String?
+  manager       String?
+  vendorCode    String?
+  vendorName    String?
+  createdAt     DateTime          @default(now())
+
+  @@index([workspaceId])
+  @@index([workspaceId, date])
+  @@index([workspaceId, slipNo])
+  @@index([workspaceId, warehouseCode, itemCode])
+  @@index([workspaceId, relatedType, relatedId])
+  @@index([workspaceId, type])
+}
+
+model StockBalance {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  warehouseCode String
+  warehouseName String?
+  itemCode      String
+  itemName      String?
+  qty           Float     @default(0)
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([workspaceId, warehouseCode, itemCode])
+  @@index([workspaceId])
+  @@index([workspaceId, itemCode])
+}
