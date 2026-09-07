@@ -162,14 +162,19 @@ function ReceiptNewPageInner() {
       return;
     }
     const lines = rows
-      .map((r) => ({
-        itemCode: r.itemCode.trim(),
-        itemName: r.itemName,
-        itemSpec: r.spec || undefined,
-        itemUnit: r.unit || undefined,
-        qty: Number(r.thisQty) || 0,
-        memo: r.memo || undefined,
-      }))
+      .map((r) => {
+        const code =
+          r.itemCode.trim() ||
+          (r.itemName.trim() ? `NAME:${r.itemName.trim()}` : "");
+        return {
+          itemCode: code,
+          itemName: r.itemName,
+          itemSpec: r.spec || undefined,
+          itemUnit: r.unit || undefined,
+          qty: Number(r.thisQty) || 0,
+          memo: r.memo || undefined,
+        };
+      })
       .filter((l) => l.itemCode && l.qty > 0);
 
     if (lines.length === 0) {
@@ -387,7 +392,21 @@ function ReceiptNewPageInner() {
             ) : (
               rows.map((r, idx) => (
                 <tr key={idx} className="border-b border-slate-100">
-                  <td className="px-2 py-1.5 tabular-nums">{r.itemCode || "—"}</td>
+                  <td className="px-2 py-1.5">
+                    <Input
+                      className="h-7 text-xs tabular-nums"
+                      value={r.itemCode}
+                      placeholder="코드"
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setRows((prev) =>
+                          prev.map((row, i) =>
+                            i === idx ? { ...row, itemCode: v } : row
+                          )
+                        );
+                      }}
+                    />
+                  </td>
                   <td className="px-2 py-1.5">{r.itemName}</td>
                   <td className="px-2 py-1.5 text-slate-500">{r.spec || "—"}</td>
                   <td className="px-2 py-1.5">{r.unit || "—"}</td>

@@ -182,14 +182,19 @@ function ShipmentNewPageInner() {
       return;
     }
     const lines = rows
-      .map((r) => ({
-        itemCode: r.itemCode.trim(),
-        itemName: r.itemName,
-        itemSpec: r.spec || undefined,
-        itemUnit: r.unit || undefined,
-        qty: Number(r.thisQty) || 0,
-        memo: r.memo || undefined,
-      }))
+      .map((r) => {
+        const code =
+          r.itemCode.trim() ||
+          (r.itemName.trim() ? `NAME:${r.itemName.trim()}` : "");
+        return {
+          itemCode: code,
+          itemName: r.itemName,
+          itemSpec: r.spec || undefined,
+          itemUnit: r.unit || undefined,
+          qty: Number(r.thisQty) || 0,
+          memo: r.memo || undefined,
+        };
+      })
       .filter((l) => l.itemCode && l.qty > 0);
 
     if (lines.length === 0) {
