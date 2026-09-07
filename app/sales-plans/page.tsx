@@ -197,11 +197,6 @@ export default function SalesPlansPage() {
     await appAlert({ title: "알림", description: `${action} (데모)` });
   }
 
-  function vendorCodeName(r: SalesPlan) {
-    if (r.vendorCode) return `${r.vendorCode} ${r.vendor}`;
-    return r.vendor;
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -348,7 +343,7 @@ export default function SalesPlansPage() {
                         {formatSalesPlanDateNo(r.planDate, r.slipNo)}
                       </td>
                       <td className="px-3 py-2 font-medium text-slate-900">
-                        {vendorCodeName(r)}
+                        {r.vendor}
                       </td>
                       <td className="px-3 py-2 text-slate-700">{r.item}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-700">
