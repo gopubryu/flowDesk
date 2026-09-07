@@ -67,6 +67,7 @@ model Workspace {
   finances         FinanceRecord[]
   mails            MailMessage[]
   purchaseRequests PurchaseRequest[]
+  salesPlans       SalesPlan[]
 }
 
 model Task {
@@ -186,3 +187,39 @@ model PurchaseRequestLine {
 
   @@index([requestId])
 }
+
+enum SalesPlanStatus {
+  confirmed
+  in_progress
+  completed
+}
+
+model SalesPlan {
+  id           String          @id @default(cuid())
+  workspaceId  String
+  workspace    Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  planDate     DateTime
+  vendorCode   String?
+  vendorName   String
+  item         String
+  quantity     Float           @default(0)
+  unitPrice    Float           @default(0)
+  amount       Float           @default(0)
+  vat          Float           @default(0)
+  total        Float           @default(0)
+  status       SalesPlanStatus @default(confirmed)
+  lastModifier String?
+  closed       Boolean         @default(false)
+  manager      String?
+  taxType      String?
+  warehouse    String?
+  project      String?
+  currency     String?
+  dueDate      DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([workspaceId])
+  @@index([workspaceId, planDate])
+}
+

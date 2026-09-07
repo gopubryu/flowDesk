@@ -298,3 +298,52 @@ export function serializePurchaseRequest(r: {
     })),
   };
 }
+
+
+export function serializeSalesPlan(r: {
+  id: string;
+  planDate: Date;
+  vendorCode: string | null;
+  vendorName: string;
+  item: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+  vat: number;
+  total: number;
+  status: string;
+  lastModifier: string | null;
+  closed: boolean;
+  manager: string | null;
+  taxType: string | null;
+  warehouse: string | null;
+  project: string | null;
+  currency: string | null;
+  dueDate: Date | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+}) {
+  return {
+    id: r.id,
+    planDate: toDateString(r.planDate)!,
+    vendor: r.vendorName,
+    vendorCode: r.vendorCode ?? undefined,
+    item: r.item,
+    quantity: r.quantity,
+    unitPrice: r.unitPrice,
+    amount: r.amount,
+    vat: r.vat,
+    total: r.total,
+    status: r.status,
+    lastModifier: r.lastModifier ?? undefined,
+    closed: r.closed,
+    manager: r.manager ?? undefined,
+    taxType: r.taxType ?? undefined,
+    warehouse: r.warehouse ?? undefined,
+    project: r.project ?? undefined,
+    currency: r.currency ?? undefined,
+    dueDate: toDateString(r.dueDate),
+    createdAt: r.createdAt?.toISOString(),
+    updatedAt: r.updatedAt?.toISOString(),
+  };
+}

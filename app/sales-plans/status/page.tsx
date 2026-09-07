@@ -16,7 +16,7 @@ import {
   SALES_PLAN_STATUS_LABEL,
   countBySalesPlanStatus,
   defaultSalesPlanDateRange,
-  loadSalesPlans,
+  fetchSalesPlans,
   summarizeSalesPlans,
   type SalesPlan,
   type SalesPlanStatus,
@@ -157,7 +157,15 @@ export default function SalesPlanStatusPage() {
   });
 
   useEffect(() => {
-    setRows(loadSalesPlans());
+    void (async () => {
+      try {
+        const loaded = await fetchSalesPlans();
+        setRows(loaded);
+      } catch (err) {
+        console.error(err);
+        setRows([]);
+      }
+    })();
     setHydrated(true);
   }, []);
 

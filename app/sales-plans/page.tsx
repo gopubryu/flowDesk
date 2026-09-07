@@ -11,8 +11,8 @@ import {
   Search,
 } from "lucide-react";
 import {
-  loadSalesPlans,
-  saveSalesPlans,
+  fetchSalesPlans,
+  deleteSalesPlanApi,
   SALES_PLAN_STATUS_LABEL,
   SALES_PLAN_STATUS_TABS,
   type SalesPlan,
@@ -40,7 +40,7 @@ const statusVariant: Record<
 };
 
 export default function SalesPlansPage() {
-  const { alert: appAlert, dialog: appDialog } = useAppDialog();
+  const { alert: appAlert, confirm: appConfirm, dialog: appDialog } = useAppDialog();
   const [rows, setRows] = useState<SalesPlan[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [tab, setTab] = useState<TabKey>("all");
@@ -56,14 +56,28 @@ export default function SalesPlansPage() {
   const [newOpen, setNewOpen] = useState(false);
 
   useEffect(() => {
-    setRows(loadSalesPlans());
-    setHydrated(true);
+    let cancelled = false;
+    (async () => {
+      try {
+        const loaded = await fetchSalesPlans();
+        if (!cancelled) setRows(loaded);
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) {
+          setRows([]);
+          await appAlert({
+            title: "알림",
+            description: "판매계획 목록을 불러오지 못했습니다.",
+          });
+        }
+      } finally {
+        if (!cancelled) setHydrated(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    saveSalesPlans(rows);
-  }, [rows, hydrated]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -76,13 +90,22 @@ export default function SalesPlansPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  function refreshFromStorage() {
-    setRows(loadSalesPlans());
+  async function refreshFromApi() {
+    try {
+      const loaded = await fetchSalesPlans();
+      setRows(loaded);
+    } catch (err) {
+      console.error(err);
+      await appAlert({
+        title: "알림",
+        description: "판매계획 목록을 새로고침하지 못했습니다.",
+      });
+    }
   }
 
   function closeNewModal() {
     setNewOpen(false);
-    refreshFromStorage();
+    void refreshFromApi();
   }
 
   const filtered = useMemo(() => {
@@ -136,6 +159,31 @@ export default function SalesPlansPage() {
 
   function runSearch() {
     setApplied({ query, dateFrom, dateTo });
+  }
+
+
+  async function handleDeleteSelected() {
+    if (selected.size === 0) {
+      await appAlert({ title: "알림", description: "삭제할 항목을 선택해 주세요." });
+      return;
+    }
+    const ok = await appConfirm({
+      title: "삭제",
+      description: `선택한 ${selected.size}건을 삭제할까요?`,
+      confirmLabel: "삭제",
+      confirmVariant: "danger",
+    });
+    if (!ok) return;
+    try {
+      for (const id of Array.from(selected)) {
+        await deleteSalesPlanApi(id);
+      }
+      setSelected(new Set());
+      await refreshFromApi();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "삭제에 실패했습니다.";
+      await appAlert({ title: "알림", description: msg });
+    }
   }
 
   async function stub(action: string) {
@@ -384,7 +432,7 @@ export default function SalesPlansPage() {
                 size="sm"
                 variant="outline"
                 className="h-8 gap-1.5"
-                onClick={() => stub("선택삭제")}
+                onClick={() => void handleDeleteSelected()}
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 선택삭제

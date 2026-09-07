@@ -275,6 +275,69 @@ export const mockSalesPlans: SalesPlan[] = [
 
 const OLD_STORAGE_KEY = "flowdesk-purchase-plans";
 
+async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+  });
+  if (!res.ok) {
+    let msg = res.statusText;
+    try {
+      const body = (await res.json()) as { error?: string };
+      if (body?.error) msg = body.error;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg || `Request failed (${res.status})`);
+  }
+  if (res.status === 204) return undefined as T;
+  return (await res.json()) as T;
+}
+
+export async function fetchSalesPlans(): Promise<SalesPlan[]> {
+  return apiJson<SalesPlan[]>("/api/sales-plans");
+}
+
+export async function fetchSalesPlan(id: string): Promise<SalesPlan> {
+  return apiJson<SalesPlan>(`/api/sales-plans/${id}`);
+}
+
+export type SalesPlanInput = Omit<SalesPlan, "id"> & { id?: string };
+
+export async function saveSalesPlanApi(
+  input: SalesPlanInput
+): Promise<SalesPlan> {
+  const { id, ...rest } = input;
+  if (id) {
+    return apiJson<SalesPlan>(`/api/sales-plans/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(rest),
+    });
+  }
+  return apiJson<SalesPlan>("/api/sales-plans", {
+    method: "POST",
+    body: JSON.stringify(rest),
+  });
+}
+
+export async function deleteSalesPlanApi(id: string): Promise<void> {
+  await apiJson(`/api/sales-plans/${id}`, { method: "DELETE" });
+}
+
+export async function updateSalesPlanStatusApi(
+  id: string,
+  status: SalesPlanStatus
+): Promise<SalesPlan> {
+  return apiJson<SalesPlan>(`/api/sales-plans/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
+
 export function loadSalesPlans(): SalesPlan[] {
   if (typeof window === "undefined") return mockSalesPlans;
   try {

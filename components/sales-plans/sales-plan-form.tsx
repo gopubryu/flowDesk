@@ -21,8 +21,8 @@ import {
 import {
   CURRENCY_OPTIONS, formatCurrencyLabel,
   TAX_TYPE_OPTIONS,
-  appendSalesPlan,
-  nextSalesPlanId,
+  saveSalesPlanApi,
+  type SalesPlanInput,
   type SalesPlan,
 } from "@/lib/sales-plans";
 import { cn } from "@/lib/utils";
@@ -317,7 +317,7 @@ export function SalesPlanForm({
     );
   }
 
-  async function buildRowFromForm(): Promise<SalesPlan | null> {
+  async function buildRowFromForm(): Promise<SalesPlanInput | null> {
     const filled = filledLines();
     if (filled.length === 0) {
       await appAlert({ title: "알림", description: "품목 행을 하나 이상 입력하세요." });
@@ -334,7 +334,7 @@ export function SalesPlanForm({
     const unitPrice =
       quantity > 0 ? Math.round(amount / quantity) : Number(first.unitPrice) || 0;
     return {
-      id: mode === "edit" && editId ? editId : nextSalesPlanId(),
+      id: mode === "edit" && editId ? editId : undefined,
       planDate: master.planDate,
       vendor: first.vendorName.trim() || first.vendorCode.trim() || "(미지정)",
       vendorCode: first.vendorCode.trim() || undefined,
@@ -374,13 +374,18 @@ export function SalesPlanForm({
     }
     const row = await buildRowFromForm();
     if (!row) return;
-    appendSalesPlan(row);
-    onSaved?.();
-    if (isModal) {
-      finishClose();
-      return;
+    try {
+      await saveSalesPlanApi(row);
+      onSaved?.();
+      if (isModal) {
+        finishClose();
+        return;
+      }
+      router.push("/sales-plans");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "저장에 실패했습니다.";
+      await appAlert({ title: "알림", description: msg });
     }
-    router.push("/sales-plans");
   }
 
   function resetForm() {
