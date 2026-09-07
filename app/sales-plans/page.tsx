@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   FilePlus2,
-  MessageSquare,
   FileStack,
   Trash2,
   FileSpreadsheet,
@@ -369,16 +368,6 @@ export default function SalesPlansPage() {
               >
                 <FileStack className="h-3.5 w-3.5" />
                 다른전표생성
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1.5"
-                onClick={() => stub("메신저")}
-              >
-                <MessageSquare className="h-3.5 w-3.5" />
-                메신저
               </Button>
               <Button
                 type="button"
