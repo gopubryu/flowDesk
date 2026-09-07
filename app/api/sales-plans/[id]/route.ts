@@ -11,10 +11,46 @@ export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string }> };
 
+type LineInput = {
+  itemCode?: string | null;
+  itemName?: string | null;
+  spec?: string | null;
+  qty?: number | string | null;
+  unitPrice?: number | string | null;
+  supply?: number | string | null;
+  vat?: number | string | null;
+  total?: number | string | null;
+  extra?: string | null;
+  sortOrder?: number | null;
+};
+
 function num(v: unknown, fallback = 0): number {
   if (v === null || v === undefined || v === "") return fallback;
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function mapLines(lines: LineInput[] | undefined) {
+  if (!Array.isArray(lines)) return null;
+  return lines
+    .map((l, i) => ({
+      itemCode: l.itemCode ? String(l.itemCode) : null,
+      itemName: String(l.itemName ?? "").trim() || "(미지정)",
+      spec: l.spec ? String(l.spec) : null,
+      qty: num(l.qty),
+      unitPrice: num(l.unitPrice),
+      supply: num(l.supply),
+      vat: num(l.vat),
+      total: num(l.total),
+      extra: l.extra ? String(l.extra) : null,
+      sortOrder: typeof l.sortOrder === "number" ? l.sortOrder : i,
+    }))
+    .filter(
+      (l) =>
+        l.itemName !== "(미지정)" ||
+        (l.itemCode && l.itemCode.trim()) ||
+        l.qty > 0
+    );
 }
 
 export async function GET(_req: Request, ctx: Ctx) {
@@ -22,6 +58,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     const { id } = await ctx.params;
     const row = await prisma.salesPlan.findFirst({
       where: { id, workspaceId: DEMO_WORKSPACE_ID },
+      include: { lines: { orderBy: { sortOrder: "asc" } } },
     });
     if (!row) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -47,6 +84,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     }
 
     const body = await req.json();
+    const lineRows = mapLines(body.lines as LineInput[] | undefined);
     const data: Record<string, unknown> = {};
 
     if (body.planDate !== undefined) {
@@ -97,10 +135,51 @@ export async function PATCH(req: Request, ctx: Ctx) {
       data.dueDate = parseDateOnly(body.dueDate);
     }
 
-    const updated = await prisma.salesPlan.update({
-      where: { id },
-      data,
+    if (lineRows) {
+      const first = lineRows[0];
+      if (body.item === undefined) {
+        data.item =
+          lineRows.length === 0
+            ? "(미지정)"
+            : lineRows.length === 1
+              ? first.itemName
+              : `${first.itemName} 외 ${lineRows.length - 1}건`;
+      }
+      if (body.quantity === undefined)
+        data.quantity = lineRows.reduce((s, l) => s + l.qty, 0);
+      if (body.amount === undefined)
+        data.amount = lineRows.reduce((s, l) => s + (l.supply || 0), 0);
+      if (body.vat === undefined)
+        data.vat = lineRows.reduce((s, l) => s + (l.vat || 0), 0);
+      if (body.total === undefined)
+        data.total = lineRows.reduce((s, l) => s + (l.total || l.supply || 0), 0);
+      if (body.unitPrice === undefined)
+        data.unitPrice = first ? first.unitPrice : 0;
+      if (body.itemCode === undefined)
+        data.itemCode = first?.itemCode ?? null;
+      if (body.spec === undefined)
+        data.spec = first?.spec ?? null;
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      if (lineRows) {
+        await tx.salesPlanLine.deleteMany({ where: { planId: id } });
+        if (lineRows.length) {
+          await tx.salesPlanLine.createMany({
+            data: lineRows.map((l) => ({ ...l, planId: id })),
+          });
+        }
+      }
+      await tx.salesPlan.update({
+        where: { id },
+        data,
+      });
+      return tx.salesPlan.findUniqueOrThrow({
+        where: { id },
+        include: { lines: { orderBy: { sortOrder: "asc" } } },
+      });
     });
+
     return NextResponse.json(serializeSalesPlan(updated));
   } catch (e) {
     console.error("PATCH /api/sales-plans/[id]", e);

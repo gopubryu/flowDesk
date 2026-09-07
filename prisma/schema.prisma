@@ -221,8 +221,27 @@ model SalesPlan {
   dueDate      DateTime?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
+  lines        SalesPlanLine[]
 
   @@index([workspaceId])
   @@index([workspaceId, planDate])
+}
+
+model SalesPlanLine {
+  id        String    @id @default(cuid())
+  planId    String
+  plan      SalesPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  itemCode  String?
+  itemName  String
+  spec      String?
+  qty       Float     @default(0)
+  unitPrice Float     @default(0)
+  supply    Float     @default(0)
+  vat       Float     @default(0)
+  total     Float     @default(0)
+  extra     String?
+  sortOrder Int       @default(0)
+
+  @@index([planId])
 }
 

@@ -272,35 +272,64 @@ export function SalesPlanForm({
           dueDate: row.dueDate || row.planDate,
         });
         const tax = row.taxType ?? "과세";
-        const hasItem =
-          (Boolean(row.item?.trim()) && row.item !== "(미지정)") ||
-          Boolean(row.itemCode?.trim()) ||
-          Boolean(row.spec?.trim()) ||
-          row.quantity > 0 ||
-          row.amount > 0;
-        if (hasItem) {
-          const base = emptyLine();
-          setLines([
-            recalcLine(
-              {
-                ...base,
-                itemCode: row.itemCode ?? "",
-                itemName: row.item && row.item !== "(미지정)" ? row.item : "",
-                spec: row.spec ?? "",
-                qty: row.quantity ? String(row.quantity) : "",
-                unitPrice: row.unitPrice ? String(row.unitPrice) : "",
-                supply: row.amount ? String(row.amount) : "",
-                vat: row.vat ? String(row.vat) : "",
-                extra: "",
-                total: row.total ? String(row.total) : "",
-              },
-              tax
-            ),
-          ]);
-        } else {
+        const apiLines = row.lines ?? [];
+        if (apiLines.length > 0) {
           setLines(
-            Array.from({ length: INITIAL_LINE_COUNT }, () => emptyLine())
+            apiLines.map((l) => {
+              const base = emptyLine();
+              return recalcLine(
+                {
+                  ...base,
+                  itemCode: l.itemCode ?? "",
+                  itemName:
+                    l.itemName && l.itemName !== "(미지정)" ? l.itemName : "",
+                  spec: l.spec ?? "",
+                  qty: l.qty ? String(l.qty) : "",
+                  unitPrice: l.unitPrice ? String(l.unitPrice) : "",
+                  supply: l.supply ? String(l.supply) : "",
+                  vat: l.vat ? String(l.vat) : "",
+                  extra: l.extra ?? "",
+                  total: l.total ? String(l.total) : "",
+                },
+                tax
+              );
+            })
           );
+        } else {
+          // Legacy flat-only records: synthesize one row from header fields
+          const hasItem =
+            (Boolean(row.item?.trim()) &&
+              row.item !== "(미지정)" &&
+              !/\s외\s\d+건$/.test(row.item.trim())) ||
+            Boolean(row.itemCode?.trim()) ||
+            Boolean(row.spec?.trim()) ||
+            row.quantity > 0 ||
+            row.amount > 0;
+          if (hasItem) {
+            const base = emptyLine();
+            setLines([
+              recalcLine(
+                {
+                  ...base,
+                  itemCode: row.itemCode ?? "",
+                  itemName:
+                    row.item && row.item !== "(미지정)" ? row.item : "",
+                  spec: row.spec ?? "",
+                  qty: row.quantity ? String(row.quantity) : "",
+                  unitPrice: row.unitPrice ? String(row.unitPrice) : "",
+                  supply: row.amount ? String(row.amount) : "",
+                  vat: row.vat ? String(row.vat) : "",
+                  extra: "",
+                  total: row.total ? String(row.total) : "",
+                },
+                tax
+              ),
+            ]);
+          } else {
+            setLines(
+              Array.from({ length: INITIAL_LINE_COUNT }, () => emptyLine())
+            );
+          }
         }
       } catch (err) {
         console.error(err);
@@ -440,10 +469,7 @@ export function SalesPlanForm({
           0),
       0
     );
-    const unitPrice =
-      quantity > 0
-        ? Math.round(amount / quantity)
-        : Number(parseNumberInput(first.unitPrice)) || 0;
+    const unitPrice = Number(parseNumberInput(first.unitPrice)) || 0;
     return {
       id: mode === "edit" && editId ? editId : undefined,
       planDate: master.planDate,
@@ -468,6 +494,21 @@ export function SalesPlanForm({
       warehouse: master.warehouseName || master.warehouseCode,
       currency: master.currency,
       dueDate: master.dueDate || master.planDate,
+      lines: filled.map((l, i) => ({
+        itemCode: l.itemCode.trim() || undefined,
+        itemName: l.itemName.trim() || l.itemCode.trim() || "(미지정)",
+        spec: l.spec.trim() || undefined,
+        qty: Number(parseNumberInput(l.qty)) || 0,
+        unitPrice: Number(parseNumberInput(l.unitPrice)) || 0,
+        supply: Number(parseNumberInput(l.supply)) || 0,
+        vat: Number(parseNumberInput(l.vat)) || 0,
+        total:
+          Number(parseNumberInput(l.total)) ||
+          Number(parseNumberInput(l.supply)) ||
+          0,
+        extra: l.extra.trim() || undefined,
+        sortOrder: i,
+      })),
     };
   }
 

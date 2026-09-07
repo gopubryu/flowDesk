@@ -389,6 +389,19 @@ export function serializeSalesPlan(r: {
   dueDate: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
+  lines?: {
+    id: string;
+    itemCode: string | null;
+    itemName: string;
+    spec: string | null;
+    qty: number;
+    unitPrice: number;
+    supply: number;
+    vat: number;
+    total: number;
+    extra: string | null;
+    sortOrder: number;
+  }[];
 }) {
   return {
     id: r.id,
@@ -415,5 +428,18 @@ export function serializeSalesPlan(r: {
     dueDate: toDateString(r.dueDate),
     createdAt: r.createdAt?.toISOString(),
     updatedAt: r.updatedAt?.toISOString(),
+    lines: r.lines?.map((l) => ({
+      id: l.id,
+      itemCode: l.itemCode ?? "",
+      itemName: l.itemName,
+      spec: l.spec ?? "",
+      qty: l.qty,
+      unitPrice: l.unitPrice,
+      supply: l.supply,
+      vat: l.vat,
+      total: l.total,
+      extra: l.extra ?? "",
+      sortOrder: l.sortOrder,
+    })),
   };
 }

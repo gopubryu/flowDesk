@@ -3,6 +3,20 @@ export type SalesPlanStatus =
   | "in_progress"
   | "completed";
 
+export interface SalesPlanLine {
+  id?: string;
+  itemCode?: string;
+  itemName: string;
+  spec?: string;
+  qty: number;
+  unitPrice?: number;
+  supply?: number;
+  vat?: number;
+  total?: number;
+  extra?: string;
+  sortOrder?: number;
+}
+
 export interface SalesPlan {
   id: string;
   /** 판매계획일자 */
@@ -32,6 +46,7 @@ export interface SalesPlan {
   project?: string;
   currency?: string;
   dueDate?: string;
+  lines?: SalesPlanLine[];
 }
 
 export const SALES_PLAN_STATUS_TABS: {
