@@ -17,6 +17,12 @@ export interface PurchaseLine {
   spec?: string;
   unit?: string;
   qty: number;
+  unitPrice?: number;
+  supply?: number;
+  vat?: number;
+  total?: number;
+  extra?: string;
+  sortOrder?: number;
 }
 
 export interface Purchase {

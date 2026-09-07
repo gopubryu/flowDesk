@@ -31,6 +31,9 @@ import { useAppDialog } from "@/components/ui/app-alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WarehouseSearchDialog } from "@/components/warehouses/warehouse-search-dialog";
+import { ItemSearchDialog } from "@/components/items/item-search-dialog";
+import { VendorSearchDialog } from "@/components/vendors/vendor-search-dialog";
+import { parseNonNegNumber } from "@/lib/format";
 
 export type LineRow = {
   id: string;
@@ -60,6 +63,7 @@ type Master = {
   currency: string;
   projectCode: string;
   projectName: string;
+  remarks: string;
 };
 
 const INITIAL_LINE_COUNT = 3;
@@ -104,6 +108,7 @@ function defaultMaster(): Master {
     currency: "내자",
     projectCode: "",
     projectName: "",
+    remarks: "",
   };
 }
 
@@ -220,6 +225,9 @@ export function PurchaseForm({
   );
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const [warehouseSearchOpen, setWarehouseSearchOpen] = useState(false);
+  const [vendorSearchOpen, setVendorSearchOpen] = useState(false);
+  const [itemSearchOpen, setItemSearchOpen] = useState(false);
+  const [itemSearchLineId, setItemSearchLineId] = useState<string | null>(null);
   const saveMenuRef = useRef<HTMLDivElement>(null);
 
   const totals = useMemo(() => {
@@ -261,7 +269,7 @@ export function PurchaseForm({
       }
       if (e.key === "F3") {
         e.preventDefault();
-        stub("찾기");
+        openItemSearch();
       }
     }
     window.addEventListener("keydown", onKey);
@@ -307,6 +315,20 @@ export function PurchaseForm({
     });
   }
 
+  function openItemSearch(lineId?: string) {
+    const checked = lines.find((r) => r.checked);
+    const targetId = lineId || checked?.id || lines[0]?.id;
+    if (!targetId) {
+      const row = emptyLine();
+      setLines((rows) => [...rows, row]);
+      setItemSearchLineId(row.id);
+      setItemSearchOpen(true);
+      return;
+    }
+    setItemSearchLineId(targetId);
+    setItemSearchOpen(true);
+  }
+
   function filledLines() {
     return lines.filter(
       (l) =>
@@ -327,9 +349,10 @@ export function PurchaseForm({
       return null;
     }
     const first = filled[0];
-    const quantity = filled.reduce((acc, l) => acc + (Number(l.qty) || 0), 0);
+    const quantity = filled.reduce((acc, l) => acc + parseNonNegNumber(l.qty), 0);
     const amount = filled.reduce(
-      (acc, l) => acc + (Number(l.total) || Number(l.supply) || 0),
+      (acc, l) =>
+        acc + (parseNonNegNumber(l.total) || parseNonNegNumber(l.supply) || 0),
       0
     );
     return {
@@ -356,11 +379,18 @@ export function PurchaseForm({
       warehouseCode: master.warehouseCode || undefined,
       itemCode: first.itemCode.trim() || undefined,
       inboundStatus: "none",
-      lines: filled.map((l) => ({
+      remarks: master.remarks.trim() || undefined,
+      lines: filled.map((l, i) => ({
         itemCode: l.itemCode.trim() || undefined,
         itemName: l.itemName.trim() || l.itemCode.trim() || "(미지정)",
         spec: l.spec.trim() || undefined,
-        qty: Number(l.qty) || 0,
+        qty: parseNonNegNumber(l.qty),
+        unitPrice: parseNonNegNumber(l.unitPrice),
+        supply: parseNonNegNumber(l.supply),
+        vat: parseNonNegNumber(l.vat),
+        total: parseNonNegNumber(l.total) || parseNonNegNumber(l.supply),
+        extra: l.extra.trim() || undefined,
+        sortOrder: i,
       })),
     };
   }
@@ -479,7 +509,7 @@ export function PurchaseForm({
               name={master.vendorName}
               onCodeChange={(v) => setMasterField("vendorCode", v)}
               onNameChange={(v) => setMasterField("vendorName", v)}
-              onSearch={() => stub("거래처 검색")}
+              onSearch={() => setVendorSearchOpen(true)}
               namePlaceholder="거래처명"
             />
 
@@ -558,15 +588,13 @@ export function PurchaseForm({
               </button>
             </div>
 
-            <div className="flex items-stretch overflow-hidden rounded border border-dashed border-slate-200 md:col-span-2">
-              <span className={cn(labelCls, "bg-slate-50 text-slate-400")}>비고</span>
+            <div className="flex items-stretch overflow-hidden rounded border border-slate-200 md:col-span-2">
+              <span className={labelCls}>비고</span>
               <Input
-                className={cn(
-                  fieldCls,
-                  "rounded-none border-0 bg-slate-50/80 text-slate-400 placeholder:text-slate-400"
-                )}
-                disabled
-                placeholder="다양한 항목을 추가하여 활용할 수 있습니다."
+                className={cn(fieldCls, "rounded-none border-0")}
+                value={master.remarks}
+                onChange={(e) => setMasterField("remarks", e.target.value)}
+                placeholder="비고를 입력하세요"
                 aria-label="비고"
               />
             </div>
@@ -582,7 +610,13 @@ export function PurchaseForm({
               size="sm"
               variant="outline"
               className="h-7 gap-1 border-slate-200 px-2 text-[11px] text-slate-600"
-              onClick={() => stub(t.label)}
+              onClick={() => {
+                if (t.label === "찾기") {
+                  openItemSearch();
+                  return;
+                }
+                void stub(t.label);
+              }}
             >
               {t.icon}
               {t.label}
@@ -686,6 +720,14 @@ export function PurchaseForm({
                           value={line[key]}
                           readOnly={readOnly}
                           onChange={(e) => updateLine(line.id, { [key]: e.target.value })}
+                          onDoubleClick={() => {
+                            if (key === "itemCode") openItemSearch(line.id);
+                          }}
+                          title={
+                            key === "itemCode"
+                              ? "더블클릭하여 품목 검색"
+                              : undefined
+                          }
                         />
                       </td>
                     );
@@ -838,6 +880,35 @@ export function PurchaseForm({
         onOpenChange={setWarehouseSearchOpen}
         onSelect={(wh) => {
           setMaster((m) => ({ ...m, warehouseCode: wh.code, warehouseName: wh.name }));
+        }}
+      />
+
+      <ItemSearchDialog
+        open={itemSearchOpen}
+        onOpenChange={(open) => {
+          setItemSearchOpen(open);
+          if (!open) setItemSearchLineId(null);
+        }}
+        onSelect={(item) => {
+          if (!itemSearchLineId) return;
+          updateLine(itemSearchLineId, {
+            itemCode: item.code,
+            itemName: item.name,
+            ...(item.spec ? { spec: item.spec } : {}),
+          });
+          setItemSearchLineId(null);
+        }}
+      />
+
+      <VendorSearchDialog
+        open={vendorSearchOpen}
+        onOpenChange={setVendorSearchOpen}
+        onSelect={(vendor) => {
+          setMaster((m) => ({
+            ...m,
+            vendorCode: vendor.code,
+            vendorName: vendor.name,
+          }));
         }}
       />
 

@@ -108,25 +108,27 @@ export function Header({ onMenu }: { onMenu?: () => void }) {
         <p className="hidden truncate text-xs text-muted-foreground sm:block">{meta.desc}</p>
       </div>
       <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          type="button"
-          onClick={() => {
-            void (async () => {
-              const ok = await appConfirm({
-                title: "확인",
-                description: "데모 데이터를 초기화할까요?",
-                confirmLabel: "초기화",
-                confirmVariant: "danger",
-              });
-              if (ok) void resetDemo();
-            })();
-          }}
-        >
-          <RotateCcw className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">데모 초기화</span>
-        </Button>
+        {process.env.NEXT_PUBLIC_ALLOW_DEMO_RESET === "true" ? (
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            onClick={() => {
+              void (async () => {
+                const ok = await appConfirm({
+                  title: "확인",
+                  description: "데모 데이터를 초기화할까요?",
+                  confirmLabel: "초기화",
+                  confirmVariant: "danger",
+                });
+                if (ok) void resetDemo();
+              })();
+            }}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">데모 초기화</span>
+          </Button>
+        ) : null}
         <Button variant="ghost" size="icon" type="button" aria-label="알림">
           <Bell className="h-4 w-4" />
         </Button>
