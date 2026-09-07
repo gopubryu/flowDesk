@@ -199,6 +199,7 @@ model SalesPlan {
   workspaceId  String
   workspace    Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   planDate     DateTime
+  slipNo       String?
   vendorCode   String?
   vendorName   String
   item         String

@@ -16,6 +16,7 @@ import {
   SALES_PLAN_STATUS_LABEL,
   countBySalesPlanStatus,
   defaultSalesPlanDateRange,
+  formatSalesPlanDateNo,
   fetchSalesPlans,
   summarizeSalesPlans,
   type SalesPlan,
@@ -285,7 +286,9 @@ export default function SalesPlanStatusPage() {
       if (applied.dueTo && (r.dueDate ?? "") > applied.dueTo) return false;
       if (applied.slipNo.trim()) {
         const q = applied.slipNo.trim().toLowerCase();
-        if (!r.id.toLowerCase().includes(q)) return false;
+        const label = formatSalesPlanDateNo(r.planDate, r.slipNo).toLowerCase();
+        const sn = (r.slipNo ?? "").toLowerCase();
+        if (!label.includes(q) && !sn.includes(q)) return false;
       }
       if (applied.vendorCode.trim()) {
         const q = applied.vendorCode.trim().toLowerCase();
@@ -377,7 +380,7 @@ export default function SalesPlanStatusPage() {
         kind: "data",
         id: r.id,
         planDate: r.planDate,
-        slipNo: r.id.replace(/^pp-/i, ""),
+        slipNo: r.slipNo ?? "",
         item: r.item,
         quantity: r.quantity,
         unitPrice: r.unitPrice,
@@ -842,7 +845,7 @@ export default function SalesPlanStatusPage() {
                         title={SALES_PLAN_STATUS_LABEL[r.status]}
                       >
                         <td className="whitespace-nowrap px-3 py-2 text-slate-700">
-                          {r.planDate}-{r.slipNo}
+                          {formatSalesPlanDateNo(r.planDate, r.slipNo)}
                         </td>
                         <td className="px-3 py-2 text-slate-800">{r.item}</td>
                         <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-700">

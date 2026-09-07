@@ -224,6 +224,70 @@ export async function backfillMissingPurchaseRequestSlipNos(
   return updated;
 }
 
+/** Next daily slip sequence (0001…) for SalesPlan + plan date (UTC YMD). */
+export async function allocateNextSalesPlanSlipNo(
+  workspaceId: string,
+  planDate: Date
+): Promise<string> {
+  const ymd = toDateString(planDate)!;
+  const dayStart = new Date(`${ymd}T00:00:00.000Z`);
+  const dayEnd = new Date(`${ymd}T23:59:59.999Z`);
+  const rows = await prisma.salesPlan.findMany({
+    where: {
+      workspaceId,
+      planDate: { gte: dayStart, lte: dayEnd },
+      NOT: [{ slipNo: null }, { slipNo: "" }],
+    },
+    select: { slipNo: true },
+  });
+  let max = 0;
+  for (const r of rows) {
+    max = Math.max(max, parseSlipSeq(r.slipNo));
+  }
+  return formatSlipSeq(max + 1);
+}
+
+/** Assign daily sequential slipNos to SalesPlan rows missing one (idempotent). */
+export async function backfillMissingSalesPlanSlipNos(
+  workspaceId: string
+): Promise<number> {
+  const missing = await prisma.salesPlan.findMany({
+    where: {
+      workspaceId,
+      OR: [{ slipNo: null }, { slipNo: "" }],
+    },
+    orderBy: [{ planDate: "asc" }, { createdAt: "asc" }],
+    select: { id: true, planDate: true },
+  });
+  if (missing.length === 0) return 0;
+
+  const dayMax = new Map<string, number>();
+  const assigned = await prisma.salesPlan.findMany({
+    where: {
+      workspaceId,
+      NOT: [{ slipNo: null }, { slipNo: "" }],
+    },
+    select: { planDate: true, slipNo: true },
+  });
+  for (const r of assigned) {
+    const ymd = toDateString(r.planDate)!;
+    dayMax.set(ymd, Math.max(dayMax.get(ymd) ?? 0, parseSlipSeq(r.slipNo)));
+  }
+
+  let updated = 0;
+  for (const row of missing) {
+    const ymd = toDateString(row.planDate)!;
+    const next = (dayMax.get(ymd) ?? 0) + 1;
+    dayMax.set(ymd, next);
+    await prisma.salesPlan.update({
+      where: { id: row.id },
+      data: { slipNo: formatSlipSeq(next) },
+    });
+    updated += 1;
+  }
+  return updated;
+}
+
 export function serializePurchaseRequest(r: {
   id: string;
   requestDate: Date;
@@ -303,6 +367,7 @@ export function serializePurchaseRequest(r: {
 export function serializeSalesPlan(r: {
   id: string;
   planDate: Date;
+  slipNo: string | null;
   vendorCode: string | null;
   vendorName: string;
   item: string;
@@ -326,6 +391,7 @@ export function serializeSalesPlan(r: {
   return {
     id: r.id,
     planDate: toDateString(r.planDate)!,
+    slipNo: r.slipNo ?? undefined,
     vendor: r.vendorName,
     vendorCode: r.vendorCode ?? undefined,
     item: r.item,

@@ -13,6 +13,7 @@ import {
 import {
   fetchSalesPlans,
   deleteSalesPlanApi,
+  formatSalesPlanDateNo,
   SALES_PLAN_STATUS_LABEL,
   SALES_PLAN_STATUS_TABS,
   type SalesPlan,
@@ -190,10 +191,6 @@ export default function SalesPlansPage() {
     await appAlert({ title: "알림", description: `${action} (데모)` });
   }
 
-  function slipNo(id: string) {
-    return id.replace(/^pp-/i, "");
-  }
-
   function vendorCodeName(r: SalesPlan) {
     if (r.vendorCode) return `${r.vendorCode} ${r.vendor}`;
     return r.vendor;
@@ -338,7 +335,7 @@ export default function SalesPlansPage() {
                         />
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-slate-700">
-                        {r.planDate}-{slipNo(r.id)}
+                        {formatSalesPlanDateNo(r.planDate, r.slipNo)}
                       </td>
                       <td className="px-3 py-2 font-medium text-slate-900">
                         {vendorCodeName(r)}

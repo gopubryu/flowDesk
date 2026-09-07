@@ -7,6 +7,8 @@ export interface SalesPlan {
   id: string;
   /** 판매계획일자 */
   planDate: string;
+  /** Daily sequential slip no (0001…) — used for human-readable 일자-No. */
+  slipNo?: string;
   vendor: string;
   vendorCode?: string;
   item: string;
@@ -63,6 +65,19 @@ export const CURRENCY_OPTIONS = [
 /** UI label without unit brackets, e.g. 달러[100] → 달러 */
 export function formatCurrencyLabel(value: string): string {
   return String(value ?? "").replace(/\[[^\]]*\]/g, "").trim() || value;
+}
+
+/** Human-readable 일자-No. label (never exposes cuid). */
+export function formatSalesPlanDateNo(
+  planDate: string,
+  slipNo?: string | null
+): string {
+  const date = (planDate || "").trim();
+  const no = (slipNo || "").trim();
+  if (date && no) return `${date}-${no}`;
+  if (date) return date;
+  if (no) return no;
+  return "—";
 }
 
 const STORAGE_KEY = "flowdesk-sales-plans";

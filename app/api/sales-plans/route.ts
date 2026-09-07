@@ -3,6 +3,8 @@ import type { SalesPlanStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   DEMO_WORKSPACE_ID,
+  allocateNextSalesPlanSlipNo,
+  backfillMissingSalesPlanSlipNos,
   ensureDemoWorkspace,
   parseDateOnly,
   serializeSalesPlan,
@@ -19,6 +21,7 @@ function num(v: unknown, fallback = 0): number {
 export async function GET() {
   try {
     await ensureDemoWorkspace();
+    await backfillMissingSalesPlanSlipNos(DEMO_WORKSPACE_ID);
     const rows = await prisma.salesPlan.findMany({
       where: { workspaceId: DEMO_WORKSPACE_ID },
       orderBy: [{ planDate: "desc" }, { createdAt: "desc" }],
@@ -41,11 +44,15 @@ export async function POST(req: Request) {
       String(body.vendorName ?? body.vendor ?? "").trim() || "(미지정)";
     const item = String(body.item ?? "").trim() || "(미지정)";
     const planDate = parseDateOnly(body.planDate) ?? new Date();
+    const slipNo = body.slipNo
+      ? String(body.slipNo)
+      : await allocateNextSalesPlanSlipNo(DEMO_WORKSPACE_ID, planDate);
 
     const created = await prisma.salesPlan.create({
       data: {
         workspaceId: DEMO_WORKSPACE_ID,
         planDate,
+        slipNo,
         vendorCode: body.vendorCode ? String(body.vendorCode) : null,
         vendorName,
         item,

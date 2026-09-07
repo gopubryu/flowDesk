@@ -7,7 +7,6 @@ import {
   Plus,
   Search,
   ArrowUpDown,
-  Package,
   FileInput,
   Warehouse,
   X,
@@ -23,6 +22,7 @@ import {
   type SalesPlanInput,
   type SalesPlan,
 } from "@/lib/sales-plans";
+import { formatNumberWithComma, parseNumberInput } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAppDialog } from "@/components/ui/app-alert-dialog";
@@ -111,9 +111,16 @@ function vatRate(taxType: string) {
 }
 
 function recalcLine(row: LineRow, taxType: string): LineRow {
-  const qty = Number(row.qty);
-  const unit = Number(row.unitPrice);
-  if (Number.isNaN(qty) || Number.isNaN(unit) || row.qty === "" || row.unitPrice === "") {
+  const qtyRaw = parseNumberInput(row.qty);
+  const unitRaw = parseNumberInput(row.unitPrice);
+  const qty = Number(qtyRaw);
+  const unit = Number(unitRaw);
+  if (
+    Number.isNaN(qty) ||
+    Number.isNaN(unit) ||
+    qtyRaw === "" ||
+    unitRaw === ""
+  ) {
     return { ...row, supply: "", vat: "", total: "" };
   }
   const supply = Math.round(qty * unit);
@@ -128,11 +135,7 @@ function recalcLine(row: LineRow, taxType: string): LineRow {
 }
 
 const LINE_TOOLBAR: { label: string; icon?: ReactNode }[] = [
-  { label: "찾기", icon: <Search className="h-3 w-3" /> },
   { label: "정렬", icon: <ArrowUpDown className="h-3 w-3" /> },
-  { label: "My품목", icon: <Package className="h-3 w-3" /> },
-  { label: "소요" },
-  { label: "주문" },
   { label: "전표불러오기", icon: <FileInput className="h-3 w-3" /> },
   { label: "재고불러오기", icon: <Warehouse className="h-3 w-3" /> },
 ];
@@ -199,6 +202,32 @@ function CodeNameField({
   );
 }
 
+
+function CommaLineInput({
+  value,
+  onChange,
+  className,
+}: {
+  value: string;
+  onChange: (plain: string) => void;
+  className?: string;
+}) {
+  const [focused, setFocused] = useState(false);
+  const display = focused ? value : formatNumberWithComma(value);
+
+  return (
+    <Input
+      type="text"
+      inputMode="decimal"
+      className={className}
+      value={display}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      onChange={(e) => onChange(parseNumberInput(e.target.value))}
+    />
+  );
+}
+
 export function SalesPlanForm({
   mode = "new",
   editId,
@@ -227,14 +256,18 @@ export function SalesPlanForm({
     let vat = 0;
     let total = 0;
     for (const l of lines) {
-      const q = Number(l.qty);
-      const s = Number(l.supply);
-      const v = Number(l.vat);
-      const t = Number(l.total);
-      if (!Number.isNaN(q) && l.qty !== "") qty += q;
-      if (!Number.isNaN(s) && l.supply !== "") supply += s;
-      if (!Number.isNaN(v) && l.vat !== "") vat += v;
-      if (!Number.isNaN(t) && l.total !== "") total += t;
+      const qRaw = parseNumberInput(l.qty);
+      const sRaw = parseNumberInput(l.supply);
+      const vRaw = parseNumberInput(l.vat);
+      const tRaw = parseNumberInput(l.total);
+      const q = Number(qRaw);
+      const s = Number(sRaw);
+      const v = Number(vRaw);
+      const t = Number(tRaw);
+      if (!Number.isNaN(q) && qRaw !== "") qty += q;
+      if (!Number.isNaN(s) && sRaw !== "") supply += s;
+      if (!Number.isNaN(v) && vRaw !== "") vat += v;
+      if (!Number.isNaN(t) && tRaw !== "") total += t;
     }
     return { qty, supply, vat, total };
   }, [lines]);
@@ -257,10 +290,6 @@ export function SalesPlanForm({
       if (e.key === "F7") {
         e.preventDefault();
         stub("저장/전표");
-      }
-      if (e.key === "F3") {
-        e.preventDefault();
-        stub("찾기");
       }
     }
     window.addEventListener("keydown", onKey);
@@ -314,7 +343,7 @@ export function SalesPlanForm({
       (l) =>
         l.itemName.trim() ||
         l.itemCode.trim() ||
-        (l.qty !== "" && Number(l.qty) > 0)
+        (parseNumberInput(l.qty) !== "" && Number(parseNumberInput(l.qty)) > 0)
     );
   }
 
@@ -325,15 +354,30 @@ export function SalesPlanForm({
       return null;
     }
     const first = filled[0];
-    const quantity = filled.reduce((acc, l) => acc + (Number(l.qty) || 0), 0);
-    const amount = filled.reduce((acc, l) => acc + (Number(l.supply) || 0), 0);
-    const vat = filled.reduce((acc, l) => acc + (Number(l.vat) || 0), 0);
+    const quantity = filled.reduce(
+      (acc, l) => acc + (Number(parseNumberInput(l.qty)) || 0),
+      0
+    );
+    const amount = filled.reduce(
+      (acc, l) => acc + (Number(parseNumberInput(l.supply)) || 0),
+      0
+    );
+    const vat = filled.reduce(
+      (acc, l) => acc + (Number(parseNumberInput(l.vat)) || 0),
+      0
+    );
     const total = filled.reduce(
-      (acc, l) => acc + (Number(l.total) || Number(l.supply) || 0),
+      (acc, l) =>
+        acc +
+        (Number(parseNumberInput(l.total)) ||
+          Number(parseNumberInput(l.supply)) ||
+          0),
       0
     );
     const unitPrice =
-      quantity > 0 ? Math.round(amount / quantity) : Number(first.unitPrice) || 0;
+      quantity > 0
+        ? Math.round(amount / quantity)
+        : Number(parseNumberInput(first.unitPrice)) || 0;
     return {
       id: mode === "edit" && editId ? editId : undefined,
       planDate: master.planDate,
@@ -441,25 +485,12 @@ export function SalesPlanForm({
             />
 
             <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
-              <span className={labelCls}>일자-No.</span>
+              <span className={labelCls}>일자</span>
               <Input
                 type="date"
-                className={cn(fieldCls, "min-w-[128px] rounded-none border-0 border-r border-slate-200")}
+                className={cn(fieldCls, "rounded-none border-0")}
                 value={master.planDate}
                 onChange={(e) => setMasterField("planDate", e.target.value)}
-              />
-              <span className="flex h-7 shrink-0 items-center border-r border-slate-200 bg-slate-50 px-2 text-[10px] font-medium text-slate-500">
-                No.
-              </span>
-              <Input
-                className={cn(
-                  fieldCls,
-                  "w-[88px] rounded-none border-0 bg-slate-50 text-slate-500"
-                )}
-                placeholder="자동"
-                value={master.slipNo}
-                readOnly
-                aria-label="전표번호"
               />
             </div>
 
@@ -651,30 +682,57 @@ export function SalesPlanForm({
                   ).map(([key, align]) => {
                     const readOnly = key === "supply" || key === "vat" || key === "total";
                     const isExtra = key === "extra";
+                    const isMoney =
+                      key === "unitPrice" ||
+                      key === "supply" ||
+                      key === "vat" ||
+                      key === "total";
+                    const isQty = key === "qty";
+                    const useComma = isMoney || isQty;
+                    const plain = line[key];
+                    const displayValue =
+                      useComma && readOnly
+                        ? formatNumberWithComma(plain)
+                        : plain;
                     return (
                       <td key={key} className="px-1 py-0.5">
-                        <Input
-                          className={cn(
-                            "h-7 rounded border-slate-200 px-1.5 text-[11px] focus-visible:ring-1 focus-visible:ring-indigo-500",
-                            align === "right" && "text-right tabular-nums",
-                            readOnly && "bg-slate-50 text-slate-600",
-                            isExtra && "border-dashed border-slate-200 bg-slate-50/50 placeholder:text-slate-300"
-                          )}
-                          value={line[key]}
-                          readOnly={readOnly}
-                          onChange={(e) => updateLine(line.id, { [key]: e.target.value })}
-                          onDoubleClick={() => {
-                            if (key === "itemCode") {
-                              setItemSearchLineId(line.id);
-                              setItemSearchOpen(true);
+                        {useComma && !readOnly ? (
+                          <CommaLineInput
+                            value={plain}
+                            className={cn(
+                              "h-7 rounded border-slate-200 px-1.5 text-[11px] focus-visible:ring-1 focus-visible:ring-indigo-500",
+                              align === "right" && "text-right tabular-nums"
+                            )}
+                            onChange={(v) => updateLine(line.id, { [key]: v })}
+                          />
+                        ) : (
+                          <Input
+                            className={cn(
+                              "h-7 rounded border-slate-200 px-1.5 text-[11px] focus-visible:ring-1 focus-visible:ring-indigo-500",
+                              align === "right" && "text-right tabular-nums",
+                              readOnly && "bg-slate-50 text-slate-600",
+                              isExtra &&
+                                "border-dashed border-slate-200 bg-slate-50/50 placeholder:text-slate-300"
+                            )}
+                            value={displayValue}
+                            readOnly={readOnly}
+                            placeholder={isExtra ? "" : undefined}
+                            onChange={(e) =>
+                              updateLine(line.id, { [key]: e.target.value })
                             }
-                          }}
-                          title={
-                            key === "itemCode"
-                              ? "더블클릭하여 품목 검색"
-                              : undefined
-                          }
-                        />
+                            onDoubleClick={() => {
+                              if (key === "itemCode") {
+                                setItemSearchLineId(line.id);
+                                setItemSearchOpen(true);
+                              }
+                            }}
+                            title={
+                              key === "itemCode"
+                                ? "더블클릭하여 품목 검색"
+                                : undefined
+                            }
+                          />
+                        )}
                       </td>
                     );
                   })}
