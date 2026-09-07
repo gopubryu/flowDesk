@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -10,8 +10,6 @@ import {
   Package,
   FileInput,
   Warehouse,
-  ScanLine,
-  ShieldCheck,
   X,
   Send,
   Bell,
@@ -137,9 +135,6 @@ const LINE_TOOLBAR: { label: string; icon?: ReactNode }[] = [
   { label: "주문" },
   { label: "전표불러오기", icon: <FileInput className="h-3 w-3" /> },
   { label: "재고불러오기", icon: <Warehouse className="h-3 w-3" /> },
-  { label: "바코드", icon: <ScanLine className="h-3 w-3" /> },
-  { label: "전표 바코드" },
-  { label: "검증", icon: <ShieldCheck className="h-3 w-3" /> },
 ];
 
 const fieldCls =

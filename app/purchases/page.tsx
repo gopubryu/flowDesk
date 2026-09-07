@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -7,7 +7,6 @@ import {
   RefreshCw,
   Send,
   Printer,
-  Barcode,
   Stamp,
   Trash2,
   FileSpreadsheet,
@@ -535,16 +534,6 @@ export default function PurchasesPage() {
               >
                 <Printer className="h-3.5 w-3.5" />
                 인쇄
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1.5"
-                onClick={() => stub("바코드")}
-              >
-                <Barcode className="h-3.5 w-3.5" />
-                바코드
               </Button>
               <Button
                 type="button"
