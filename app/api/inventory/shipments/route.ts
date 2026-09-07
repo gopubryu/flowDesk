@@ -5,7 +5,9 @@ import {
   DEMO_WORKSPACE_ID,
   allocateSlipNo,
   applyBalanceDelta,
+  assertMasterItemCode,
   getBalanceQty,
+  listSlipsByType,
   num,
   outboundFromQtys,
   parseDateOnly,
@@ -23,6 +25,19 @@ type LineInput = {
   qty?: number | string;
   memo?: string;
 };
+
+
+/** List shipment slips grouped from movements */
+export async function GET() {
+  try {
+    await ensureDemoWorkspace();
+    const slips = await listSlipsByType("shipment");
+    return NextResponse.json(slips);
+  } catch (e) {
+    console.error("GET /api/inventory/shipments", e);
+    return NextResponse.json({ error: "출하 조회에 실패했어요." }, { status: 500 });
+  }
+}
 
 export async function POST(req: Request) {
   try {
@@ -48,6 +63,13 @@ export async function POST(req: Request) {
         memo: l.memo ? String(l.memo).trim() : undefined,
       }))
       .filter((l) => l.itemCode && l.qty > 0);
+
+    for (const line of lines) {
+      const bad = assertMasterItemCode(line.itemCode);
+      if (bad) {
+        return NextResponse.json({ error: bad }, { status: 400 });
+      }
+    }
 
     if (lines.length === 0) {
       return NextResponse.json(

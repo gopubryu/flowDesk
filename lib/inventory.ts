@@ -236,6 +236,41 @@ export async function fetchReceiptSlips(): Promise<
   return apiJson("/api/inventory/receipts");
 }
 
+
+export async function fetchShipmentSlips(): Promise<
+  {
+    slipNo: string;
+    date: string;
+    warehouseCode: string;
+    warehouseName?: string;
+    vendorName?: string;
+    manager?: string;
+    memo?: string;
+    relatedId?: string;
+    totalQty: number;
+    lineCount: number;
+  }[]
+> {
+  return apiJson("/api/inventory/shipments");
+}
+
+export async function fetchAdjustmentSlips(): Promise<
+  {
+    slipNo: string;
+    date: string;
+    warehouseCode: string;
+    warehouseName?: string;
+    vendorName?: string;
+    manager?: string;
+    memo?: string;
+    relatedId?: string;
+    totalQty: number;
+    lineCount: number;
+  }[]
+> {
+  return apiJson("/api/inventory/adjustments");
+}
+
 export async function fetchRelatedQty(params: {
   relatedType: string;
   relatedIds: string[];

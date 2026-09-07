@@ -187,3 +187,61 @@ export function outboundFromQtys(planQty: number, shippedAbs: number): OutboundS
 }
 
 export { parseDateOnly, DEMO_WORKSPACE_ID, toDateString };
+
+export type InventorySlipSummary = {
+  slipNo: string;
+  date: string;
+  warehouseCode: string;
+  warehouseName?: string;
+  vendorName?: string;
+  manager?: string;
+  memo?: string;
+  relatedId?: string;
+  totalQty: number;
+  lineCount: number;
+};
+
+/** Group stock movements of one type into slip list rows (newest first). */
+export async function listSlipsByType(
+  type: StockMovementType
+): Promise<InventorySlipSummary[]> {
+  const rows = await prisma.stockMovement.findMany({
+    where: { workspaceId: DEMO_WORKSPACE_ID, type },
+    orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+    take: 3000,
+  });
+  const map = new Map<string, InventorySlipSummary>();
+  for (const m of rows) {
+    const key = m.slipNo;
+    const cur = map.get(key);
+    if (!cur) {
+      map.set(key, {
+        slipNo: m.slipNo,
+        date: toDateString(m.date)!,
+        warehouseCode: m.warehouseCode,
+        warehouseName: m.warehouseName ?? undefined,
+        vendorName: m.vendorName ?? undefined,
+        manager: m.manager ?? undefined,
+        memo: m.memo ?? undefined,
+        relatedId: m.relatedId ?? undefined,
+        totalQty: Math.abs(m.qty),
+        lineCount: 1,
+      });
+    } else {
+      cur.totalQty += Math.abs(m.qty);
+      cur.lineCount += 1;
+    }
+  }
+  return [...map.values()];
+}
+
+/** Reject synthetic NAME:… codes — itemCode must be a master code. */
+export function assertMasterItemCode(itemCode: string): string | null {
+  const code = itemCode.trim();
+  if (!code) return "품목코드는 필수예요.";
+  if (code.startsWith("NAME:")) {
+    return "품목코드에 이름 대체값(NAME:…)을 쓸 수 없어요. 마스터 품목코드를 입력해 주세요.";
+  }
+  return null;
+}
+

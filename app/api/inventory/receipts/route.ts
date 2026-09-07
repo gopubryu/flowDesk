@@ -5,11 +5,12 @@ import {
   DEMO_WORKSPACE_ID,
   allocateSlipNo,
   applyBalanceDelta,
+  assertMasterItemCode,
+  listSlipsByType,
   num,
   parseDateOnly,
   serializeMovement,
   sumRelatedQty,
-  toDateString,
 } from "@/lib/inventory-server";
 
 export const dynamic = "force-dynamic";
@@ -27,46 +28,8 @@ type LineInput = {
 export async function GET() {
   try {
     await ensureDemoWorkspace();
-    const rows = await prisma.stockMovement.findMany({
-      where: { workspaceId: DEMO_WORKSPACE_ID, type: "receipt" },
-      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
-      take: 3000,
-    });
-    type Slip = {
-      slipNo: string;
-      date: string;
-      warehouseCode: string;
-      warehouseName?: string;
-      vendorName?: string;
-      manager?: string;
-      memo?: string;
-      relatedId?: string;
-      totalQty: number;
-      lineCount: number;
-    };
-    const map = new Map<string, Slip>();
-    for (const m of rows) {
-      const key = m.slipNo;
-      const cur = map.get(key);
-      if (!cur) {
-        map.set(key, {
-          slipNo: m.slipNo,
-          date: toDateString(m.date)!,
-          warehouseCode: m.warehouseCode,
-          warehouseName: m.warehouseName ?? undefined,
-          vendorName: m.vendorName ?? undefined,
-          manager: m.manager ?? undefined,
-          memo: m.memo ?? undefined,
-          relatedId: m.relatedId ?? undefined,
-          totalQty: m.qty,
-          lineCount: 1,
-        });
-      } else {
-        cur.totalQty += m.qty;
-        cur.lineCount += 1;
-      }
-    }
-    return NextResponse.json([...map.values()]);
+    const slips = await listSlipsByType("receipt");
+    return NextResponse.json(slips);
   } catch (e) {
     console.error("GET /api/inventory/receipts", e);
     return NextResponse.json({ error: "입고 조회에 실패했어요." }, { status: 500 });
@@ -97,6 +60,13 @@ export async function POST(req: Request) {
         memo: l.memo ? String(l.memo).trim() : undefined,
       }))
       .filter((l) => l.itemCode && l.qty > 0);
+
+    for (const line of lines) {
+      const bad = assertMasterItemCode(line.itemCode);
+      if (bad) {
+        return NextResponse.json({ error: bad }, { status: 400 });
+      }
+    }
 
     if (lines.length === 0) {
       return NextResponse.json(

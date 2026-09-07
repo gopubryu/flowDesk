@@ -5,13 +5,27 @@ import {
   DEMO_WORKSPACE_ID,
   allocateSlipNo,
   applyBalanceDelta,
+  assertMasterItemCode,
   getBalanceQty,
+  listSlipsByType,
   num,
   parseDateOnly,
   serializeMovement,
 } from "@/lib/inventory-server";
 
 export const dynamic = "force-dynamic";
+
+/** List adjustment slips grouped from movements */
+export async function GET() {
+  try {
+    await ensureDemoWorkspace();
+    const slips = await listSlipsByType("adjustment");
+    return NextResponse.json(slips);
+  } catch (e) {
+    console.error("GET /api/inventory/adjustments", e);
+    return NextResponse.json({ error: "조정 조회에 실패했어요." }, { status: 500 });
+  }
+}
 
 export async function POST(req: Request) {
   try {
@@ -25,6 +39,10 @@ export async function POST(req: Request) {
     }
     if (!itemCode) {
       return NextResponse.json({ error: "품목은 필수예요." }, { status: 400 });
+    }
+    const badCode = assertMasterItemCode(itemCode);
+    if (badCode) {
+      return NextResponse.json({ error: badCode }, { status: 400 });
     }
     if (!reason) {
       return NextResponse.json({ error: "조정 사유는 필수예요." }, { status: 400 });

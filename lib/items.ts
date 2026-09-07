@@ -78,6 +78,12 @@ export const SEED_ITEMS: Item[] = [
     spec: "200mm",
     unit: "봉",
   }),
+  withDefaults({
+    code: "I007",
+    name: "산업용 세척제 20L",
+    spec: "20L",
+    unit: "통",
+  }),
 ];
 
 export function loadItems(): Item[] {
@@ -90,9 +96,21 @@ export function loadItems(): Item[] {
     }
     const parsed = JSON.parse(raw) as Partial<Item>[];
     if (!Array.isArray(parsed)) return SEED_ITEMS.map((i) => ({ ...i }));
-    return parsed
+    const loaded = parsed
       .filter((r) => r && typeof r.code === "string" && typeof r.name === "string")
       .map((r) => withDefaults(r as Partial<Item> & Pick<Item, "code" | "name">));
+    // Ensure demo seed codes exist even if localStorage predates them
+    const byCode = new Map(loaded.map((i) => [i.code.toLowerCase(), i]));
+    let changed = false;
+    for (const seed of SEED_ITEMS) {
+      if (!byCode.has(seed.code.toLowerCase())) {
+        loaded.push({ ...seed });
+        byCode.set(seed.code.toLowerCase(), seed);
+        changed = true;
+      }
+    }
+    if (changed) saveItems(loaded);
+    return loaded;
   } catch {
     return SEED_ITEMS.map((i) => ({ ...i }));
   }

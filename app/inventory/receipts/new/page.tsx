@@ -18,6 +18,7 @@ import {
   type InboundStatus,
 } from "@/lib/purchases";
 import { loadItems } from "@/lib/items";
+import { withEulReul } from "@/lib/josa";
 import { loadWarehouses } from "@/lib/warehouses";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -161,22 +162,36 @@ function ReceiptNewPageInner() {
       await appAlert({ title: "알림", description: "입고창고를 선택해 주세요." });
       return;
     }
+    const items = loadItems();
     const lines = rows
       .map((r) => {
-        const code =
-          r.itemCode.trim() ||
-          (r.itemName.trim() ? `NAME:${r.itemName.trim()}` : "");
+        const qty = Number(r.thisQty) || 0;
+        if (qty <= 0) return null;
+        let code = r.itemCode.trim();
+        if (code.startsWith("NAME:")) code = "";
+        if (!code && r.itemName.trim()) {
+          const hit = items.find((i) => i.name === r.itemName.trim());
+          code = hit?.code || "";
+        }
         return {
           itemCode: code,
           itemName: r.itemName,
           itemSpec: r.spec || undefined,
           itemUnit: r.unit || undefined,
-          qty: Number(r.thisQty) || 0,
+          qty,
           memo: r.memo || undefined,
         };
       })
-      .filter((l) => l.itemCode && l.qty > 0);
+      .filter((l): l is NonNullable<typeof l> => !!l);
 
+    const missingCode = lines.find((l) => !l.itemCode);
+    if (missingCode) {
+      await appAlert({
+        title: "알림",
+        description: `품목코드가 없는 라인이 있어요: ${missingCode.itemName || "(이름 없음)"}. 마스터 품목코드를 입력해 주세요.`,
+      });
+      return;
+    }
     if (lines.length === 0) {
       await appAlert({
         title: "알림",
@@ -241,7 +256,7 @@ function ReceiptNewPageInner() {
 
       await appAlert({
         title: "알림",
-        description: `입고전표 ${res.slipNo}을(를) 저장했어요.`,
+        description: `입고전표 ${withEulReul(res.slipNo)} 저장했어요.`,
       });
       router.push("/inventory/receipts");
     } catch (e) {

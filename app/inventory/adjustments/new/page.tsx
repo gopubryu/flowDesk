@@ -8,6 +8,7 @@ import {
   fetchBalances,
   todayISO,
 } from "@/lib/inventory";
+import { withEulReul } from "@/lib/josa";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAppDialog } from "@/components/ui/app-alert-dialog";
@@ -83,7 +84,7 @@ export default function AdjustmentNewPage() {
     }
     const ok = await appConfirm({
       title: "조정 저장",
-      description: `차이 ${actual - bookQty}을(를) 재고에 반영할까요?`,
+      description: `차이 ${withEulReul(String(actual - bookQty))} 재고에 반영할까요?`,
       confirmLabel: "저장",
     });
     if (!ok) return;
@@ -103,9 +104,9 @@ export default function AdjustmentNewPage() {
       });
       await appAlert({
         title: "알림",
-        description: `조정전표 ${res.slipNo}을(를) 저장했어요.`,
+        description: `조정전표 ${withEulReul(res.slipNo)} 저장했어요.`,
       });
-      router.push("/inventory");
+      router.push("/inventory/adjustments");
     } catch (e) {
       await appAlert({
         title: "알림",

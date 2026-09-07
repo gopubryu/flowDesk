@@ -10,6 +10,8 @@ import {
   fetchRelatedQty,
   todayISO,
 } from "@/lib/inventory";
+import { loadItems } from "@/lib/items";
+import { withEulReul } from "@/lib/josa";
 import {
   OUTBOUND_STATUS_LABEL,
   fetchSalesPlans,
@@ -181,22 +183,36 @@ function ShipmentNewPageInner() {
       await appAlert({ title: "알림", description: "출하창고를 선택해 주세요." });
       return;
     }
+    const items = loadItems();
     const lines = rows
       .map((r) => {
-        const code =
-          r.itemCode.trim() ||
-          (r.itemName.trim() ? `NAME:${r.itemName.trim()}` : "");
+        const qty = Number(r.thisQty) || 0;
+        if (qty <= 0) return null;
+        let code = r.itemCode.trim();
+        if (code.startsWith("NAME:")) code = "";
+        if (!code && r.itemName.trim()) {
+          const hit = items.find((i) => i.name === r.itemName.trim());
+          code = hit?.code || "";
+        }
         return {
           itemCode: code,
           itemName: r.itemName,
           itemSpec: r.spec || undefined,
           itemUnit: r.unit || undefined,
-          qty: Number(r.thisQty) || 0,
+          qty,
           memo: r.memo || undefined,
         };
       })
-      .filter((l) => l.itemCode && l.qty > 0);
+      .filter((l): l is NonNullable<typeof l> => !!l);
 
+    const missingCode = lines.find((l) => !l.itemCode);
+    if (missingCode) {
+      await appAlert({
+        title: "알림",
+        description: `품목코드가 없는 라인이 있어요: ${missingCode.itemName || "(이름 없음)"}. 마스터 품목코드를 입력해 주세요.`,
+      });
+      return;
+    }
     if (lines.length === 0) {
       await appAlert({
         title: "알림",
@@ -248,9 +264,9 @@ function ShipmentNewPageInner() {
       });
       await appAlert({
         title: "알림",
-        description: `출하전표 ${res.slipNo}을(를) 저장했어요.`,
+        description: `출하전표 ${withEulReul(res.slipNo)} 저장했어요.`,
       });
-      router.push("/inventory");
+      router.push("/inventory/shipments");
     } catch (e) {
       await appAlert({
         title: "알림",
@@ -351,7 +367,21 @@ function ShipmentNewPageInner() {
             ) : (
               rows.map((r, idx) => (
                 <tr key={idx} className="border-b border-slate-100">
-                  <td className="px-2 py-1.5 tabular-nums">{r.itemCode || "—"}</td>
+                  <td className="px-2 py-1.5">
+                    <Input
+                      className="h-7 text-xs tabular-nums"
+                      value={r.itemCode}
+                      placeholder="코드"
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setRows((prev) =>
+                          prev.map((row, i) =>
+                            i === idx ? { ...row, itemCode: v } : row
+                          )
+                        );
+                      }}
+                    />
+                  </td>
                   <td className="px-2 py-1.5">{r.itemName}</td>
                   <td className="px-2 py-1.5 text-slate-500">{r.spec || "—"}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{r.planQty.toLocaleString("ko-KR")}</td>
