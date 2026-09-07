@@ -460,7 +460,7 @@ export default function SalesPlansPage() {
             mode="new"
             variant="modal"
             onClose={closeNewModal}
-            onSaved={refreshFromStorage}
+            onSaved={refreshFromApi}
           />
         </DialogContent>
       </Dialog>
