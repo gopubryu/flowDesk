@@ -89,6 +89,74 @@ export async function POST(req: Request) {
     const vendorCode = body.vendorCode ? String(body.vendorCode).trim() : null;
     const vendorName = body.vendorName ? String(body.vendorName).trim() : null;
 
+    // A purchase-linked receipt cannot exceed the ordered quantity per item.
+    // Validate before writing movements so an invalid receipt is atomic.
+    if (relatedType === "purchase" && relatedId) {
+      const purchase = await prisma.purchase.findFirst({
+        where: { id: relatedId, workspaceId: DEMO_WORKSPACE_ID },
+        include: { lines: true },
+      });
+      if (!purchase) {
+        return NextResponse.json({ error: "구매 전표를 찾을 수 없어요." }, { status: 404 });
+      }
+
+      const orderedByItem = new Map<string, number>();
+      if (purchase.lines.length > 0) {
+        for (const line of purchase.lines) {
+          if (line.itemCode) {
+            orderedByItem.set(
+              line.itemCode,
+              (orderedByItem.get(line.itemCode) ?? 0) + line.qty
+            );
+          }
+        }
+      } else if (purchase.itemCode) {
+        orderedByItem.set(purchase.itemCode, purchase.quantity);
+      }
+
+      const requestedByItem = new Map<string, number>();
+      for (const line of lines) {
+        requestedByItem.set(
+          line.itemCode,
+          (requestedByItem.get(line.itemCode) ?? 0) + line.qty
+        );
+      }
+
+      const receivedByItem = await prisma.stockMovement.groupBy({
+        by: ["itemCode"],
+        where: {
+          workspaceId: DEMO_WORKSPACE_ID,
+          relatedType: "purchase",
+          relatedId,
+          type: "receipt",
+        },
+        _sum: { qty: true },
+      });
+      const receivedMap = new Map(
+        receivedByItem.map((row) => [row.itemCode, row._sum.qty ?? 0])
+      );
+
+      for (const [itemCode, requested] of requestedByItem) {
+        const ordered = orderedByItem.get(itemCode);
+        if (ordered === undefined) {
+          return NextResponse.json(
+            { error: `구매 전표에 없는 품목이에요. [${itemCode}]` },
+            { status: 400 }
+          );
+        }
+        const received = receivedMap.get(itemCode) ?? 0;
+        const remaining = Math.max(0, ordered - received);
+        if (requested > remaining + 1e-9) {
+          return NextResponse.json(
+            {
+              error: `입고 가능 수량을 초과했어요. [${itemCode}] 잔여 ${remaining}, 요청 ${requested}`,
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     const created = await prisma.$transaction(async (tx) => {
       const movements = [];
       for (const line of lines) {
@@ -132,6 +200,27 @@ export async function POST(req: Request) {
         relatedId,
         type: "receipt",
       });
+    }
+
+    if (relatedType === "purchase" && relatedId) {
+      const purchase = await prisma.purchase.findFirst({
+        where: { id: relatedId, workspaceId: DEMO_WORKSPACE_ID },
+        include: { lines: true },
+      });
+      if (purchase) {
+        const orderedQty = purchase.lines.length > 0
+          ? purchase.lines.reduce((sum, line) => sum + line.qty, 0)
+          : purchase.quantity;
+        await prisma.purchase.update({
+          where: { id: purchase.id },
+          data: {
+            inboundStatus:
+              relatedReceivedQty + 1e-9 >= orderedQty
+                ? "complete"
+                : "partial",
+          },
+        });
+      }
     }
 
     return NextResponse.json(

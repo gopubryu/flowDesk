@@ -208,7 +208,7 @@ export default function SalesPlansPage() {
             판매계획조회
           </h2>
           <p className="text-xs text-muted-foreground">
-            판매계획 전표를 조회하고 진행상태를 관리합니다. (목업 데이터)
+            판매계획 전표를 조회하고 진행상태를 관리합니다.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
