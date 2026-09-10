@@ -15,6 +15,7 @@ import {
   BarChart3,
   X,
   ChevronDown,
+  Database,
 } from "lucide-react";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
@@ -75,6 +76,7 @@ const mobileNav: MobileItem[] = [
   },
   { href: "/exchange", label: "환율", icon: ArrowLeftRight },
   { href: "/mail", label: "메일", icon: Mail },
+  { href: "/master-data", label: "기준정보 관리", icon: Database },
 ];
 
 function isActive(pathname: string, href: string, exact?: boolean) {

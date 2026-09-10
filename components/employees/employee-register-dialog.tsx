@@ -32,9 +32,9 @@ type FormState = {
   memo: string;
 };
 
-function emptyForm(): FormState {
+function emptyForm(code = ""): FormState {
   return {
-    code: nextEmployeeCode(),
+    code,
     name: "",
     phone: "",
     email: "",
@@ -47,15 +47,15 @@ export function EmployeeRegisterDialog({ open, onOpenChange, onSaved }: Props) {
   const [form, setForm] = useState<FormState>(() => emptyForm());
 
   useEffect(() => {
-    if (open) setForm(emptyForm());
+    if (open) void nextEmployeeCode().then((code) => setForm(emptyForm(code))).catch(() => setForm(emptyForm()));
   }, [open]);
 
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  function handleReset() {
-    setForm(emptyForm());
+  async function handleReset() {
+    try { setForm(emptyForm(await nextEmployeeCode())); } catch { setForm(emptyForm()); }
   }
 
   async function handleSave() {
@@ -70,9 +70,13 @@ export function EmployeeRegisterDialog({ open, onOpenChange, onSaved }: Props) {
       email: form.email.trim() || undefined,
       memo: form.memo.trim() || undefined,
     };
-    upsertEmployee(saved);
-    onSaved(saved);
-    onOpenChange(false);
+    try {
+      const created = await upsertEmployee(saved);
+      onSaved(created);
+      onOpenChange(false);
+    } catch (error) {
+      await appAlert({ title: "저장 실패", description: error instanceof Error ? error.message : "사원 저장에 실패했습니다." });
+    }
   }
 
   return (

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
-import { loadVendors, searchVendors, type Vendor } from "@/lib/vendors";
+import { loadVendors, type Vendor } from "@/lib/vendors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -25,19 +25,17 @@ export function VendorSearchDialog({ open, onOpenChange, onSelect }: Props) {
   const [query, setQuery] = useState("");
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
   const [registerOpen, setRegisterOpen] = useState(false);
-  const [tick, setTick] = useState(0);
+  const [rows, setRows] = useState<Vendor[]>([]);
 
   useEffect(() => {
     if (open) {
       setQuery("");
       setSelectedCode(null);
-      setTick((n) => n + 1);
-      // ensure seed persisted on first open
-      loadVendors();
+      void loadVendors().then(setRows).catch(() => setRows([]));
     }
   }, [open]);
 
-  const rows = useMemo(() => searchVendors(query), [query, tick]);
+  const filteredRows = useMemo(() => { const q = query.trim().toLowerCase(); return q ? rows.filter((v) => [v.code, v.name, v.ceo, v.phone, v.mobile, v.email, v.contactPerson].some((x) => x?.toLowerCase().includes(q))) : rows; }, [query, rows]);
 
   function confirmSelect(vendor: Vendor) {
     onSelect(vendor);
@@ -50,7 +48,7 @@ export function VendorSearchDialog({ open, onOpenChange, onSelect }: Props) {
   }
 
   function handleRegisterSaved(vendor: Vendor) {
-    setTick((n) => n + 1);
+    setRows((current) => [vendor, ...current.filter((row) => row.code !== vendor.code)]);
     setSelectedCode(vendor.code);
     confirmSelect(vendor);
   }
@@ -93,7 +91,7 @@ export function VendorSearchDialog({ open, onOpenChange, onSelect }: Props) {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.length === 0 ? (
+                    {filteredRows.length === 0 ? (
                       <tr>
                         <td
                           colSpan={2}
@@ -103,7 +101,7 @@ export function VendorSearchDialog({ open, onOpenChange, onSelect }: Props) {
                         </td>
                       </tr>
                     ) : (
-                      rows.map((vendor) => (
+                      filteredRows.map((vendor) => (
                         <tr
                           key={vendor.code}
                           className={cn(

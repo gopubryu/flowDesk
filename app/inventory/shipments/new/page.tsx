@@ -112,7 +112,7 @@ function ShipmentNewPageInner() {
     setManager(p.manager || "");
 
     if (p.warehouse) {
-      const wh = loadWarehouses().find(
+      const wh = (await loadWarehouses()).find(
         (w) => w.name === p.warehouse || w.code === p.warehouse
       );
       const code = wh?.code || "";
@@ -165,7 +165,7 @@ function ShipmentNewPageInner() {
     });
 
     const whCode =
-      loadWarehouses().find((w) => w.name === p.warehouse || w.code === p.warehouse)
+      (await loadWarehouses()).find((w) => w.name === p.warehouse || w.code === p.warehouse)
         ?.code || warehouseCode;
     await refreshStock(whCode, grid);
   }

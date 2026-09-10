@@ -84,7 +84,7 @@ function ReceiptNewPageInner() {
       setWarehouseCode(p.warehouseCode);
       setWarehouseName(p.warehouse || "");
     } else if (p.warehouse) {
-      const wh = loadWarehouses().find(
+      const wh = (await loadWarehouses()).find(
         (w) => w.name === p.warehouse || w.code === p.warehouse
       );
       setWarehouseCode(wh?.code || "");

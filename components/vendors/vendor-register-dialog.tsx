@@ -123,9 +123,9 @@ function formatPostcodeAddress(data: DaumPostcodeData): string {
   return `${data.zonecode} ${full}`.trim();
 }
 
-function emptyForm(): FormState {
+function emptyForm(code = ""): FormState {
   return {
-    code: nextVendorCode(),
+    code,
     name: "",
     codeType: "비사업자(내국인)",
     bizRegNo: "",
@@ -162,7 +162,7 @@ export function VendorRegisterDialog({ open, onOpenChange, onSaved }: Props) {
   useEffect(() => {
     // Reset form only on false → true open transition (not on reopen flicker)
     if (open && !wasOpenRef.current) {
-      setForm(emptyForm());
+      void nextVendorCode().then((code) => setForm(emptyForm(code))).catch(() => setForm(emptyForm()));
       setPostcodeOpen(false);
       setPostcodeStep("search");
       setSelectedAddress("");
@@ -217,8 +217,8 @@ export function VendorRegisterDialog({ open, onOpenChange, onSaved }: Props) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  function handleReset() {
-    setForm(emptyForm());
+  async function handleReset() {
+    try { setForm(emptyForm(await nextVendorCode())); } catch { setForm(emptyForm()); }
   }
 
   function closePostcodeOverlay() {
@@ -286,9 +286,13 @@ export function VendorRegisterDialog({ open, onOpenChange, onSaved }: Props) {
       contactPerson: form.contactPerson.trim() || undefined,
       email: form.email.trim() || undefined,
     };
-    upsertVendor(saved);
-    onSaved(saved);
-    onOpenChange(false);
+    try {
+      const created = await upsertVendor(saved);
+      onSaved(created);
+      onOpenChange(false);
+    } catch (error) {
+      await appAlert({ title: "저장 실패", description: error instanceof Error ? error.message : "거래처 저장에 실패했습니다." });
+    }
   }
 
   return (

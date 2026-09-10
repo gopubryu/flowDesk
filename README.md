@@ -36,9 +36,13 @@ npm run dev
 | 명령 | 설명 |
 |------|------|
 | `npm run dev` | 개발 서버 |
-| `npm run build` | 프로덕션 빌드 |
+| `npm run build` | Neon 스키마 동기화 후 프로덕션 빌드 |
 | `npm start` | 빌드 결과 실행 |
 | `npm run lint` | ESLint |
+
+### 데이터베이스 배포
+
+`npm run build`는 `prisma db push --skip-generate`를 먼저 실행합니다. 현재 저장소에 Prisma migration 이력이 없기 때문에 배포 시 Neon에 필요한 테이블을 안전하게 추가하기 위한 실용적 선택입니다. 운영 스키마 변경 이력이 필요해지면 Prisma Migrate로 전환해야 합니다. 빌드 환경에는 `DATABASE_URL`과 `DATABASE_URL_UNPOOLED`가 모두 필요합니다.
 
 ## 프로젝트 구조
 

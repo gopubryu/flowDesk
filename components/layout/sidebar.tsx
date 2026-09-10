@@ -18,6 +18,7 @@ import {
   CalendarClock,
   ChevronDown,
   Package,
+  Database,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -95,6 +96,7 @@ const nav: NavItem[] = [
   },
   { href: "/exchange", label: "환율", icon: ArrowLeftRight },
   { href: "/mail", label: "메일", icon: Mail },
+  { href: "/master-data", label: "기준정보 관리", icon: Database },
 ];
 
 function isActive(pathname: string, href: string, exact?: boolean) {

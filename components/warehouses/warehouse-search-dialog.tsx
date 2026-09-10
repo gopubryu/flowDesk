@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
-import { loadWarehouses, searchWarehouses, type Warehouse } from "@/lib/warehouses";
+import { loadWarehouses, type Warehouse } from "@/lib/warehouses";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -25,19 +25,17 @@ export function WarehouseSearchDialog({ open, onOpenChange, onSelect }: Props) {
   const [query, setQuery] = useState("");
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
   const [registerOpen, setRegisterOpen] = useState(false);
-  const [tick, setTick] = useState(0);
+  const [rows, setRows] = useState<Warehouse[]>([]);
 
   useEffect(() => {
     if (open) {
       setQuery("");
       setSelectedCode(null);
-      setTick((n) => n + 1);
-      // ensure seed persisted on first open
-      loadWarehouses();
+      void loadWarehouses().then(setRows).catch(() => setRows([]));
     }
   }, [open]);
 
-  const rows = useMemo(() => searchWarehouses(query), [query, tick]);
+  const filteredRows = useMemo(() => { const q = query.trim().toLowerCase(); return q ? rows.filter((w) => [w.code, w.name, w.memo].some((v) => v?.toLowerCase().includes(q))) : rows; }, [query, rows]);
 
   function confirmSelect(wh: Warehouse) {
     onSelect(wh);
@@ -50,7 +48,7 @@ export function WarehouseSearchDialog({ open, onOpenChange, onSelect }: Props) {
   }
 
   function handleRegisterSaved(wh: Warehouse) {
-    setTick((n) => n + 1);
+    setRows((current) => [wh, ...current.filter((row) => row.code !== wh.code)]);
     setSelectedCode(wh.code);
     confirmSelect(wh);
   }
@@ -93,7 +91,7 @@ export function WarehouseSearchDialog({ open, onOpenChange, onSelect }: Props) {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.length === 0 ? (
+                    {filteredRows.length === 0 ? (
                       <tr>
                         <td
                           colSpan={2}
@@ -103,7 +101,7 @@ export function WarehouseSearchDialog({ open, onOpenChange, onSelect }: Props) {
                         </td>
                       </tr>
                     ) : (
-                      rows.map((wh) => (
+                      filteredRows.map((wh) => (
                         <tr
                           key={wh.code}
                           className={cn(

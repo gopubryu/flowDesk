@@ -30,9 +30,9 @@ type FormState = {
   memo: string;
 };
 
-function emptyForm(): FormState {
+function emptyForm(code = ""): FormState {
   return {
-    code: nextWarehouseCode(),
+    code,
     name: "",
     memo: "",
   };
@@ -43,15 +43,15 @@ export function WarehouseRegisterDialog({ open, onOpenChange, onSaved }: Props) 
   const [form, setForm] = useState<FormState>(() => emptyForm());
 
   useEffect(() => {
-    if (open) setForm(emptyForm());
+    if (open) void nextWarehouseCode().then((code) => setForm(emptyForm(code))).catch(() => setForm(emptyForm()));
   }, [open]);
 
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  function handleReset() {
-    setForm(emptyForm());
+  async function handleReset() {
+    try { setForm(emptyForm(await nextWarehouseCode())); } catch { setForm(emptyForm()); }
   }
 
   async function handleSave() {
@@ -64,9 +64,13 @@ export function WarehouseRegisterDialog({ open, onOpenChange, onSaved }: Props) 
       name: form.name.trim(),
       memo: form.memo.trim() || undefined,
     };
-    upsertWarehouse(saved);
-    onSaved(saved);
-    onOpenChange(false);
+    try {
+      const created = await upsertWarehouse(saved);
+      onSaved(created);
+      onOpenChange(false);
+    } catch (error) {
+      await appAlert({ title: "저장 실패", description: error instanceof Error ? error.message : "창고 저장에 실패했습니다." });
+    }
   }
 
   return (

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
-import { loadEmployees, searchEmployees, type Employee } from "@/lib/employees";
+import { loadEmployees, type Employee } from "@/lib/employees";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -25,19 +25,17 @@ export function EmployeeSearchDialog({ open, onOpenChange, onSelect }: Props) {
   const [query, setQuery] = useState("");
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
   const [registerOpen, setRegisterOpen] = useState(false);
-  const [tick, setTick] = useState(0);
+  const [rows, setRows] = useState<Employee[]>([]);
 
   useEffect(() => {
     if (open) {
       setQuery("");
       setSelectedCode(null);
-      setTick((n) => n + 1);
-      // ensure seed persisted on first open
-      loadEmployees();
+      void loadEmployees().then(setRows).catch(() => setRows([]));
     }
   }, [open]);
 
-  const rows = useMemo(() => searchEmployees(query), [query, tick]);
+  const filteredRows = useMemo(() => { const q = query.trim().toLowerCase(); return q ? rows.filter((e) => [e.code, e.name, e.phone, e.email, e.memo].some((v) => v?.toLowerCase().includes(q))) : rows; }, [query, rows]);
 
   function confirmSelect(emp: Employee) {
     onSelect(emp);
@@ -50,7 +48,7 @@ export function EmployeeSearchDialog({ open, onOpenChange, onSelect }: Props) {
   }
 
   function handleRegisterSaved(emp: Employee) {
-    setTick((n) => n + 1);
+    setRows((current) => [emp, ...current.filter((row) => row.code !== emp.code)]);
     setSelectedCode(emp.code);
     confirmSelect(emp);
   }
@@ -94,7 +92,7 @@ export function EmployeeSearchDialog({ open, onOpenChange, onSelect }: Props) {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.length === 0 ? (
+                    {filteredRows.length === 0 ? (
                       <tr>
                         <td
                           colSpan={3}
@@ -104,7 +102,7 @@ export function EmployeeSearchDialog({ open, onOpenChange, onSelect }: Props) {
                         </td>
                       </tr>
                     ) : (
-                      rows.map((emp) => (
+                      filteredRows.map((emp) => (
                         <tr
                           key={emp.code}
                           className={cn(
