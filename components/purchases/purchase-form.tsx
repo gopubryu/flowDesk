@@ -7,7 +7,6 @@ import {
   Plus,
   Search,
   ArrowUpDown,
-  Package,
   FileInput,
   Warehouse,
   X,
@@ -16,8 +15,6 @@ import {
   ChevronDown,
   Printer,
   Banknote,
-  History,
-  Percent,
 } from "lucide-react";
 import {
   CURRENCY_OPTIONS, formatCurrencyLabel,
@@ -138,11 +135,6 @@ function recalcLine(row: LineRow, taxType: string): LineRow {
 const LINE_TOOLBAR: { label: string; icon?: ReactNode }[] = [
   { label: "찾기", icon: <Search className="h-3 w-3" /> },
   { label: "정렬", icon: <ArrowUpDown className="h-3 w-3" /> },
-  { label: "거래내역보기(구매)", icon: <History className="h-3 w-3" /> },
-  { label: "My품목", icon: <Package className="h-3 w-3" /> },
-  { label: "발주" },
-  { label: "주문" },
-  { label: "할인", icon: <Percent className="h-3 w-3" /> },
   { label: "전표불러오기", icon: <FileInput className="h-3 w-3" /> },
   { label: "재고불러오기", icon: <Warehouse className="h-3 w-3" /> },
 ];
