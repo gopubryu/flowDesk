@@ -5,9 +5,7 @@ import {
   FilePlus2,
   Mail,
   RefreshCw,
-  Send,
   Printer,
-  Stamp,
   Trash2,
   FileSpreadsheet,
   History,
@@ -660,30 +658,10 @@ export default function PurchasesPage() {
                 size="sm"
                 variant="outline"
                 className="h-8 gap-1.5"
-                onClick={() => stub("보내기")}
-              >
-                <Send className="h-3.5 w-3.5" />
-                보내기
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1.5"
                 onClick={() => stub("인쇄")}
               >
                 <Printer className="h-3.5 w-3.5" />
                 인쇄
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1.5"
-                onClick={() => stub("전자결재")}
-              >
-                <Stamp className="h-3.5 w-3.5" />
-                전자결재
               </Button>
               <Button
                 type="button"

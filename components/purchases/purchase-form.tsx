@@ -14,7 +14,6 @@ import {
   Bell,
   ChevronDown,
   Printer,
-  Banknote,
 } from "lucide-react";
 import {
   CURRENCY_OPTIONS, formatCurrencyLabel,
@@ -843,16 +842,6 @@ export function PurchaseForm({
             </Button>
             <Button type="button" size="sm" variant="outline" className="h-8" onClick={resetForm}>
               다시 작성
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8 gap-1"
-              onClick={() => stub("현금지급")}
-            >
-              <Banknote className="h-3.5 w-3.5" />
-              현금지급
             </Button>
             {!isModal ? (
               <Button type="button" size="sm" variant="outline" className="h-8" onClick={finishClose}>
