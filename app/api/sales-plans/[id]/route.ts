@@ -116,6 +116,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       data.lastModifier = body.lastModifier ? String(body.lastModifier) : null;
     }
     if (body.closed !== undefined) data.closed = Boolean(body.closed);
+    // Outbound status is derived exclusively when shipment movements post.
     if (body.manager !== undefined) {
       data.manager = body.manager ? String(body.manager) : null;
     }

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ensureDemoWorkspace } from "@/lib/demo";
 import {
   DEMO_WORKSPACE_ID,
-  allocateSlipNo,
+  allocateSlipNoTx,
   applyBalanceDelta,
   assertMasterItemCode,
   getBalanceQty,
@@ -12,8 +12,10 @@ import {
   outboundFromQtys,
   parseDateOnly,
   serializeMovement,
+  serializableInventoryTransaction,
   sumRelatedQty,
 } from "@/lib/inventory-server";
+import { aggregateQtyByItem, groupRelatedLines } from "@/lib/erp-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +26,8 @@ type LineInput = {
   itemUnit?: string;
   qty?: number | string;
   memo?: string;
+  relatedType?: string;
+  relatedId?: string;
 };
 
 
@@ -61,6 +65,8 @@ export async function POST(req: Request) {
         itemUnit: l.itemUnit ? String(l.itemUnit).trim() : undefined,
         qty: num(l.qty),
         memo: l.memo ? String(l.memo).trim() : undefined,
+        relatedType: l.relatedType ? String(l.relatedType) : (body.relatedType ? String(body.relatedType) : null),
+        relatedId: l.relatedId ? String(l.relatedId) : (body.relatedId ? String(body.relatedId) : null),
       }))
       .filter((l) => l.itemCode && l.qty > 0);
 
@@ -79,9 +85,10 @@ export async function POST(req: Request) {
     }
 
     // Insufficient stock check (no negative outbound)
-    for (const line of lines) {
-      const bal = await getBalanceQty(warehouseCode, line.itemCode);
-      if (line.qty > bal + 1e-9) {
+    for (const [itemCode, requested] of aggregateQtyByItem(lines)) {
+      const line = { itemCode, qty: requested };
+      const bal = await getBalanceQty(warehouseCode, itemCode);
+      if (requested > bal + 1e-9) {
         return NextResponse.json(
           {
             error: `재고가 부족해요. [${line.itemCode}] 현재고 ${bal}, 요청 ${line.qty}`,
@@ -116,6 +123,12 @@ export async function POST(req: Request) {
       });
       // Per-item remaining if lines exist
       if (plan.lines.length > 0) {
+        const plannedByItem = aggregateQtyByItem(
+          plan.lines
+            .filter((line) => Boolean(line.itemCode))
+            .map((line) => ({ itemCode: line.itemCode!, qty: line.qty }))
+        );
+        const requestedByItem = aggregateQtyByItem(lines);
         const shippedByItem = await prisma.stockMovement.groupBy({
           by: ["itemCode"],
           where: {
@@ -129,17 +142,14 @@ export async function POST(req: Request) {
         const shippedMap = new Map(
           shippedByItem.map((r) => [r.itemCode, Math.abs(r._sum.qty ?? 0)])
         );
-        for (const line of lines) {
-          const planLine = plan.lines.find(
-            (pl) => (pl.itemCode || "") === line.itemCode
-          );
-          const planQty = planLine?.qty ?? plan.quantity;
-          const shipped = shippedMap.get(line.itemCode) ?? 0;
+        for (const [itemCode, requested] of requestedByItem) {
+          const planQty = plannedByItem.get(itemCode) ?? 0;
+          const shipped = shippedMap.get(itemCode) ?? 0;
           const remain = Math.max(0, planQty - shipped);
-          if (line.qty > remain + 1e-9) {
+          if (requested > remain + 1e-9) {
             return NextResponse.json(
               {
-                error: `미출하 수량을 초과했어요. [${line.itemCode}] 미출하 ${remain}, 요청 ${line.qty}`,
+                error: `미출하 수량을 초과했어요. [${itemCode}] 미출하 ${remain}, 요청 ${requested}`,
               },
               { status: 400 }
             );
@@ -157,9 +167,6 @@ export async function POST(req: Request) {
       }
     }
 
-    const slipNo =
-      (body.slipNo && String(body.slipNo).trim()) ||
-      (await allocateSlipNo("shipment", dateStr));
 
     const warehouseName = body.warehouseName
       ? String(body.warehouseName).trim()
@@ -169,20 +176,36 @@ export async function POST(req: Request) {
     const vendorCode = body.vendorCode ? String(body.vendorCode).trim() : null;
     const vendorName = body.vendorName ? String(body.vendorName).trim() : null;
 
-    const created = await prisma.$transaction(async (tx) => {
+    const created = await serializableInventoryTransaction(async (tx) => {
+      const slipNo = await allocateSlipNoTx(tx, "shipment", dateStr);
+      // Linked plan limits are rechecked with the movement, not merely before it.
+      for (const [key, requestedByItem] of groupRelatedLines(lines)) {
+        const [lineRelatedType, lineRelatedId] = key.split(":", 2);
+        if (lineRelatedType !== "salesPlan") continue;
+        const plan = await tx.salesPlan.findFirst({ where: { id: lineRelatedId, workspaceId: DEMO_WORKSPACE_ID }, include: { lines: true } });
+        if (!plan || !["confirmed", "in_progress"].includes(plan.status)) throw new Error("Linked sales plan is not available for shipment.");
+        const shipped = await tx.stockMovement.groupBy({ by: ["itemCode"], where: { workspaceId: DEMO_WORKSPACE_ID, relatedType: "salesPlan", relatedId: lineRelatedId, type: "shipment" }, _sum: { qty: true } });
+        const shippedByItem = new Map(shipped.map((row) => [row.itemCode, Math.abs(row._sum.qty ?? 0)]));
+        for (const [itemCode, requested] of requestedByItem) {
+          const planned = plan.lines.length ? plan.lines.filter((line) => line.itemCode === itemCode).reduce((sum, line) => sum + line.qty, 0) : plan.quantity;
+          const remaining = planned - (shippedByItem.get(itemCode) ?? 0);
+          if (planned <= 0 || requested > remaining + 1e-9) throw new Error(`Shipment exceeds remaining quantity for ${itemCode}.`);
+        }
+      }
       // Re-check balances inside transaction
-      for (const line of lines) {
+      for (const [itemCode, requested] of aggregateQtyByItem(lines)) {
+        const line = { itemCode, qty: requested };
         const bal = await tx.stockBalance.findUnique({
           where: {
             workspaceId_warehouseCode_itemCode: {
               workspaceId: DEMO_WORKSPACE_ID,
               warehouseCode,
-              itemCode: line.itemCode,
+              itemCode,
             },
           },
         });
         const qty = bal?.qty ?? 0;
-        if (line.qty > qty + 1e-9) {
+        if (requested > qty + 1e-9) {
           throw new Error(
             `재고가 부족해요. [${line.itemCode}] 현재고 ${qty}, 요청 ${line.qty}`
           );
@@ -205,8 +228,8 @@ export async function POST(req: Request) {
             itemSpec: line.itemSpec ?? null,
             itemUnit: line.itemUnit ?? null,
             qty: signed,
-            relatedType,
-            relatedId,
+            relatedType: line.relatedType,
+            relatedId: line.relatedId,
             memo: line.memo || memo,
             manager,
             vendorCode,
@@ -224,16 +247,18 @@ export async function POST(req: Request) {
       }
 
       let outboundStatus: ReturnType<typeof outboundFromQtys> | undefined;
-      if (relatedType === "salesPlan" && relatedId) {
+      for (const [key] of groupRelatedLines(lines)) {
+        const [lineRelatedType, lineRelatedId] = key.split(":", 2);
+        if (lineRelatedType !== "salesPlan") continue;
         const plan = await tx.salesPlan.findFirst({
-          where: { id: relatedId, workspaceId: DEMO_WORKSPACE_ID },
+          where: { id: lineRelatedId, workspaceId: DEMO_WORKSPACE_ID },
         });
         if (plan) {
           const agg = await tx.stockMovement.aggregate({
             where: {
               workspaceId: DEMO_WORKSPACE_ID,
               relatedType: "salesPlan",
-              relatedId,
+              relatedId: lineRelatedId,
               type: "shipment",
             },
             _sum: { qty: true },
@@ -247,7 +272,7 @@ export async function POST(req: Request) {
         }
       }
 
-      return { movements, outboundStatus };
+      return { movements, outboundStatus, slipNo };
     });
 
     let relatedShippedQty = 0;
@@ -261,7 +286,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(
       {
-        slipNo,
+        slipNo: created.slipNo,
         movements: created.movements.map(serializeMovement),
         relatedShippedQty,
         outboundStatus: created.outboundStatus,
@@ -271,6 +296,9 @@ export async function POST(req: Request) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "출하 저장에 실패했어요.";
     console.error("POST /api/inventory/shipments", e);
+    if (msg.startsWith("Shipment exceeds") || msg.startsWith("Linked sales plan")) {
+      return NextResponse.json({ error: msg }, { status: 409 });
+    }
     const status = msg.includes("부족") || msg.includes("초과") ? 400 : 500;
     return NextResponse.json({ error: msg }, { status });
   }

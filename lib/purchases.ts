@@ -444,6 +444,14 @@ export async function deletePurchaseApi(id: string): Promise<void> {
   await apiJson(`/api/purchases/${id}`, { method: "DELETE" });
 }
 
+export async function bulkUpdatePurchaseStatusApi(ids: string[], status: PurchaseStatus): Promise<Purchase[]> {
+  return apiJson<Purchase[]>("/api/purchases/bulk", { method: "PATCH", body: JSON.stringify({ ids, status }) });
+}
+
+export async function bulkDeletePurchasesApi(ids: string[]): Promise<void> {
+  await apiJson("/api/purchases/bulk", { method: "DELETE", body: JSON.stringify({ ids }) });
+}
+
 /** PATCH only status for selected rows on list */
 export async function updatePurchaseStatusApi(
   id: string,

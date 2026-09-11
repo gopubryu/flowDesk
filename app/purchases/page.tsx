@@ -3,19 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   FilePlus2,
-  Mail,
   RefreshCw,
-  Printer,
   Trash2,
-  FileSpreadsheet,
-  History,
   Search,
 } from "lucide-react";
 import {
   fetchPurchases,
-  deletePurchaseApi,
-  updatePurchaseStatusApi,
-  updatePurchaseInboundStatusApi,
+  bulkDeletePurchasesApi,
+  bulkUpdatePurchaseStatusApi,
   formatPurchaseDateNo,
   PURCHASE_STATUS_LABEL,
   PURCHASE_STATUS_TABS,
@@ -23,12 +18,10 @@ import {
   TAX_TYPE_OPTIONS,
   SENT_FILTER_OPTIONS,
   SORT_OPTIONS,
-  resolveInboundStatus,
   type Purchase,
   type PurchaseStatus,
   type InboundStatus,
 } from "@/lib/purchases";
-import { fetchRelatedQty } from "@/lib/inventory";
 import Link from "next/link";
 import { cn, formatKRW } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -99,29 +92,7 @@ export default function PurchasesPage() {
 
   async function refreshFromApi() {
     const loaded = await fetchPurchases();
-    try {
-      const confirmed = loaded.filter((p) => p.status === "confirmed");
-      if (confirmed.length) {
-        const related = await fetchRelatedQty({
-          relatedType: "purchase",
-          relatedIds: confirmed.map((p) => p.id),
-        });
-        const next = loaded.map((p) => {
-          if (p.status !== "confirmed") return p;
-          const received = related[p.id] || 0;
-          const inboundStatus = resolveInboundStatus(p.quantity, received);
-          if (inboundStatus !== (p.inboundStatus || "none")) {
-            void updatePurchaseInboundStatusApi(p.id, inboundStatus).catch(() => {});
-          }
-          return { ...p, inboundStatus };
-        });
-        setRows(next);
-      } else {
-        setRows(loaded);
-      }
-    } catch {
-      setRows(loaded);
-    }
+    setRows(loaded);
     try {
       localStorage.removeItem("flowdesk-purchases");
     } catch {
@@ -164,6 +135,7 @@ export default function PurchasesPage() {
   }
 
   function runSearch() {
+    setSelected(new Set());
     setApplied({
       dateFrom,
       dateTo,
@@ -176,10 +148,6 @@ export default function PurchasesPage() {
       sent,
       sortBy,
     });
-  }
-
-  async function stub(action: string) {
-    await appAlert({ title: "알림", description: `${action} 기능은 준비 중입니다.` });
   }
 
   async function openStatusChange() {
@@ -205,10 +173,7 @@ export default function PurchasesPage() {
     }
     setActionBusy(true);
     try {
-      const ids = Array.from(selected);
-      for (const id of ids) {
-        await updatePurchaseStatusApi(id, nextStatus);
-      }
+      await bulkUpdatePurchaseStatusApi(Array.from(selected), nextStatus);
       setStatusOpen(false);
       setSelected(new Set());
       await refreshFromApi();
@@ -329,9 +294,7 @@ export default function PurchasesPage() {
     if (!ok) return;
     setActionBusy(true);
     try {
-      for (const id of Array.from(selected)) {
-        await deletePurchaseApi(id);
-      }
+      await bulkDeletePurchasesApi(Array.from(selected));
       setSelected(new Set());
       await refreshFromApi();
     } catch (err) {
@@ -485,7 +448,7 @@ export default function PurchasesPage() {
             <button
               key={t.key}
               type="button"
-              onClick={() => setTab(t.key)}
+              onClick={() => { setTab(t.key); setSelected(new Set()); }}
               className={cn(
                 "relative -mb-px rounded-t-md px-3 py-2 text-xs font-medium transition-colors",
                 active
@@ -637,16 +600,6 @@ export default function PurchasesPage() {
                 size="sm"
                 variant="outline"
                 className="h-8 gap-1.5"
-                onClick={() => stub("Email")}
-              >
-                <Mail className="h-3.5 w-3.5" />
-                Email
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1.5"
                 onClick={() => void openStatusChange()}
                 disabled={actionBusy}
               >
@@ -658,40 +611,10 @@ export default function PurchasesPage() {
                 size="sm"
                 variant="outline"
                 className="h-8 gap-1.5"
-                onClick={() => stub("인쇄")}
-              >
-                <Printer className="h-3.5 w-3.5" />
-                인쇄
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1.5"
                 onClick={() => void deleteSelected()}
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 선택삭제
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1.5"
-                onClick={() => stub("Excel")}
-              >
-                <FileSpreadsheet className="h-3.5 w-3.5" />
-                Excel
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1.5"
-                onClick={() => stub("이력조회")}
-              >
-                <History className="h-3.5 w-3.5" />
-                이력조회
               </Button>
             </div>
           </div>

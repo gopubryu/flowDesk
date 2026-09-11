@@ -1,10 +1,24 @@
-import type { OutboundStatus, Prisma, StockMovementType } from "@prisma/client";
+import { Prisma, type OutboundStatus, type StockMovementType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   DEMO_WORKSPACE_ID,
   parseDateOnly,
   toDateString,
 } from "@/lib/demo";
+
+/** Serializably protect inventory read/calculate/write operations. */
+export async function serializableInventoryTransaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await prisma.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      lastError = error;
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2034" || attempt === 2) throw error;
+    }
+  }
+  throw lastError;
+}
 
 export function num(v: unknown, fallback = 0): number {
   if (v === null || v === undefined || v === "") return fallback;
@@ -102,6 +116,22 @@ export async function allocateSlipNo(
     if (m) max = Math.max(max, Number(m[1]));
   }
   return `${head}${String(max + 1).padStart(2, "0")}`;
+}
+
+/** Allocate only while saving.  SlipSequence's database unique key is the
+ * concurrency boundary; callers must invoke this through their transaction. */
+export async function allocateSlipNoTx(
+  tx: Prisma.TransactionClient,
+  type: "receipt" | "shipment" | "adjustment",
+  dateStr: string
+): Promise<string> {
+  const row = await tx.slipSequence.upsert({
+    where: { workspaceId_type_dateKey: { workspaceId: DEMO_WORKSPACE_ID, type, dateKey: dateStr } },
+    create: { workspaceId: DEMO_WORKSPACE_ID, type, dateKey: dateStr, nextNumber: 1 },
+    update: { nextNumber: { increment: 1 } },
+  });
+  const prefix = type === "receipt" ? "RCV" : type === "shipment" ? "SHP" : "ADJ";
+  return `${prefix}-${yymmdd(dateStr)}-${String(row.nextNumber).padStart(2, "0")}`;
 }
 
 export async function applyBalanceDelta(

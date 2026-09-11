@@ -180,6 +180,7 @@ export default function PurchaseRequestsPage() {
   }
 
   function runSearch() {
+    setSelected(new Set());
     setApplied({
       query,
       dateFrom,
@@ -326,7 +327,10 @@ export default function PurchaseRequestsPage() {
             <button
               key={t.key}
               type="button"
-              onClick={() => setTab(t.key)}
+              onClick={() => {
+                setTab(t.key);
+                setSelected(new Set());
+              }}
               className={cn(
                 "relative -mb-px rounded-t-md px-3 py-2 text-xs font-medium transition-colors",
                 active

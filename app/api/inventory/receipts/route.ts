@@ -3,15 +3,17 @@ import { prisma } from "@/lib/prisma";
 import { ensureDemoWorkspace } from "@/lib/demo";
 import {
   DEMO_WORKSPACE_ID,
-  allocateSlipNo,
+  allocateSlipNoTx,
   applyBalanceDelta,
   assertMasterItemCode,
   listSlipsByType,
   num,
   parseDateOnly,
   serializeMovement,
+  serializableInventoryTransaction,
   sumRelatedQty,
 } from "@/lib/inventory-server";
+import { groupRelatedLines } from "@/lib/erp-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +24,8 @@ type LineInput = {
   itemUnit?: string;
   qty?: number | string;
   memo?: string;
+  relatedType?: string;
+  relatedId?: string;
 };
 
 /** List receipt slips grouped from movements */
@@ -58,6 +62,8 @@ export async function POST(req: Request) {
         itemUnit: l.itemUnit ? String(l.itemUnit).trim() : undefined,
         qty: num(l.qty),
         memo: l.memo ? String(l.memo).trim() : undefined,
+        relatedType: l.relatedType ? String(l.relatedType) : (body.relatedType ? String(body.relatedType) : null),
+        relatedId: l.relatedId ? String(l.relatedId) : (body.relatedId ? String(body.relatedId) : null),
       }))
       .filter((l) => l.itemCode && l.qty > 0);
 
@@ -75,9 +81,6 @@ export async function POST(req: Request) {
       );
     }
 
-    const slipNo =
-      (body.slipNo && String(body.slipNo).trim()) ||
-      (await allocateSlipNo("receipt", dateStr));
 
     const warehouseName = body.warehouseName
       ? String(body.warehouseName).trim()
@@ -157,7 +160,24 @@ export async function POST(req: Request) {
       }
     }
 
-    const created = await prisma.$transaction(async (tx) => {
+    const created = await serializableInventoryTransaction(async (tx) => {
+      const slipNo = await allocateSlipNoTx(tx, "receipt", dateStr);
+      // Revalidate linked quantities in the same transaction as the movement.
+      for (const [key, requestedByItem] of groupRelatedLines(lines)) {
+        const [lineRelatedType, lineRelatedId] = key.split(":", 2);
+        if (lineRelatedType !== "purchase") continue;
+        const purchase = await tx.purchase.findFirst({ where: { id: lineRelatedId, workspaceId: DEMO_WORKSPACE_ID }, include: { lines: true } });
+        if (!purchase) throw new Error("Linked purchase was not found.");
+        const orderedByItem = new Map<string, number>();
+        for (const line of purchase.lines) if (line.itemCode) orderedByItem.set(line.itemCode, (orderedByItem.get(line.itemCode) ?? 0) + line.qty);
+        if (!purchase.lines.length && purchase.itemCode) orderedByItem.set(purchase.itemCode, purchase.quantity);
+        const received = await tx.stockMovement.groupBy({ by: ["itemCode"], where: { workspaceId: DEMO_WORKSPACE_ID, relatedType: "purchase", relatedId: lineRelatedId, type: "receipt" }, _sum: { qty: true } });
+        const receivedByItem = new Map(received.map((row) => [row.itemCode, row._sum.qty ?? 0]));
+        for (const [itemCode, requested] of requestedByItem) {
+          const remaining = (orderedByItem.get(itemCode) ?? -Infinity) - (receivedByItem.get(itemCode) ?? 0);
+          if (!orderedByItem.has(itemCode) || requested > remaining + 1e-9) throw new Error(`Receipt exceeds remaining quantity for ${itemCode}.`);
+        }
+      }
       const movements = [];
       for (const line of lines) {
         const m = await tx.stockMovement.create({
@@ -173,8 +193,8 @@ export async function POST(req: Request) {
             itemSpec: line.itemSpec ?? null,
             itemUnit: line.itemUnit ?? null,
             qty: line.qty, // +
-            relatedType,
-            relatedId,
+            relatedType: line.relatedType,
+            relatedId: line.relatedId,
             memo: line.memo || memo,
             manager,
             vendorCode,
@@ -190,7 +210,18 @@ export async function POST(req: Request) {
         });
         movements.push(m);
       }
-      return movements;
+      // The movement, balance, and purchase status are committed together.
+      for (const [key] of groupRelatedLines(lines)) {
+        const [lineRelatedType, lineRelatedId] = key.split(":", 2);
+        if (lineRelatedType !== "purchase") continue;
+        const purchase = await tx.purchase.findFirst({ where: { id: lineRelatedId, workspaceId: DEMO_WORKSPACE_ID }, include: { lines: true } });
+        if (!purchase) throw new Error("Linked purchase was not found.");
+        const ordered = purchase.lines.length ? purchase.lines.reduce((total, line) => total + line.qty, 0) : purchase.quantity;
+        const aggregate = await tx.stockMovement.aggregate({ where: { workspaceId: DEMO_WORKSPACE_ID, relatedType: "purchase", relatedId: lineRelatedId, type: "receipt" }, _sum: { qty: true } });
+        const received = aggregate._sum.qty ?? 0;
+        await tx.purchase.update({ where: { id: purchase.id }, data: { inboundStatus: received + 1e-9 >= ordered ? "complete" : "partial" } });
+      }
+      return { movements, slipNo };
     });
 
     let relatedReceivedQty = 0;
@@ -202,37 +233,19 @@ export async function POST(req: Request) {
       });
     }
 
-    if (relatedType === "purchase" && relatedId) {
-      const purchase = await prisma.purchase.findFirst({
-        where: { id: relatedId, workspaceId: DEMO_WORKSPACE_ID },
-        include: { lines: true },
-      });
-      if (purchase) {
-        const orderedQty = purchase.lines.length > 0
-          ? purchase.lines.reduce((sum, line) => sum + line.qty, 0)
-          : purchase.quantity;
-        await prisma.purchase.update({
-          where: { id: purchase.id },
-          data: {
-            inboundStatus:
-              relatedReceivedQty + 1e-9 >= orderedQty
-                ? "complete"
-                : "partial",
-          },
-        });
-      }
-    }
-
     return NextResponse.json(
       {
-        slipNo,
-        movements: created.map(serializeMovement),
+        slipNo: created.slipNo,
+        movements: created.movements.map(serializeMovement),
         relatedReceivedQty,
       },
       { status: 201 }
     );
   } catch (e) {
     console.error("POST /api/inventory/receipts", e);
+    if (e instanceof Error && (e.message.startsWith("Receipt exceeds") || e.message.startsWith("Linked purchase"))) {
+      return NextResponse.json({ error: e.message }, { status: 409 });
+    }
     return NextResponse.json({ error: "입고 저장에 실패했어요." }, { status: 500 });
   }
 }

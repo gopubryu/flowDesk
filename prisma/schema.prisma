@@ -71,6 +71,7 @@ model Workspace {
   salesPlans       SalesPlan[]
   stockMovements   StockMovement[]
   stockBalances    StockBalance[]
+  slipSequences    SlipSequence[]
   employees        Employee[]
   warehouses       Warehouse[]
   vendors          Vendor[]
@@ -433,4 +434,18 @@ model StockBalance {
   @@unique([workspaceId, warehouseCode, itemCode])
   @@index([workspaceId])
   @@index([workspaceId, itemCode])
+}
+
+/// Per-workspace, per-day counter used when inventory slips are saved.
+/// The unique key makes allocation safe across concurrent requests.
+model SlipSequence {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  type        StockMovementType
+  dateKey     String
+  nextNumber  Int       @default(0)
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([workspaceId, type, dateKey])
 }

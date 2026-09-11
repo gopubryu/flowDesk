@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { FileSpreadsheet, Printer, Search, Settings2 } from "lucide-react";
+import { Search } from "lucide-react";
 import {
   SALES_PLAN_STATUS_LABEL,
   countBySalesPlanStatus,
@@ -184,10 +184,6 @@ export default function SalesPlanStatusPage() {
       itemCode,
       sortBy,
     });
-  }
-
-  async function stub(action: string) {
-    await appAlert({ title: "알림", description: `${action} (데모)` });
   }
 
   function setRange(from: string, to: string) {
@@ -429,21 +425,6 @@ export default function SalesPlanStatusPage() {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            className="rounded-t-md border border-b-0 border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700"
-          >
-            기본
-          </button>
-          <button
-            type="button"
-            className="rounded-t-md border border-transparent px-2 py-1.5 text-xs text-slate-400 hover:bg-slate-100"
-            onClick={() => stub("탭 추가")}
-          >
-            +
-          </button>
-        </div>
         <div className="flex rounded-md border border-slate-200 p-0.5">
           {(
             [
@@ -675,7 +656,6 @@ export default function SalesPlanStatusPage() {
             ["this_month", "금월"],
             ["last_month", "전월"],
             ["end_only", "종료일"],
-            ["settings", "설정"],
             ["reset", "다시작성"],
           ] as const
         ).map(([key, label]) => (
@@ -687,18 +667,10 @@ export default function SalesPlanStatusPage() {
             className="h-7 px-2 text-[11px]"
             onClick={() => {
               if (key === "search") applyFilters();
-              else if (key === "settings") stub("설정");
               else shortcut(key);
             }}
           >
-            {key === "settings" ? (
-              <span className="inline-flex items-center gap-1">
-                <Settings2 className="h-3 w-3" />
-                {label}
-              </span>
-            ) : (
-              label
-            )}
+            {label}
           </Button>
         ))}
       </div>
@@ -875,28 +847,6 @@ export default function SalesPlanStatusPage() {
                 ? ` · 비교기간: ${COMPARE_OPTIONS.find((c) => c.key === compare)?.label}`
                 : ""}
             </p>
-            <div className="flex flex-wrap gap-1.5">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1.5"
-                onClick={() => stub("인쇄")}
-              >
-                <Printer className="h-3.5 w-3.5" />
-                인쇄
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1.5"
-                onClick={() => stub("Excel(화면)")}
-              >
-                <FileSpreadsheet className="h-3.5 w-3.5" />
-                Excel(화면)
-              </Button>
-            </div>
           </div>
         </CardContent>
       </Card>

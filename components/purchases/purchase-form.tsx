@@ -1,26 +1,23 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Paperclip,
   Plus,
   Search,
-  ArrowUpDown,
-  FileInput,
-  Warehouse,
   X,
-  Send,
-  Bell,
   ChevronDown,
-  Printer,
 } from "lucide-react";
 import {
   CURRENCY_OPTIONS, formatCurrencyLabel,
   TAX_TYPE_OPTIONS,
   savePurchaseApi,
+  fetchPurchases,
   type Purchase,
 } from "@/lib/purchases";
+import { fetchPurchaseRequests } from "@/lib/purchase-requests";
+import { SlipImportDialog } from "@/components/slips/slip-import-dialog";
+import { hasNonEmptyBusinessFormData } from "@/lib/slip-import";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAppDialog } from "@/components/ui/app-alert-dialog";
@@ -131,13 +128,6 @@ function recalcLine(row: LineRow, taxType: string): LineRow {
   };
 }
 
-const LINE_TOOLBAR: { label: string; icon?: ReactNode }[] = [
-  { label: "찾기", icon: <Search className="h-3 w-3" /> },
-  { label: "정렬", icon: <ArrowUpDown className="h-3 w-3" /> },
-  { label: "전표불러오기", icon: <FileInput className="h-3 w-3" /> },
-  { label: "재고불러오기", icon: <Warehouse className="h-3 w-3" /> },
-];
-
 const fieldCls =
   "h-7 rounded border border-slate-200 bg-white px-2 text-xs focus-visible:ring-1 focus-visible:ring-indigo-500";
 const labelCls =
@@ -167,7 +157,7 @@ function CodeNameField({
   name: string;
   onCodeChange: (v: string) => void;
   onNameChange: (v: string) => void;
-  onSearch: () => void;
+  onSearch?: () => void;
   codePlaceholder?: string;
   namePlaceholder?: string;
 }) {
@@ -181,14 +171,16 @@ function CodeNameField({
         placeholder={codePlaceholder}
         aria-label={`${label} 코드`}
       />
-      <button
-        type="button"
-        className="flex h-7 w-7 shrink-0 items-center justify-center border-r border-slate-200 bg-white text-slate-400 hover:bg-slate-50 hover:text-slate-600"
-        onClick={onSearch}
-        aria-label={`${label} 검색`}
-      >
-        <Search className="h-3 w-3" />
-      </button>
+      {onSearch && (
+        <button
+          type="button"
+          className="flex h-7 w-7 shrink-0 items-center justify-center border-r border-slate-200 bg-white text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+          onClick={onSearch}
+          aria-label={`${label} 검색`}
+        >
+          <Search className="h-3 w-3" />
+        </button>
+      )}
       <Input
         className={cn(fieldCls, "min-w-0 flex-1 rounded-none border-0")}
         value={name}
@@ -207,7 +199,7 @@ export function PurchaseForm({
   onClose,
   onSaved,
 }: Props) {
-  const { alert: appAlert, dialog: appDialog } = useAppDialog();
+  const { alert: appAlert, confirm, dialog: appDialog } = useAppDialog();
   const router = useRouter();
   const isModal = variant === "modal";
   const [master, setMaster] = useState<Master>(() => defaultMaster());
@@ -219,6 +211,9 @@ export function PurchaseForm({
   const [vendorSearchOpen, setVendorSearchOpen] = useState(false);
   const [itemSearchOpen, setItemSearchOpen] = useState(false);
   const [itemSearchLineId, setItemSearchLineId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importedSlip, setImportedSlip] = useState("");
   const saveMenuRef = useRef<HTMLDivElement>(null);
 
   const totals = useMemo(() => {
@@ -252,11 +247,7 @@ export function PurchaseForm({
     function onKey(e: KeyboardEvent) {
       if (e.key === "F8") {
         e.preventDefault();
-        handleSave(false);
-      }
-      if (e.key === "F7") {
-        e.preventDefault();
-        stub("저장/전표");
+        if (!saving) void handleSave();
       }
       if (e.key === "F3") {
         e.preventDefault();
@@ -267,10 +258,6 @@ export function PurchaseForm({
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [master, lines, mode, editId, isModal]);
-
-  async function stub(action: string) {
-    await appAlert({ title: "알림", description: `${action} 기능은 준비 중입니다.` });
-  }
 
   function setMasterField<K extends keyof Master>(key: K, value: Master[K]) {
     setMaster((m) => {
@@ -370,6 +357,7 @@ export function PurchaseForm({
       warehouseCode: master.warehouseCode || undefined,
       itemCode: first.itemCode.trim() || undefined,
       inboundStatus: "none",
+      importedSlip: importedSlip || undefined,
       remarks: master.remarks.trim() || undefined,
       lines: filled.map((l, i) => ({
         itemCode: l.itemCode.trim() || undefined,
@@ -394,13 +382,11 @@ export function PurchaseForm({
     router.push("/purchases");
   }
 
-  async function handleSave(andSlip: boolean) {
-    if (andSlip) {
-      stub("저장/전표");
-      return;
-    }
+  async function handleSave() {
+    if (saving) return;
     const row = await buildRowFromForm();
     if (!row) return;
+    setSaving(true);
     try {
       await savePurchaseApi(row);
       onSaved?.();
@@ -415,6 +401,8 @@ export function PurchaseForm({
         title: "알림",
         description: err instanceof Error ? err.message : "저장에 실패했습니다.",
       });
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -424,6 +412,18 @@ export function PurchaseForm({
   }
 
   const title = mode === "edit" ? "구매입력 (수정)" : "구매입력";
+
+  async function importPurchase(source: { sourceType?: string; value: any }) {
+    const row = source.value;
+    const defaults = defaultMaster();
+    const header = { ...master, purchaseDate: "", slipNo: "", taxType: master.taxType === defaults.taxType ? "" : master.taxType, currency: master.currency === defaults.currency ? "" : master.currency };
+    if (hasNonEmptyBusinessFormData(header, lines)) {
+      if (!(await confirm({ title: "전표불러오기", description: "현재 입력한 내용을 불러온 전표로 바꿀까요?" }))) return;
+    }
+    setImportedSlip(`${source.sourceType ?? "구매"}: ${row.slipNo ?? row.id}`);
+    setMaster((m) => ({ ...m, orderNo: "", slipNo: "", vendorCode: row.vendorCode ?? "", vendorName: row.vendorName ?? row.vendor ?? "", managerName: row.managerName ?? row.manager ?? "", managerCode: row.managerCode ?? "", warehouseCode: row.warehouseCode ?? "", warehouseName: row.warehouseName ?? row.warehouse ?? "", taxType: row.taxType ?? m.taxType, currency: row.currency ?? m.currency, projectName: row.project ?? "", remarks: row.remarks ?? "" }));
+    setLines((row.lines ?? []).map((line: any) => ({ ...emptyLine(), checked: true, itemCode: line.itemCode ?? "", itemName: line.itemName ?? "", spec: line.spec ?? "", qty: String(line.qty ?? ""), unitPrice: String(line.unitPrice ?? ""), supply: String(line.supply ?? ""), vat: String(line.vat ?? ""), total: String(line.total ?? ""), extra: line.extra ?? "" })));
+  }
 
   return (
     <div
@@ -442,6 +442,7 @@ export function PurchaseForm({
           )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          {mode === "new" && <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setImportOpen(true)}>전표불러오기</Button>}
           {isModal && (
             <Button
               type="button"
@@ -510,7 +511,7 @@ export function PurchaseForm({
               name={master.managerName}
               onCodeChange={(v) => setMasterField("managerCode", v)}
               onNameChange={(v) => setMasterField("managerName", v)}
-              onSearch={() => stub("담당자 검색")}
+              onSearch={undefined}
               namePlaceholder="담당자명"
             />
 
@@ -558,26 +559,9 @@ export function PurchaseForm({
               name={master.projectName}
               onCodeChange={(v) => setMasterField("projectCode", v)}
               onNameChange={(v) => setMasterField("projectName", v)}
-              onSearch={() => stub("프로젝트 검색")}
+              onSearch={undefined}
               namePlaceholder="프로젝트명"
             />
-
-            <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
-              <span className={labelCls}>첨부</span>
-              <button
-                type="button"
-                className="flex min-h-7 flex-1 items-center gap-2 bg-white px-3 text-left hover:bg-indigo-50/50"
-                onClick={() => stub("첨부")}
-              >
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded border border-dashed border-slate-300 text-slate-400">
-                  <Plus className="h-3 w-3" />
-                </span>
-                <Paperclip className="h-3.5 w-3.5 text-slate-400" />
-                <span className="text-[11px] text-slate-400">
-                  파일을 첨부하려면 클릭하세요
-                </span>
-              </button>
-            </div>
 
             <div className="flex items-stretch overflow-hidden rounded border border-slate-200 md:col-span-2">
               <span className={labelCls}>비고</span>
@@ -592,27 +576,7 @@ export function PurchaseForm({
           </div>
         </div>
 
-        {/* Line toolbar */}
         <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-slate-200 bg-white px-2 py-1.5">
-          {LINE_TOOLBAR.map((t) => (
-            <Button
-              key={t.label}
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-7 gap-1 border-slate-200 px-2 text-[11px] text-slate-600"
-              onClick={() => {
-                if (t.label === "찾기") {
-                  openItemSearch();
-                  return;
-                }
-                void stub(t.label);
-              }}
-            >
-              {t.icon}
-              {t.label}
-            </Button>
-          ))}
           <div className="ml-auto flex gap-1">
             <Button
               type="button"
@@ -753,28 +717,6 @@ export function PurchaseForm({
         {/* Footer — Ecount 구매입력 */}
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 px-3 py-2.5">
           <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-8 w-8 p-0 text-slate-500"
-              onClick={() => stub("보내기")}
-              aria-label="보내기"
-              title="보내기"
-            >
-              <Send className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-8 w-8 p-0 text-slate-500"
-              onClick={() => stub("알림")}
-              aria-label="알림"
-              title="알림"
-            >
-              <Bell className="h-3.5 w-3.5" />
-            </Button>
             <p className="ml-1 text-[11px] text-muted-foreground">
               {mode === "edit" ? `수정 모드 · ${editId}` : "신규 입력"}
             </p>
@@ -785,7 +727,8 @@ export function PurchaseForm({
                 type="button"
                 size="sm"
                 className="h-8 min-w-[72px] rounded-r-none"
-                onClick={() => handleSave(false)}
+                onClick={() => handleSave()}
+                disabled={saving}
               >
                 저장
               </Button>
@@ -794,6 +737,7 @@ export function PurchaseForm({
                 size="sm"
                 className="h-8 rounded-l-none border-l border-indigo-400/40 px-1.5"
                 onClick={() => setSaveMenuOpen((o) => !o)}
+                disabled={saving}
                 aria-expanded={saveMenuOpen}
                 aria-haspopup="menu"
                 aria-label="저장 옵션"
@@ -809,37 +753,17 @@ export function PurchaseForm({
                     type="button"
                     role="menuitem"
                     className="block w-full px-3 py-1.5 text-left text-[11px] text-slate-700 hover:bg-indigo-50"
+                    disabled={saving}
                     onClick={() => {
                       setSaveMenuOpen(false);
-                      handleSave(false);
+                      handleSave();
                     }}
                   >
                     저장
                   </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-[11px] text-slate-700 hover:bg-indigo-50"
-                    onClick={() => {
-                      setSaveMenuOpen(false);
-                      stub("저장 후 인쇄");
-                    }}
-                  >
-                    <Printer className="h-3 w-3" />
-                    저장 후 인쇄
-                  </button>
                 </div>
               )}
             </div>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              className="h-8"
-              onClick={() => handleSave(true)}
-            >
-              저장/전표
-            </Button>
             <Button type="button" size="sm" variant="outline" className="h-8" onClick={resetForm}>
               다시 작성
             </Button>
@@ -891,6 +815,19 @@ export function PurchaseForm({
             vendorName: vendor.name,
           }));
         }}
+      />
+
+      <SlipImportDialog<any>
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        load={async () => {
+          const [requests, purchases] = await Promise.all([fetchPurchaseRequests(), fetchPurchases()]);
+          return [
+            ...requests.filter((row) => ["confirmed", "in_progress"].includes(row.status)).map((row) => ({ id: row.id, sourceType: "발주요청", date: row.requestDate, slipNo: row.slipNo, vendorName: row.vendorName ?? row.vendor, item: row.item, lines: row.lines, value: row })),
+            ...purchases.filter((row) => row.status === "confirmed").map((row) => ({ id: row.id, sourceType: "구매", date: row.purchaseDate, slipNo: row.slipNo, vendorName: row.vendor, item: row.item, lines: row.lines, value: row })),
+          ];
+        }}
+        onSelect={(source) => void importPurchase(source)}
       />
 
       <Label className="sr-only">구매입력 양식</Label>

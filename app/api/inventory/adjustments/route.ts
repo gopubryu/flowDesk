@@ -3,15 +3,16 @@ import { prisma } from "@/lib/prisma";
 import { ensureDemoWorkspace } from "@/lib/demo";
 import {
   DEMO_WORKSPACE_ID,
-  allocateSlipNo,
+  allocateSlipNoTx,
   applyBalanceDelta,
   assertMasterItemCode,
   getBalanceQty,
   listSlipsByType,
-  num,
   parseDateOnly,
   serializeMovement,
+  serializableInventoryTransaction,
 } from "@/lib/inventory-server";
+import { adjustmentDelta, validDateOnly } from "@/lib/erp-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -48,18 +49,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "조정 사유는 필수예요." }, { status: 400 });
     }
     const dateStr = String(body.date ?? "").trim();
-    const date = parseDateOnly(dateStr) ?? new Date();
+    if (!validDateOnly(dateStr)) return NextResponse.json({ error: "Invalid adjustment date." }, { status: 400 });
+    const date = parseDateOnly(dateStr)!;
     const dateKey =
       dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
         ? dateStr
         : date.toISOString().slice(0, 10);
 
-    const bookQty =
-      body.bookQty !== undefined && body.bookQty !== null
-        ? num(body.bookQty)
-        : await getBalanceQty(warehouseCode, itemCode);
-    const actualQty = num(body.actualQty);
-    const delta = actualQty - bookQty;
+    const serverBookQty = await getBalanceQty(warehouseCode, itemCode);
+    const clientBookQty = body.bookQty !== undefined && body.bookQty !== null ? Number(body.bookQty) : undefined;
+    const rawActualQty = Number(body.actualQty);
+    const adjustment = adjustmentDelta(serverBookQty, rawActualQty, clientBookQty);
+    if (adjustment.error) return NextResponse.json({ error: adjustment.error }, { status: adjustment.conflict ? 409 : 400 });
+    const delta = adjustment.delta!;
     if (Math.abs(delta) < 1e-9) {
       return NextResponse.json(
         { error: "장부수량과 실사수량이 같아 조정이 필요 없어요." },
@@ -67,14 +69,19 @@ export async function POST(req: Request) {
       );
     }
 
-    const slipNo = await allocateSlipNo("adjustment", dateKey);
+
     const warehouseName = body.warehouseName
       ? String(body.warehouseName).trim()
       : null;
     const itemName = body.itemName ? String(body.itemName).trim() : null;
     const manager = body.manager ? String(body.manager).trim() : null;
 
-    const movement = await prisma.$transaction(async (tx) => {
+    const movement = await serializableInventoryTransaction(async (tx) => {
+      const slipNo = await allocateSlipNoTx(tx, "adjustment", dateKey);
+      const current = await tx.stockBalance.findUnique({ where: { workspaceId_warehouseCode_itemCode: { workspaceId: DEMO_WORKSPACE_ID, warehouseCode, itemCode } } });
+      const currentAdjustment = adjustmentDelta(current?.qty ?? 0, rawActualQty, clientBookQty);
+      if (currentAdjustment.error) throw Object.assign(new Error(currentAdjustment.error), { conflict: currentAdjustment.conflict });
+      const transactionDelta = currentAdjustment.delta!;
       const m = await tx.stockMovement.create({
         data: {
           workspaceId: DEMO_WORKSPACE_ID,
@@ -85,7 +92,7 @@ export async function POST(req: Request) {
           warehouseName,
           itemCode,
           itemName,
-          qty: delta,
+          qty: transactionDelta,
           memo: reason,
           manager,
         },
@@ -95,17 +102,19 @@ export async function POST(req: Request) {
         warehouseName,
         itemCode,
         itemName,
-        delta,
+        delta: transactionDelta,
       });
-      return m;
+      return { movement: m, slipNo };
     });
 
     return NextResponse.json(
-      { slipNo, movement: serializeMovement(movement) },
+      { slipNo: movement.slipNo, movement: serializeMovement(movement.movement) },
       { status: 201 }
     );
   } catch (e) {
     console.error("POST /api/inventory/adjustments", e);
+    const error = e as Error & { conflict?: boolean };
+    if (error.conflict) return NextResponse.json({ error: error.message }, { status: 409 });
     return NextResponse.json({ error: "조정 저장에 실패했어요." }, { status: 500 });
   }
 }

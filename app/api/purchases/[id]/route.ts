@@ -7,6 +7,8 @@ import {
   parseDateOnly,
   serializePurchase,
 } from "@/lib/demo";
+import { canDeletePurchase, canTransitionPurchase, validatePurchaseInput } from "@/lib/erp-rules";
+import { serializableInventoryTransaction } from "@/lib/inventory-server";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +83,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     const { id } = await ctx.params;
     const existing = await prisma.purchase.findFirst({
       where: { id, workspaceId: DEMO_WORKSPACE_ID },
+      include: { lines: { orderBy: { sortOrder: "asc" } } },
     });
     if (!existing) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -136,9 +139,16 @@ export async function PATCH(req: Request, ctx: Ctx) {
       data.currency = body.currency ? String(body.currency) : null;
     if (body.project !== undefined)
       data.project = body.project ? String(body.project) : null;
-    if (body.status !== undefined) data.status = body.status as PurchaseStatus;
+    if (body.status !== undefined) {
+      const next = body.status as PurchaseStatus;
+      if (!canTransitionPurchase(existing.status, next)) {
+        return NextResponse.json({ error: `Illegal purchase status transition: ${existing.status} to ${next}.` }, { status: 409 });
+      }
+      data.status = next;
+    }
+    // Receipt writes are the sole authority for inbound status.
     if (body.inboundStatus !== undefined)
-      data.inboundStatus = body.inboundStatus as InboundStatus;
+      return NextResponse.json({ error: "Inbound status is updated by receipt posting only." }, { status: 409 });
     if (body.item !== undefined) data.item = String(body.item);
     if (body.itemCode !== undefined)
       data.itemCode = body.itemCode ? String(body.itemCode) : null;
@@ -172,7 +182,15 @@ export async function PATCH(req: Request, ctx: Ctx) {
         data.itemCode = lineRows[0].itemCode;
     }
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const validation = validatePurchaseInput(String(data.vendorName ?? existing.vendorName), lineRows ?? existing.lines);
+    if (validation) return NextResponse.json({ error: validation }, { status: 400 });
+
+    const updated = await serializableInventoryTransaction(async (tx) => {
+      const receiptCount = await tx.stockMovement.count({ where: { workspaceId: DEMO_WORKSPACE_ID, relatedType: "purchase", relatedId: id, type: "receipt" } });
+      const receiptSensitive = ["vendorCode", "vendorName", "vendor", "lines", "item", "itemCode", "quantity", "amount"].some((key) => body[key] !== undefined);
+      if (receiptCount > 0 && receiptSensitive) throw new Error("Purchases with receipt movements cannot change vendor, lines, quantities, or amounts.");
+      const current = await tx.purchase.findUniqueOrThrow({ where: { id } });
+      if (body.status !== undefined && !canTransitionPurchase(current.status, body.status as PurchaseStatus)) throw new Error("Purchase status changed; refresh and try again.");
       if (lineRows) {
         await tx.purchaseLine.deleteMany({ where: { purchaseId: id } });
         if (lineRows.length) {
@@ -199,17 +217,22 @@ export async function PATCH(req: Request, ctx: Ctx) {
 export async function DELETE(_req: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
-    const result = await prisma.purchase.deleteMany({
-      where: { id, workspaceId: DEMO_WORKSPACE_ID },
+    await serializableInventoryTransaction(async (tx) => {
+      const current = await tx.purchase.findFirst({ where: { id, workspaceId: DEMO_WORKSPACE_ID } });
+      if (!current) throw new Error("Not found");
+      const movements = await tx.stockMovement.count({ where: { workspaceId: DEMO_WORKSPACE_ID, relatedType: "purchase", relatedId: id, type: "receipt" } });
+      if (!canDeletePurchase(current.status, current.inboundStatus) || movements > 0) throw new Error("Received purchases cannot be deleted.");
+      const result = await tx.purchase.deleteMany({ where: { id, workspaceId: DEMO_WORKSPACE_ID } });
+      if (result.count === 0) throw new Error("Not found");
     });
-    if (result.count === 0) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("DELETE /api/purchases/[id]", e);
+    const message = e instanceof Error ? e.message : "Failed to delete purchase";
+    if (message === "Not found") return NextResponse.json({ error: message }, { status: 404 });
+    if (message === "Received purchases cannot be deleted.") return NextResponse.json({ error: message }, { status: 409 });
     return NextResponse.json(
-      { error: "Failed to delete purchase" },
+      { error: message },
       { status: 500 }
     );
   }

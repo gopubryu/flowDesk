@@ -4,11 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   FilePlus2,
-  FileStack,
   Trash2,
-  FileSpreadsheet,
-  SlidersHorizontal,
-  CheckCircle2,
   Search,
 } from "lucide-react";
 import {
@@ -168,6 +164,7 @@ export default function SalesPlansPage() {
   }
 
   function runSearch() {
+    setSelected(new Set());
     setApplied({ query, dateFrom, dateTo });
   }
 
@@ -194,10 +191,6 @@ export default function SalesPlansPage() {
       const msg = e instanceof Error ? e.message : "삭제에 실패했습니다.";
       await appAlert({ title: "알림", description: msg });
     }
-  }
-
-  async function stub(action: string) {
-    await appAlert({ title: "알림", description: `${action} (데모)` });
   }
 
   return (
@@ -260,7 +253,10 @@ export default function SalesPlansPage() {
             <button
               key={t.key}
               type="button"
-              onClick={() => setTab(t.key)}
+              onClick={() => {
+                setTab(t.key);
+                setSelected(new Set());
+              }}
               className={cn(
                 "relative -mb-px rounded-t-md px-3 py-2 text-xs font-medium transition-colors",
                 active
@@ -436,50 +432,10 @@ export default function SalesPlansPage() {
                 size="sm"
                 variant="outline"
                 className="h-8 gap-1.5"
-                onClick={() => stub("수량조정")}
-              >
-                <SlidersHorizontal className="h-3.5 w-3.5" />
-                수량조정
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1.5"
-                onClick={() => stub("다른전표생성")}
-              >
-                <FileStack className="h-3.5 w-3.5" />
-                다른전표생성
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1.5"
-                onClick={() => stub("종결")}
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                종결
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1.5"
                 onClick={() => void handleDeleteSelected()}
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 선택삭제
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1.5"
-                onClick={() => stub("Excel")}
-              >
-                <FileSpreadsheet className="h-3.5 w-3.5" />
-                Excel
               </Button>
             </div>
           </div>

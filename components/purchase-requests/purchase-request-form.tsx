@@ -1,27 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Paperclip,
   Plus,
   Search,
-  ArrowUpDown,
-  FileInput,
-  Warehouse,
   X,
-  Send,
-  Bell,
   ChevronDown,
-  Printer,
 } from "lucide-react";
 import {
   CURRENCY_OPTIONS, formatCurrencyLabel,
   TAX_TYPE_OPTIONS,
   fetchPurchaseRequest,
+  fetchPurchaseRequests,
   savePurchaseRequestApi,
   type PurchaseRequestAttachment,
+  type PurchaseRequestStatus,
 } from "@/lib/purchase-requests";
+import { SlipImportDialog } from "@/components/slips/slip-import-dialog";
+import { hasNonEmptyBusinessFormData } from "@/lib/slip-import";
 import { cn } from "@/lib/utils";
 import {
   formatNumberWithComma,
@@ -153,14 +151,6 @@ function recalcLine(row: LineRow, taxType: string): LineRow {
   };
 }
 
-const LINE_TOOLBAR: { label: string; icon?: ReactNode }[] = [
-  { label: "찾기", icon: <Search className="h-3 w-3" /> },
-  { label: "정렬", icon: <ArrowUpDown className="h-3 w-3" /> },
-  { label: "주문" },
-  { label: "전표불러오기", icon: <FileInput className="h-3 w-3" /> },
-  { label: "재고불러오기", icon: <Warehouse className="h-3 w-3" /> },
-];
-
 const fieldCls =
   "h-7 rounded border border-slate-200 bg-white px-2 text-xs focus-visible:ring-1 focus-visible:ring-indigo-500";
 const labelCls =
@@ -257,7 +247,7 @@ export function PurchaseRequestForm({
   onSaved,
 }: Props) {
   const router = useRouter();
-  const { alert: appAlert, dialog: appDialog } = useAppDialog();
+  const { alert: appAlert, confirm, dialog: appDialog } = useAppDialog();
   const isModal = variant === "modal";
   const [master, setMaster] = useState<Master>(() => defaultMaster());
   const [lines, setLines] = useState<LineRow[]>(() =>
@@ -272,6 +262,8 @@ export function PurchaseRequestForm({
   const [itemSearchLineId, setItemSearchLineId] = useState<string | null>(null);
   const [vendorSearchOpen, setVendorSearchOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [persistedStatus, setPersistedStatus] = useState<PurchaseRequestStatus>("unconfirmed");
   const saveMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -281,6 +273,7 @@ export function PurchaseRequestForm({
       try {
         const row = await fetchPurchaseRequest(editId);
         if (cancelled) return;
+        setPersistedStatus(row.status);
         setMaster({
           requestDate: row.requestDate,
           slipNo: row.slipNo ?? "",
@@ -376,19 +369,11 @@ export function PurchaseRequestForm({
         e.preventDefault();
         void handleSave();
       }
-      if (e.key === "F3") {
-        e.preventDefault();
-        void stub("찾기");
-      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [master, lines, attachments, mode, editId, isModal]);
-
-  async function stub(action: string) {
-    await appAlert({ title: "알림", description: `${action} (데모)` });
-  }
 
   function setMasterField<K extends keyof Master>(key: K, value: Master[K]) {
     setMaster((m) => {
@@ -512,7 +497,7 @@ export function PurchaseRequestForm({
       dueDate: master.dueDate || master.requestDate,
       quantity,
       amount,
-      status: "unconfirmed",
+      status: mode === "edit" ? persistedStatus : "unconfirmed",
       manager: master.managerName || master.managerCode || undefined,
       managerName: master.managerName.trim() || undefined,
       managerCode: master.managerCode.trim() || undefined,
@@ -582,6 +567,16 @@ export function PurchaseRequestForm({
 
   const title = mode === "edit" ? "발주요청입력 (수정)" : "발주요청입력";
 
+  async function importRequest(row: Awaited<ReturnType<typeof fetchPurchaseRequests>>[number]) {
+    const defaults = defaultMaster();
+    const header = { ...master, requestDate: "", slipNo: "", taxType: master.taxType === defaults.taxType ? "" : master.taxType, currency: master.currency === defaults.currency ? "" : master.currency, dueDate: master.dueDate === defaults.dueDate ? "" : master.dueDate };
+    if (hasNonEmptyBusinessFormData(header, lines)) {
+      if (!(await confirm({ title: "전표불러오기", description: "현재 입력한 내용을 불러온 전표로 바꿀까요?" }))) return;
+    }
+    setMaster((m) => ({ ...m, slipNo: "", vendorCode: row.vendorCode ?? "", vendorName: row.vendorName ?? row.vendor ?? "", managerCode: row.managerCode ?? "", managerName: row.managerName ?? row.manager ?? "", warehouseCode: row.warehouseCode ?? "", warehouseName: row.warehouseName ?? row.warehouse ?? "", taxType: row.taxType ?? m.taxType, currency: row.currency ?? m.currency, dueDate: row.dueDate ?? m.dueDate }));
+    setLines((row.lines ?? []).map((line) => ({ ...emptyLine(), checked: true, itemCode: line.itemCode ?? "", itemName: line.itemName ?? "", spec: line.spec ?? "", qty: String(line.qty ?? ""), unitPrice: String(line.unitPrice ?? ""), supply: String(line.supply ?? ""), vat: String(line.vat ?? ""), total: String(line.total ?? ""), extra: line.extra ?? "" })));
+  }
+
   return (
     <div
       className={cn(
@@ -599,6 +594,7 @@ export function PurchaseRequestForm({
           )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          {mode === "new" && <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setImportOpen(true)}>전표불러오기</Button>}
           {isModal && (
             <Button
               type="button"
@@ -759,37 +755,10 @@ export function PurchaseRequestForm({
               </div>
             </div>
 
-            {/* Master placeholder: 비고 */}
-            <div className="flex items-stretch overflow-hidden rounded border border-dashed border-slate-200 md:col-span-2">
-              <span className={cn(labelCls, "bg-slate-50 text-slate-400")}>비고</span>
-              <Input
-                className={cn(
-                  fieldCls,
-                  "rounded-none border-0 bg-slate-50/80 text-slate-400 placeholder:text-slate-400"
-                )}
-                disabled
-                placeholder="다양한 항목을 추가하여 활용할 수 있습니다."
-                aria-label="비고"
-              />
-            </div>
           </div>
         </div>
 
-        {/* Line toolbar */}
         <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-slate-200 bg-white px-2 py-1.5">
-          {LINE_TOOLBAR.map((t) => (
-            <Button
-              key={t.label}
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-7 gap-1 border-slate-200 px-2 text-[11px] text-slate-600"
-              onClick={() => stub(t.label)}
-            >
-              {t.icon}
-              {t.label}
-            </Button>
-          ))}
           <div className="ml-auto flex gap-1">
             <Button
               type="button"
@@ -959,28 +928,6 @@ export function PurchaseRequestForm({
         {/* Footer actions */}
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 px-3 py-2.5">
           <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-8 w-8 p-0 text-slate-500"
-              onClick={() => stub("보내기")}
-              aria-label="보내기"
-              title="보내기"
-            >
-              <Send className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-8 w-8 p-0 text-slate-500"
-              onClick={() => stub("알림")}
-              aria-label="알림"
-              title="알림"
-            >
-              <Bell className="h-3.5 w-3.5" />
-            </Button>
             <p className="ml-1 text-[11px] text-muted-foreground">
               {mode === "edit" ? `수정 모드 · ${editId}` : "신규 입력"}
             </p>
@@ -1022,18 +969,6 @@ export function PurchaseRequestForm({
                     }}
                   >
                     저장
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-[11px] text-slate-700 hover:bg-indigo-50"
-                    onClick={() => {
-                      setSaveMenuOpen(false);
-                      stub("저장 후 인쇄");
-                    }}
-                  >
-                    <Printer className="h-3 w-3" />
-                    저장 후 인쇄
                   </button>
                 </div>
               )}
@@ -1105,6 +1040,8 @@ export function PurchaseRequestForm({
           }));
         }}
       />
+
+      <SlipImportDialog open={importOpen} onOpenChange={setImportOpen} load={async () => (await fetchPurchaseRequests()).map((row) => ({ id: row.id, date: row.requestDate, slipNo: row.slipNo, vendorName: row.vendorName ?? row.vendor, item: row.item, lines: row.lines, value: row }))} onSelect={(source) => void importRequest(source.value)} />
 
       <Label className="sr-only">발주요청입력 양식</Label>
       {appDialog}

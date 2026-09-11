@@ -9,6 +9,7 @@ import {
   parseDateOnly,
   serializePurchase,
 } from "@/lib/demo";
+import { validatePurchaseInput } from "@/lib/erp-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +81,8 @@ export async function POST(req: Request) {
     await ensureDemoWorkspace();
     const body = await req.json();
     const lineRows = mapLines(body.lines as LineInput[] | undefined);
+    const validation = validatePurchaseInput(String(body.vendorName ?? body.vendor ?? "").trim(), lineRows);
+    if (validation) return NextResponse.json({ error: validation }, { status: 400 });
 
     const vendorName =
       String(body.vendorName ?? body.vendor ?? "").trim() || "(미지정)";

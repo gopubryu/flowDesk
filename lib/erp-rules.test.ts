@@ -1,0 +1,46 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { adjustmentDelta, aggregateQtyByItem, canDeletePurchase, canTransitionPurchase, canTransitionPurchaseRequest, groupRelatedLines, validDateOnly, validatePurchaseInput } from "./erp-rules";
+
+test("adjustment uses server balance and treats book quantity as OCC only", () => {
+  assert.deepEqual(adjustmentDelta(10, 7, 10), { delta: -3 });
+  assert.equal(adjustmentDelta(11, 7, 10).conflict, true);
+  assert.ok(adjustmentDelta(10, -1).error);
+});
+test("date validation and duplicate item aggregation are strict", () => {
+  assert.equal(validDateOnly("2026-02-29"), false);
+  assert.equal(validDateOnly("2028-02-29"), true);
+  assert.equal(aggregateQtyByItem([{ itemCode: "A", qty: 2 }, { itemCode: "A", qty: 3 }]).get("A"), 5);
+});
+test("purchase request lifecycle does not allow reversal from completed", () => {
+  assert.equal(canTransitionPurchaseRequest("unconfirmed", "confirmed"), true);
+  assert.equal(canTransitionPurchaseRequest("completed", "confirmed"), false);
+});
+test("purchase validation rejects missing vendor, invalid items, quantities, and money", () => {
+  const line = { itemCode: "I1", itemName: "Item", qty: 1, unitPrice: 0, supply: 0, vat: 0, total: 0 };
+  assert.equal(validatePurchaseInput("Vendor", [line]), null);
+  assert.ok(validatePurchaseInput("", [line]));
+  assert.ok(validatePurchaseInput("Vendor", [{ ...line, qty: 0 }]));
+  assert.ok(validatePurchaseInput("Vendor", [{ ...line, total: Number.NaN }]));
+});
+
+test("purchase bulk operations allow only legal lifecycle changes and unreceived deletes", () => {
+  assert.equal(canTransitionPurchase("approval", "unconfirmed"), true);
+  assert.equal(canTransitionPurchase("confirmed", "approval"), false);
+  assert.equal(canTransitionPurchase("confirmed", "confirmed"), true);
+  assert.equal(canDeletePurchase("approval", "none"), true);
+  assert.equal(canDeletePurchase("confirmed", "none"), true);
+  assert.equal(canDeletePurchase("confirmed", "partial"), false);
+  assert.equal(canDeletePurchase("approval", "partial"), false);
+  assert.equal(canDeletePurchase("unconfirmed", "complete"), false);
+});
+
+test("related line groups retain each line's related id and aggregate duplicate item quantities", () => {
+  const groups = groupRelatedLines([
+    { relatedType: "purchase", relatedId: "p1", itemCode: "A", qty: 2 },
+    { relatedType: "purchase", relatedId: "p1", itemCode: "A", qty: 3 },
+    { relatedType: "purchase", relatedId: "p2", itemCode: "A", qty: 1 },
+  ]);
+  assert.equal(groups.get("purchase:p1")?.get("A"), 5);
+  assert.equal(groups.get("purchase:p2")?.get("A"), 1);
+});
