@@ -59,6 +59,37 @@ type Master = {
   remarks: string;
 };
 
+type PurchaseImportLine = {
+  itemCode?: string;
+  itemName?: string;
+  spec?: string;
+  qty?: number;
+  unitPrice?: number;
+  supply?: number;
+  vat?: number;
+  total?: number;
+  extra?: string;
+};
+
+type PurchaseImportRecord = {
+  id: string;
+  slipNo?: string;
+  vendor?: string;
+  vendorCode?: string;
+  vendorName?: string;
+  manager?: string;
+  managerCode?: string;
+  managerName?: string;
+  warehouse?: string;
+  warehouseCode?: string;
+  warehouseName?: string;
+  taxType?: string;
+  currency?: string;
+  project?: string;
+  remarks?: string;
+  lines?: PurchaseImportLine[];
+};
+
 const INITIAL_LINE_COUNT = 3;
 
 function todayISO() {
@@ -413,7 +444,10 @@ export function PurchaseForm({
 
   const title = mode === "edit" ? "구매입력 (수정)" : "구매입력";
 
-  async function importPurchase(source: { sourceType?: string; value: any }) {
+  async function importPurchase(source: {
+    sourceType?: string;
+    value: PurchaseImportRecord;
+  }) {
     const row = source.value;
     const defaults = defaultMaster();
     const header = { ...master, purchaseDate: "", slipNo: "", taxType: master.taxType === defaults.taxType ? "" : master.taxType, currency: master.currency === defaults.currency ? "" : master.currency };
@@ -422,7 +456,7 @@ export function PurchaseForm({
     }
     setImportedSlip(`${source.sourceType ?? "구매"}: ${row.slipNo ?? row.id}`);
     setMaster((m) => ({ ...m, orderNo: "", slipNo: "", vendorCode: row.vendorCode ?? "", vendorName: row.vendorName ?? row.vendor ?? "", managerName: row.managerName ?? row.manager ?? "", managerCode: row.managerCode ?? "", warehouseCode: row.warehouseCode ?? "", warehouseName: row.warehouseName ?? row.warehouse ?? "", taxType: row.taxType ?? m.taxType, currency: row.currency ?? m.currency, projectName: row.project ?? "", remarks: row.remarks ?? "" }));
-    setLines((row.lines ?? []).map((line: any) => ({ ...emptyLine(), checked: true, itemCode: line.itemCode ?? "", itemName: line.itemName ?? "", spec: line.spec ?? "", qty: String(line.qty ?? ""), unitPrice: String(line.unitPrice ?? ""), supply: String(line.supply ?? ""), vat: String(line.vat ?? ""), total: String(line.total ?? ""), extra: line.extra ?? "" })));
+    setLines((row.lines ?? []).map((line) => ({ ...emptyLine(), checked: true, itemCode: line.itemCode ?? "", itemName: line.itemName ?? "", spec: line.spec ?? "", qty: String(line.qty ?? ""), unitPrice: String(line.unitPrice ?? ""), supply: String(line.supply ?? ""), vat: String(line.vat ?? ""), total: String(line.total ?? ""), extra: line.extra ?? "" })));
   }
 
   return (
@@ -817,7 +851,7 @@ export function PurchaseForm({
         }}
       />
 
-      <SlipImportDialog<any>
+      <SlipImportDialog<PurchaseImportRecord>
         open={importOpen}
         onOpenChange={setImportOpen}
         load={async () => {
