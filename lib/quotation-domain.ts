@@ -29,6 +29,8 @@ export type NormalizedQuotationInput = {
   vendorName: string;
   managerCode: string | null;
   managerName: string | null;
+  warehouseCode: string | null;
+  warehouseName: string | null;
   validUntil: string | null;
   status: QuotationStatus;
   taxType: string | null;
@@ -101,6 +103,8 @@ export function normalizeQuotationInput(body: unknown): NormalizedQuotationInput
     vendorName,
     managerCode: code(row.managerCode),
     managerName: optional(row.managerName),
+    warehouseCode: code(row.warehouseCode),
+    warehouseName: optional(row.warehouseName),
     validUntil: date(row.validUntil, "validUntil"),
     status,
     taxType: optional(row.taxType),

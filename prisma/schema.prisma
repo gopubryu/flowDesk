@@ -418,6 +418,8 @@ model Quotation {
   vendorName           String
   managerCode          String?
   managerName          String?
+  warehouseCode        String?
+  warehouseName        String?
   validUntil           DateTime?
   status               QuotationStatus @default(draft)
   taxType              String?

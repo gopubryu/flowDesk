@@ -7,7 +7,7 @@ import { normalizeQuotationInput, QuotationValidationError } from "@/lib/quotati
 export type QuotationLineRow = { id: string; itemCode: string | null; itemName: string; spec: string | null; unit: string | null; qty: number; unitPrice: number; supply: number; vat: number; total: number; extra: string | null; sortOrder: number };
 export type QuotationRow = {
   id: string; quoteDate: Date; slipNo: string; vendorCode: string | null; vendorName: string;
-  managerCode: string | null; managerName: string | null; validUntil: Date | null; status: QuotationStatus;
+  managerCode: string | null; managerName: string | null; warehouseCode: string | null; warehouseName: string | null; validUntil: Date | null; status: QuotationStatus;
   taxType: string | null; currency: string | null; project: string | null; remarks: string | null;
   item: string; itemCode: string | null; quantity: number; amount: number; vat: number; total: number;
   convertedSalesPlanId: string | null; convertedAt: Date | null; createdAt: Date; updatedAt: Date;
@@ -20,6 +20,7 @@ export function serialize(row: QuotationRow, includeLines = true) {
     id: row.id, quoteDate: toDateString(row.quoteDate)!, slipNo: row.slipNo,
     vendorCode: row.vendorCode ?? undefined, vendorName: row.vendorName,
     managerCode: row.managerCode ?? undefined, managerName: row.managerName ?? undefined,
+    warehouseCode: row.warehouseCode ?? undefined, warehouseName: row.warehouseName ?? undefined,
     validUntil: toDateString(row.validUntil), status: row.status, taxType: row.taxType ?? undefined,
     currency: row.currency ?? undefined, project: row.project ?? undefined, remarks: row.remarks ?? undefined,
     item: row.item, itemCode: row.itemCode ?? undefined, quantity: row.quantity, amount: row.amount,
@@ -33,6 +34,7 @@ export function serialize(row: QuotationRow, includeLines = true) {
 export async function assertMasterReferences(input: ReturnType<typeof normalizeQuotationInput>) {
   if (input.vendorCode && !await prisma.vendor.findUnique({ where: { workspaceId_code: { workspaceId: DEMO_WORKSPACE_ID, code: input.vendorCode } } })) throw new QuotationValidationError("Unknown vendor code");
   if (input.managerCode && !await prisma.employee.findUnique({ where: { workspaceId_code: { workspaceId: DEMO_WORKSPACE_ID, code: input.managerCode } } })) throw new QuotationValidationError("Unknown manager code");
+  if (input.warehouseCode && !await prisma.warehouse.findUnique({ where: { workspaceId_code: { workspaceId: DEMO_WORKSPACE_ID, code: input.warehouseCode } } })) throw new QuotationValidationError("Unknown warehouse code");
   const codes = input.lines.flatMap((line) => line.itemCode ? [line.itemCode] : []);
   if (codes.length) {
     const found = await prisma.item.findMany({ where: { workspaceId: DEMO_WORKSPACE_ID, code: { in: codes } }, select: { code: true } });
