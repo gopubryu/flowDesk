@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { QuotationStatus } from "@prisma/client";
 import { DEMO_WORKSPACE_ID, parseDateOnly } from "@/lib/demo";
 import { assertQuotationMutable, canTransitionQuotation, calculateQuotationTotals, normalizeQuotationInput, QuotationValidationError } from "@/lib/quotation-domain";
 import { assertMasterReferences, expireStaleQuotations, failure, serialize } from "../route";
@@ -27,7 +28,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
     const body = await request.json() as Record<string, unknown>;
     const targetStatus = body.status === undefined ? existing.status : String(body.status);
     if (!["draft", "sent", "accepted", "rejected", "expired"].includes(targetStatus)) throw new QuotationValidationError("Invalid quotation status");
-    if (!canTransitionQuotation(existing.status, targetStatus as any, existing.validUntil)) throw new QuotationValidationError("Invalid quotation status transition");
+    if (!canTransitionQuotation(existing.status, targetStatus as QuotationStatus, existing.validUntil)) throw new QuotationValidationError("Invalid quotation status transition");
     const linesChanged = body.lines !== undefined;
     const amountChanged = ["amount", "vat", "total", "quantity", "unitPrice"].some((key) => body[key] !== undefined);
     const slipNoChanged = body.slipNo !== undefined && String(body.slipNo).trim() !== existing.slipNo;

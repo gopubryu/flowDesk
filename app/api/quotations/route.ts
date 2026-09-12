@@ -1,12 +1,22 @@
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
+import { Prisma, QuotationStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { DEMO_WORKSPACE_ID, ensureDemoWorkspace, parseDateOnly, toDateString } from "@/lib/demo";
 import { calculateQuotationTotals, nextQuotationSlipNo, normalizeQuotationInput, QuotationValidationError } from "@/lib/quotation-domain";
 
 export const dynamic = "force-dynamic";
 
-function serialize(row: any, includeLines = true) {
+type QuotationLineRow = { id: string; itemCode: string | null; itemName: string; spec: string | null; unit: string | null; qty: number; unitPrice: number; supply: number; vat: number; total: number; extra: string | null; sortOrder: number };
+type QuotationRow = {
+  id: string; quoteDate: Date; slipNo: string; vendorCode: string | null; vendorName: string;
+  managerCode: string | null; managerName: string | null; validUntil: Date | null; status: QuotationStatus;
+  taxType: string | null; currency: string | null; project: string | null; remarks: string | null;
+  item: string; itemCode: string | null; quantity: number; amount: number; vat: number; total: number;
+  convertedSalesPlanId: string | null; convertedAt: Date | null; createdAt: Date; updatedAt: Date;
+  lines?: QuotationLineRow[];
+};
+
+function serialize(row: QuotationRow, includeLines = true) {
   return {
     id: row.id, quoteDate: toDateString(row.quoteDate)!, slipNo: row.slipNo,
     vendorCode: row.vendorCode ?? undefined, vendorName: row.vendorName,
@@ -16,7 +26,7 @@ function serialize(row: any, includeLines = true) {
     item: row.item, itemCode: row.itemCode ?? undefined, quantity: row.quantity, amount: row.amount,
     vat: row.vat, total: row.total, convertedSalesPlanId: row.convertedSalesPlanId ?? undefined,
     convertedAt: row.convertedAt?.toISOString(), createdAt: row.createdAt?.toISOString(), updatedAt: row.updatedAt?.toISOString(),
-    ...(includeLines ? { lines: (row.lines ?? []).map((line: any) => ({ id: line.id, itemCode: line.itemCode ?? undefined, itemName: line.itemName, spec: line.spec ?? undefined, unit: line.unit ?? undefined, qty: line.qty, unitPrice: line.unitPrice, supply: line.supply, vat: line.vat, total: line.total, extra: line.extra ?? undefined, sortOrder: line.sortOrder })) } : {}),
+    ...(includeLines ? { lines: (row.lines ?? []).map((line: QuotationLineRow) => ({ id: line.id, itemCode: line.itemCode ?? undefined, itemName: line.itemName, spec: line.spec ?? undefined, unit: line.unit ?? undefined, qty: line.qty, unitPrice: line.unitPrice, supply: line.supply, vat: line.vat, total: line.total, extra: line.extra ?? undefined, sortOrder: line.sortOrder })) } : {}),
   };
 }
 
@@ -48,7 +58,7 @@ export async function GET(request: Request) {
     const from = parseDateOnly(searchParams.get("from")); const to = parseDateOnly(searchParams.get("to"));
     const status = searchParams.get("status"); const query = searchParams.get("query")?.trim();
     const rows = await prisma.quotation.findMany({
-      where: { workspaceId: DEMO_WORKSPACE_ID, ...(from || to ? { quoteDate: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}), ...(status ? { status: status as any } : {}), ...(query ? { OR: [{ slipNo: { contains: query, mode: "insensitive" } }, { vendorName: { contains: query, mode: "insensitive" } }, { item: { contains: query, mode: "insensitive" } }] } : {}) },
+      where: { workspaceId: DEMO_WORKSPACE_ID, ...(from || to ? { quoteDate: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}), ...(status ? { status: status as QuotationStatus } : {}), ...(query ? { OR: [{ slipNo: { contains: query, mode: "insensitive" } }, { vendorName: { contains: query, mode: "insensitive" } }, { item: { contains: query, mode: "insensitive" } }] } : {}) },
       orderBy: [{ quoteDate: "desc" }, { createdAt: "desc" }],
     });
     return NextResponse.json(rows.map((row) => serialize(row, false)));
