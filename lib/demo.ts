@@ -388,6 +388,7 @@ export function serializeSalesPlan(r: {
   project: string | null;
   currency: string | null;
   dueDate: Date | null;
+  sourceQuotationId?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
   lines?: {
@@ -428,6 +429,7 @@ export function serializeSalesPlan(r: {
     project: r.project ?? undefined,
     currency: r.currency ?? undefined,
     dueDate: toDateString(r.dueDate),
+    sourceQuotationId: r.sourceQuotationId ?? undefined,
     createdAt: r.createdAt?.toISOString(),
     updatedAt: r.updatedAt?.toISOString(),
     lines: r.lines?.map((l) => ({
