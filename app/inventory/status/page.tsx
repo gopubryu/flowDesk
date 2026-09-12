@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 export default function InventoryStatusPage() {
   const { alert: appAlert, dialog: appDialog } = useAppDialog();
   const [data, setData] = useState<InventoryStatusSummary | null>(null);
+  const [items, setItems] = useState<Awaited<ReturnType<typeof loadItems>>>([]);
   const [pendingInbound, setPendingInbound] = useState<
     { id: string; vendor: string; item: string; remain: number; status: string }[]
   >([]);
@@ -22,7 +23,9 @@ export default function InventoryStatusPage() {
   async function load() {
     try {
       const st = await fetchInventoryStatus();
+      const masterItems = await loadItems();
       setData(st);
+      setItems(masterItems);
 
       const purchases = (await fetchPurchases()).filter((p) => p.status === "confirmed");
       const ids = purchases.map((p) => p.id);
@@ -58,7 +61,6 @@ export default function InventoryStatusPage() {
 
   const belowMin = useMemo(() => {
     if (!data) return [];
-    const items = loadItems();
     const minMap = new Map(
       items
         .filter((i) => typeof i.minStock === "number" && (i.minStock as number) > 0)
@@ -70,7 +72,7 @@ export default function InventoryStatusPage() {
         return { ...b, minStock };
       })
       .filter((b) => b.minStock > 0 && b.qty < b.minStock);
-  }, [data]);
+  }, [data, items]);
 
   return (
     <div className="flex h-full flex-col gap-3 p-4">

@@ -5,12 +5,18 @@ export const VENDOR_CODE_TYPE_OPTIONS = [
 ] as const;
 export type VendorCodeType = (typeof VENDOR_CODE_TYPE_OPTIONS)[number];
 
-export type Employee = { code: string; name: string; phone?: string; email?: string; memo?: string };
+export type Employee = { code: string; name: string; phone?: string; email?: string; memo?: string; departmentCode?: string; departmentName?: string };
 export type Warehouse = { code: string; name: string; memo?: string };
 export type Vendor = {
   code: string; name: string; codeType: VendorCodeType; bizRegNo?: string; ceo?: string;
   businessType?: string; businessItem?: string; phone?: string; fax?: string; mobile?: string;
   address?: string; homepage?: string; contactPerson?: string; email?: string;
+};
+
+export type Department = { code: string; name: string; memo?: string };
+export type Item = {
+  code: string; name: string; spec?: string; unit?: string; stockQty?: number; minStock?: number;
+  inboundPrice: number; inboundVatIncluded: boolean; outboundPrice: number; outboundVatIncluded: boolean;
 };
 
 export class MasterDataValidationError extends Error {}
@@ -26,9 +32,36 @@ function base(body: unknown) {
   const row = body as Record<string, unknown>;
   return { row, code: required(row.code, "code").toUpperCase(), name: required(row.name, "name") };
 }
+export function normalizeDepartment(body: unknown) {
+  const { row, code, name } = base(body);
+  return { code, name, memo: optional(row.memo) };
+}
+
+function nonNegativeNumber(value: unknown, label: string) {
+  if (value === null || value === undefined || value === "") return 0;
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) throw new MasterDataValidationError(`${label} must be a non-negative number`);
+  return number;
+}
+
+export function normalizeItem(body: unknown) {
+  const { row, code, name } = base(body);
+  return {
+    code,
+    name,
+    spec: optional(row.spec),
+    unit: optional(row.unit),
+    minStock: nonNegativeNumber(row.minStock, "minStock"),
+    inboundPrice: nonNegativeNumber(row.inboundPrice, "inboundPrice"),
+    inboundVatIncluded: Boolean(row.inboundVatIncluded),
+    outboundPrice: nonNegativeNumber(row.outboundPrice, "outboundPrice"),
+    outboundVatIncluded: Boolean(row.outboundVatIncluded),
+  };
+}
+
 export function normalizeEmployee(body: unknown) {
   const { row, code, name } = base(body);
-  return { code, name, phone: optional(row.phone), email: optional(row.email), memo: optional(row.memo) };
+  return { code, name, phone: optional(row.phone), email: optional(row.email), memo: optional(row.memo), departmentCode: optional(row.departmentCode)?.toUpperCase() ?? null };
 }
 export function normalizeWarehouse(body: unknown) {
   const { row, code, name } = base(body);
@@ -66,6 +99,16 @@ export const SEED_WAREHOUSES: Warehouse[] = [
   { code: "W003", name: "부산항창고", memo: "부산 남구" }, { code: "W004", name: "인천보세창고", memo: "인천 중구" },
   { code: "W005", name: "대구지점창고", memo: "대구 달서" }, { code: "W006", name: "원자재창고", memo: "생산용" },
 ];
+export const SEED_ITEMS: Item[] = [
+  { code: "I001", name: "스테인리스 볼트 M8", spec: "M8×20", unit: "EA", minStock: 0, inboundPrice: 0, inboundVatIncluded: false, outboundPrice: 0, outboundVatIncluded: false },
+  { code: "I002", name: "알루미늄 판재", spec: "2T×1000×2000", unit: "장", minStock: 0, inboundPrice: 0, inboundVatIncluded: false, outboundPrice: 0, outboundVatIncluded: false },
+  { code: "I003", name: "산업용 윤활유", spec: "20L", unit: "통", minStock: 0, inboundPrice: 0, inboundVatIncluded: false, outboundPrice: 0, outboundVatIncluded: false },
+  { code: "I004", name: "LED 패널 조명", spec: "60W", unit: "EA", minStock: 0, inboundPrice: 0, inboundVatIncluded: false, outboundPrice: 0, outboundVatIncluded: false },
+  { code: "I005", name: "포장용 골판지 상자", spec: "중형", unit: "EA", minStock: 0, inboundPrice: 0, inboundVatIncluded: false, outboundPrice: 0, outboundVatIncluded: false },
+  { code: "I006", name: "케이블 타이", spec: "200mm", unit: "봉", minStock: 0, inboundPrice: 0, inboundVatIncluded: false, outboundPrice: 0, outboundVatIncluded: false },
+  { code: "I007", name: "산업용 세척제 20L", spec: "20L", unit: "통", minStock: 0, inboundPrice: 0, inboundVatIncluded: false, outboundPrice: 0, outboundVatIncluded: false },
+];
+
 export const SEED_VENDORS: Vendor[] = [
   { code: "V001", name: "한빛상사", codeType: "비사업자(내국인)", ceo: "김한빛", businessType: "도매 및 소매업", businessItem: "산업자재", phone: "02-1234-5678", fax: "02-1234-5679", mobile: "010-1234-5678", address: "서울특별시 강남구 테헤란로 100", homepage: "https://hanbit.local", contactPerson: "윤수진", email: "contact@hanbit.local" },
   { code: "V002", name: "동양부품", codeType: "비사업자(내국인)", ceo: "박동양", businessType: "제조업", businessItem: "기계부품", phone: "031-234-5678", mobile: "010-2345-6789", address: "경기도 성남시 분당구 판교로 200", contactPerson: "강민호", email: "sales@dongyang.local" },

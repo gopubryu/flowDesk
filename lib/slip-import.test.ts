@@ -6,6 +6,7 @@ import {
   hasNonEmptyBusinessFormData,
   copySalesPlanToDraft,
   matchesSlipImport,
+  todayDateOnly,
 } from "./slip-import";
 
 const lines = [{ itemCode: "I-1", itemName: "Bolt", qty: 2, unitPrice: 100, supply: 200, vat: 20, total: 220, sortOrder: 0 }];
@@ -21,12 +22,12 @@ test("slip import matching searches date, slip, vendor, and item", () => {
 
 test("request and sales-plan imports retain today's date and draft status while copying header and lines", () => {
   const request = copyPurchaseRequestToDraft({ requestDate: "2026-01-01", slipNo: "RQ-1", vendorName: "Acme", status: "completed", warehouseCode: "W1", lines });
-  assert.equal(request.requestDate, "2026-09-11");
+  assert.equal(request.requestDate, todayDateOnly());
   assert.equal(request.status, "unconfirmed");
   assert.equal(request.slipNo, undefined);
   assert.deepEqual(request.lines, lines);
   const plan = copySalesPlanToDraft({ planDate: "2026-01-01", slipNo: "SP-1", vendorName: "Acme", status: "completed", outboundStatus: "complete", lines });
-  assert.equal(plan.planDate, "2026-09-11");
+  assert.equal(plan.planDate, todayDateOnly());
   assert.equal(plan.status, "confirmed");
   assert.equal(plan.outboundStatus, "none");
   assert.equal(plan.slipNo, undefined);
@@ -34,7 +35,7 @@ test("request and sales-plan imports retain today's date and draft status while 
 
 test("purchase import identifies the source and never carries lifecycle or receipt status", () => {
   const draft = copyPurchaseToDraft({ purchaseDate: "2026-01-01", slipNo: "PO-1", vendorName: "Acme", status: "confirmed", inboundStatus: "partial", lines }, "purchase");
-  assert.equal(draft.purchaseDate, "2026-09-11");
+  assert.equal(draft.purchaseDate, todayDateOnly());
   assert.equal(draft.status, "unconfirmed");
   assert.equal(draft.inboundStatus, "none");
   assert.equal(draft.importedSlip, "구매: PO-1");

@@ -6,6 +6,7 @@ import {
   upsertEmployee,
   type Employee,
 } from "@/lib/employees";
+import { loadDepartments, type Department } from "@/lib/departments";
 import { Button } from "@/components/ui/button";
 import { useAppDialog } from "@/components/ui/app-alert-dialog";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,7 @@ type FormState = {
   phone: string;
   email: string;
   memo: string;
+  departmentCode: string;
 };
 
 function emptyForm(code = ""): FormState {
@@ -39,15 +41,20 @@ function emptyForm(code = ""): FormState {
     phone: "",
     email: "",
     memo: "",
+    departmentCode: "",
   };
 }
 
 export function EmployeeRegisterDialog({ open, onOpenChange, onSaved }: Props) {
   const { alert: appAlert, dialog: appDialog } = useAppDialog();
   const [form, setForm] = useState<FormState>(() => emptyForm());
+  const [departments, setDepartments] = useState<Department[]>([]);
 
   useEffect(() => {
-    if (open) void nextEmployeeCode().then((code) => setForm(emptyForm(code))).catch(() => setForm(emptyForm()));
+    if (open) {
+      void nextEmployeeCode().then((code) => setForm(emptyForm(code))).catch(() => setForm(emptyForm()));
+      void loadDepartments().then(setDepartments).catch(() => setDepartments([]));
+    }
   }, [open]);
 
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -69,6 +76,7 @@ export function EmployeeRegisterDialog({ open, onOpenChange, onSaved }: Props) {
       phone: form.phone.trim() || undefined,
       email: form.email.trim() || undefined,
       memo: form.memo.trim() || undefined,
+      departmentCode: form.departmentCode || undefined,
     };
     try {
       const created = await upsertEmployee(saved);
@@ -119,6 +127,13 @@ export function EmployeeRegisterDialog({ open, onOpenChange, onSaved }: Props) {
               onChange={(e) => setField("name", e.target.value)}
               placeholder="이름"
             />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="emp-department" className="text-xs text-slate-600">부서</Label>
+            <select id="emp-department" className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" value={form.departmentCode} onChange={(e) => setField("departmentCode", e.target.value)}>
+              <option value="">미지정</option>
+              {departments.map((department) => <option key={department.code} value={department.code}>{department.code} · {department.name}</option>)}
+            </select>
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="emp-phone" className="text-xs text-slate-600">

@@ -183,7 +183,7 @@ function ShipmentNewPageInner() {
       await appAlert({ title: "알림", description: "출하창고를 선택해 주세요." });
       return;
     }
-    const items = loadItems();
+    const items = await loadItems();
     const lines = rows
       .map((r) => {
         const qty = Number(r.thisQty) || 0;

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Search } from "lucide-react";
-import { loadItems, searchItems, type Item } from "@/lib/items";
+import { loadItems, type Item } from "@/lib/items";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -25,19 +25,19 @@ export function ItemSearchDialog({ open, onOpenChange, onSelect }: Props) {
   const [query, setQuery] = useState("");
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
   const [registerOpen, setRegisterOpen] = useState(false);
-  const [tick, setTick] = useState(0);
+  const [rows, setRows] = useState<Item[]>([]);
 
   useEffect(() => {
     if (open) {
       setQuery("");
       setSelectedCode(null);
-      setTick((n) => n + 1);
-      // ensure seed persisted on first open
-      loadItems();
+      void loadItems().then(setRows).catch(() => setRows([]));
     }
   }, [open]);
 
-  const rows = useMemo(() => searchItems(query), [query, tick]);
+  const filteredRows = query.trim()
+    ? rows.filter((item) => [item.code, item.name, item.spec, item.unit].some((value) => value?.toLowerCase().includes(query.trim().toLowerCase())))
+    : rows;
 
   function confirmSelect(item: Item) {
     onSelect(item);
@@ -50,7 +50,7 @@ export function ItemSearchDialog({ open, onOpenChange, onSelect }: Props) {
   }
 
   function handleRegisterSaved(item: Item) {
-    setTick((n) => n + 1);
+    setRows((rows) => [item, ...rows.filter((row) => row.code !== item.code)]);
     setSelectedCode(item.code);
     confirmSelect(item);
   }
@@ -93,7 +93,7 @@ export function ItemSearchDialog({ open, onOpenChange, onSelect }: Props) {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.length === 0 ? (
+                    {filteredRows.length === 0 ? (
                       <tr>
                         <td
                           colSpan={2}
@@ -103,7 +103,7 @@ export function ItemSearchDialog({ open, onOpenChange, onSelect }: Props) {
                         </td>
                       </tr>
                     ) : (
-                      rows.map((item) => (
+                      filteredRows.map((item) => (
                         <tr
                           key={item.code}
                           className={cn(

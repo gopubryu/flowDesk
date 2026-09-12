@@ -97,7 +97,7 @@ function ReceiptNewPageInner() {
     });
     const alreadyTotal = related[p.id] || 0;
 
-    const items = loadItems();
+    const items = await loadItems();
     const lineSources =
       p.lines && p.lines.length > 0
         ? p.lines
@@ -182,7 +182,7 @@ function ReceiptNewPageInner() {
       await appAlert({ title: "알림", description: "입고창고를 선택해 주세요." });
       return;
     }
-    const items = loadItems();
+    const items = await loadItems();
     const lines = rows
       .map((r) => {
         const qty = Number(r.thisQty) || 0;

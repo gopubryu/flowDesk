@@ -73,21 +73,61 @@ model Workspace {
   stockBalances    StockBalance[]
   slipSequences    SlipSequence[]
   employees        Employee[]
+  departments      Department[]
+  items            Item[]
   warehouses       Warehouse[]
   vendors          Vendor[]
 }
 
 model Employee {
-  id          String    @id @default(cuid())
+  id           String      @id @default(cuid())
+  workspaceId  String
+  workspace    Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  code         String
+  name         String
+  phone        String?
+  email        String?
+  memo         String?
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@unique([workspaceId, code])
+  @@index([workspaceId])
+  @@index([departmentId])
+}
+
+model Department {
+  id          String     @id @default(cuid())
   workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   code        String
   name        String
-  phone       String?
-  email       String?
   memo        String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  employees   Employee[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([workspaceId, code])
+  @@index([workspaceId])
+}
+
+model Item {
+  id                  String    @id @default(cuid())
+  workspaceId         String
+  workspace           Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  code                String
+  name                String
+  spec                String?
+  unit                String?
+  minStock            Float     @default(0)
+  inboundPrice        Float     @default(0)
+  inboundVatIncluded  Boolean   @default(false)
+  outboundPrice       Float     @default(0)
+  outboundVatIncluded Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@unique([workspaceId, code])
   @@index([workspaceId])
@@ -108,25 +148,25 @@ model Warehouse {
 }
 
 model Vendor {
-  id             String    @id @default(cuid())
-  workspaceId    String
-  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  code           String
-  name           String
-  codeType       String
-  bizRegNo       String?
-  ceo            String?
-  businessType   String?
-  businessItem   String?
-  phone          String?
-  fax            String?
-  mobile         String?
-  address        String?
-  homepage       String?
-  contactPerson  String?
-  email          String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id            String    @id @default(cuid())
+  workspaceId   String
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  code          String
+  name          String
+  codeType      String
+  bizRegNo      String?
+  ceo           String?
+  businessType  String?
+  businessItem  String?
+  phone         String?
+  fax           String?
+  mobile        String?
+  address       String?
+  homepage      String?
+  contactPerson String?
+  email         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@unique([workspaceId, code])
   @@index([workspaceId])
@@ -250,7 +290,6 @@ model PurchaseRequestLine {
   @@index([requestId])
 }
 
-
 enum PurchaseStatus {
   approval
   unconfirmed
@@ -264,35 +303,35 @@ enum InboundStatus {
 }
 
 model Purchase {
-  id                 String         @id @default(cuid())
-  workspaceId        String
-  workspace          Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  purchaseDate       DateTime
-  slipNo             String?
-  orderNo            String?
-  vendorCode         String?
-  vendorName         String
-  manager            String?
-  taxType            String?
-  warehouseCode      String?
-  warehouseName      String?
-  currency           String?
-  project            String?
-  status             PurchaseStatus @default(unconfirmed)
+  id                String         @id @default(cuid())
+  workspaceId       String
+  workspace         Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  purchaseDate      DateTime
+  slipNo            String?
+  orderNo           String?
+  vendorCode        String?
+  vendorName        String
+  manager           String?
+  taxType           String?
+  warehouseCode     String?
+  warehouseName     String?
+  currency          String?
+  project           String?
+  status            PurchaseStatus @default(unconfirmed)
   /// 미입고 / 부분입고 / 입고완료 — 입고전표 저장 시 갱신
-  inboundStatus      InboundStatus  @default(none)
-  item               String
-  itemCode           String?
-  quantity           Float          @default(0)
-  amount             Float          @default(0)
-  remarks            String?
-  sent               Boolean        @default(false)
-  accountingReflect  Boolean        @default(false)
-  printed            Boolean        @default(false)
-  importedSlip       String?
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
-  lines              PurchaseLine[]
+  inboundStatus     InboundStatus  @default(none)
+  item              String
+  itemCode          String?
+  quantity          Float          @default(0)
+  amount            Float          @default(0)
+  remarks           String?
+  sent              Boolean        @default(false)
+  accountingReflect Boolean        @default(false)
+  printed           Boolean        @default(false)
+  importedSlip      String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  lines             PurchaseLine[]
 
   @@index([workspaceId])
   @@index([workspaceId, purchaseDate])
@@ -324,35 +363,35 @@ enum SalesPlanStatus {
 }
 
 model SalesPlan {
-  id           String          @id @default(cuid())
-  workspaceId  String
-  workspace    Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  planDate     DateTime
-  slipNo       String?
-  vendorCode   String?
-  vendorName   String
-  item         String
-  itemCode     String?
-  spec         String?
-  quantity     Float           @default(0)
-  unitPrice    Float           @default(0)
-  amount       Float           @default(0)
-  vat          Float           @default(0)
-  total        Float           @default(0)
-  status       SalesPlanStatus @default(confirmed)
-  lastModifier String?
-  closed       Boolean         @default(false)
+  id             String          @id @default(cuid())
+  workspaceId    String
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  planDate       DateTime
+  slipNo         String?
+  vendorCode     String?
+  vendorName     String
+  item           String
+  itemCode       String?
+  spec           String?
+  quantity       Float           @default(0)
+  unitPrice      Float           @default(0)
+  amount         Float           @default(0)
+  vat            Float           @default(0)
+  total          Float           @default(0)
+  status         SalesPlanStatus @default(confirmed)
+  lastModifier   String?
+  closed         Boolean         @default(false)
   /// 미출하 / 부분출하 / 출하완료 (「완료」 flag와 별개)
-  outboundStatus OutboundStatus @default(none)
-  manager      String?
-  taxType      String?
-  warehouse    String?
-  project      String?
-  currency     String?
-  dueDate      DateTime?
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  lines        SalesPlanLine[]
+  outboundStatus OutboundStatus  @default(none)
+  manager        String?
+  taxType        String?
+  warehouse      String?
+  project        String?
+  currency       String?
+  dueDate        DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  lines          SalesPlanLine[]
 
   @@index([workspaceId])
   @@index([workspaceId, planDate])
@@ -439,13 +478,13 @@ model StockBalance {
 /// Per-workspace, per-day counter used when inventory slips are saved.
 /// The unique key makes allocation safe across concurrent requests.
 model SlipSequence {
-  id          String    @id @default(cuid())
+  id          String            @id @default(cuid())
   workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   type        StockMovementType
   dateKey     String
-  nextNumber  Int       @default(0)
-  updatedAt   DateTime  @updatedAt
+  nextNumber  Int               @default(0)
+  updatedAt   DateTime          @updatedAt
 
   @@unique([workspaceId, type, dateKey])
 }
