@@ -68,6 +68,17 @@ const nav: NavItem[] = [
   },
   {
     type: "group",
+    id: "quotations",
+    label: "견적",
+    icon: FilePlus2,
+    children: [
+      { href: "/quotations", label: "견적서조회", icon: ClipboardList, exact: true },
+      { href: "/quotations/new", label: "견적서입력", icon: FilePlus2, exact: true },
+      { href: "/quotations/status", label: "견적서현황", icon: BarChart3, exact: true },
+    ],
+  },
+  {
+    type: "group",
     id: "inventory",
     label: "재고",
     icon: Package,

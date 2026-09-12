@@ -77,6 +77,7 @@ model Workspace {
   items            Item[]
   warehouses       Warehouse[]
   vendors          Vendor[]
+  quotations       Quotation[]
 }
 
 model Employee {
@@ -362,39 +363,102 @@ enum SalesPlanStatus {
   completed
 }
 
+enum QuotationStatus {
+  draft
+  sent
+  accepted
+  rejected
+  expired
+}
+
 model SalesPlan {
-  id             String          @id @default(cuid())
-  workspaceId    String
-  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  planDate       DateTime
-  slipNo         String?
-  vendorCode     String?
-  vendorName     String
-  item           String
-  itemCode       String?
-  spec           String?
-  quantity       Float           @default(0)
-  unitPrice      Float           @default(0)
-  amount         Float           @default(0)
-  vat            Float           @default(0)
-  total          Float           @default(0)
-  status         SalesPlanStatus @default(confirmed)
-  lastModifier   String?
-  closed         Boolean         @default(false)
+  id                String          @id @default(cuid())
+  workspaceId       String
+  workspace         Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  planDate          DateTime
+  slipNo            String?
+  vendorCode        String?
+  vendorName        String
+  item              String
+  itemCode          String?
+  spec              String?
+  quantity          Float           @default(0)
+  unitPrice         Float           @default(0)
+  amount            Float           @default(0)
+  vat               Float           @default(0)
+  total             Float           @default(0)
+  status            SalesPlanStatus @default(confirmed)
+  lastModifier      String?
+  closed            Boolean         @default(false)
   /// 미출하 / 부분출하 / 출하완료 (「완료」 flag와 별개)
-  outboundStatus OutboundStatus  @default(none)
-  manager        String?
-  taxType        String?
-  warehouse      String?
-  project        String?
-  currency       String?
-  dueDate        DateTime?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  lines          SalesPlanLine[]
+  outboundStatus    OutboundStatus  @default(none)
+  manager           String?
+  taxType           String?
+  warehouse         String?
+  project           String?
+  currency          String?
+  dueDate           DateTime?
+  sourceQuotationId String?         @unique
+  sourceQuotation   Quotation?      @relation("QuotationSalesPlan", fields: [sourceQuotationId], references: [id])
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  lines             SalesPlanLine[]
 
   @@index([workspaceId])
   @@index([workspaceId, planDate])
+}
+
+model Quotation {
+  id                   String          @id @default(cuid())
+  workspaceId          String
+  workspace            Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  quoteDate            DateTime
+  slipNo               String
+  vendorCode           String?
+  vendorName           String
+  managerCode          String?
+  managerName          String?
+  validUntil           DateTime?
+  status               QuotationStatus @default(draft)
+  taxType              String?
+  currency             String?
+  project              String?
+  remarks              String?
+  item                 String
+  itemCode             String?
+  quantity             Float           @default(0)
+  amount               Float           @default(0)
+  vat                  Float           @default(0)
+  total                Float           @default(0)
+  convertedSalesPlanId String?         @unique
+  convertedAt          DateTime?
+  convertedSalesPlan   SalesPlan?      @relation("QuotationSalesPlan")
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  lines                QuotationLine[]
+
+  @@unique([workspaceId, slipNo])
+  @@index([workspaceId, quoteDate])
+  @@index([workspaceId, status])
+}
+
+model QuotationLine {
+  id          String    @id @default(cuid())
+  quotationId String
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  itemCode    String?
+  itemName    String
+  spec        String?
+  unit        String?
+  qty         Float
+  unitPrice   Float
+  supply      Float
+  vat         Float
+  total       Float
+  extra       String?
+  sortOrder   Int       @default(0)
+
+  @@index([quotationId])
 }
 
 model SalesPlanLine {

@@ -8,7 +8,10 @@ type Usage = { label: string; count: () => Promise<number> };
 function usage(kind: MasterKind, workspaceId: string, code: string): Usage[] {
   switch (kind) {
     case "employee":
-      return [{ label: "발주서 담당자", count: () => prisma.purchaseRequest.count({ where: { workspaceId, managerCode: code } }) }];
+      return [
+        { label: "발주서 담당자", count: () => prisma.purchaseRequest.count({ where: { workspaceId, managerCode: code } }) },
+        { label: "견적서 담당자", count: () => prisma.quotation.count({ where: { workspaceId, managerCode: code } }) },
+      ];
     case "department":
       return [{ label: "소속 사원", count: () => prisma.employee.count({ where: { workspaceId, department: { code } } }) }];
     case "warehouse":
@@ -23,6 +26,7 @@ function usage(kind: MasterKind, workspaceId: string, code: string): Usage[] {
         { label: "발주서", count: () => prisma.purchaseRequest.count({ where: { workspaceId, vendorCode: code } }) },
         { label: "구매전표", count: () => prisma.purchase.count({ where: { workspaceId, vendorCode: code } }) },
         { label: "판매계획", count: () => prisma.salesPlan.count({ where: { workspaceId, vendorCode: code } }) },
+        { label: "견적서", count: () => prisma.quotation.count({ where: { workspaceId, vendorCode: code } }) },
         { label: "재고수불", count: () => prisma.stockMovement.count({ where: { workspaceId, vendorCode: code } }) },
       ];
     case "item":
@@ -30,6 +34,7 @@ function usage(kind: MasterKind, workspaceId: string, code: string): Usage[] {
         { label: "발주 품목", count: () => prisma.purchaseRequestLine.count({ where: { request: { workspaceId }, itemCode: code } }) },
         { label: "구매 품목", count: () => prisma.purchaseLine.count({ where: { purchase: { workspaceId }, itemCode: code } }) },
         { label: "판매 품목", count: () => prisma.salesPlanLine.count({ where: { plan: { workspaceId }, itemCode: code } }) },
+        { label: "견적 품목", count: () => prisma.quotationLine.count({ where: { quotation: { workspaceId }, itemCode: code } }) },
         { label: "재고수불", count: () => prisma.stockMovement.count({ where: { workspaceId, itemCode: code } }) },
         { label: "재고잔고", count: () => prisma.stockBalance.count({ where: { workspaceId, itemCode: code } }) },
       ];
