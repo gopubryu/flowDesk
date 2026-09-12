@@ -10,7 +10,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 async function find(id: string) {
   await expireStaleQuotations();
-  return prisma.quotation.findFirst({ where: { id, workspaceId: DEMO_WORKSPACE_ID }, include: { lines: { orderBy: { sortOrder: "asc" } } } });
+  return prisma.quotation.findFirst({ where: { id, workspaceId: DEMO_WORKSPACE_ID }, include: { lines: { orderBy: { sortOrder: "asc" } }, convertedSalesPlan: { select: { slipNo: true } } } });
 }
 
 export async function GET(_request: Request, ctx: Ctx) {
@@ -41,7 +41,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
         await tx.quotationLine.createMany({ data: totals.lines.map((line) => ({ ...line, quotationId: id })) });
       }
       await tx.quotation.update({ where: { id }, data: { quoteDate: parseDateOnly(input.quoteDate)!, slipNo: input.slipNo!, vendorCode: input.vendorCode, vendorName: input.vendorName, managerCode: input.managerCode, managerName: input.managerName, validUntil: parseDateOnly(input.validUntil), status: input.status, taxType: input.taxType, currency: input.currency, project: input.project, remarks: input.remarks, ...(linesChanged ? { item: totals.lines.length === 1 ? first.itemName : `${first.itemName} 외 ${totals.lines.length - 1}건`, itemCode: first.itemCode, quantity: totals.quantity, amount: totals.amount, vat: totals.vat, total: totals.total } : {}) } });
-      return tx.quotation.findUniqueOrThrow({ where: { id }, include: { lines: { orderBy: { sortOrder: "asc" } } } });
+      return tx.quotation.findUniqueOrThrow({ where: { id }, include: { lines: { orderBy: { sortOrder: "asc" } }, convertedSalesPlan: { select: { slipNo: true } } } });
     });
     return NextResponse.json(serialize(updated));
   } catch (error) { return failure(error, "Failed to update quotation"); }

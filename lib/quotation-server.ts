@@ -12,6 +12,7 @@ export type QuotationRow = {
   item: string; itemCode: string | null; quantity: number; amount: number; vat: number; total: number;
   convertedSalesPlanId: string | null; convertedAt: Date | null; createdAt: Date; updatedAt: Date;
   lines?: QuotationLineRow[];
+  convertedSalesPlan?: { slipNo: string | null } | null;
 };
 
 export function serialize(row: QuotationRow, includeLines = true) {
@@ -23,6 +24,7 @@ export function serialize(row: QuotationRow, includeLines = true) {
     currency: row.currency ?? undefined, project: row.project ?? undefined, remarks: row.remarks ?? undefined,
     item: row.item, itemCode: row.itemCode ?? undefined, quantity: row.quantity, amount: row.amount,
     vat: row.vat, total: row.total, convertedSalesPlanId: row.convertedSalesPlanId ?? undefined,
+    convertedSalesPlanSlipNo: row.convertedSalesPlan?.slipNo ?? undefined,
     convertedAt: row.convertedAt?.toISOString(), createdAt: row.createdAt?.toISOString(), updatedAt: row.updatedAt?.toISOString(),
     ...(includeLines ? { lines: (row.lines ?? []).map((line: QuotationLineRow) => ({ id: line.id, itemCode: line.itemCode ?? undefined, itemName: line.itemName, spec: line.spec ?? undefined, unit: line.unit ?? undefined, qty: line.qty, unitPrice: line.unitPrice, supply: line.supply, vat: line.vat, total: line.total, extra: line.extra ?? undefined, sortOrder: line.sortOrder })) } : {}),
   };

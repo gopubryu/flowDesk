@@ -15,6 +15,7 @@ export async function GET(request: Request) {
     const status = searchParams.get("status"); const query = searchParams.get("query")?.trim();
     const rows = await prisma.quotation.findMany({
       where: { workspaceId: DEMO_WORKSPACE_ID, ...(from || to ? { quoteDate: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}), ...(status ? { status: status as QuotationStatus } : {}), ...(query ? { OR: [{ slipNo: { contains: query, mode: "insensitive" } }, { vendorName: { contains: query, mode: "insensitive" } }, { item: { contains: query, mode: "insensitive" } }] } : {}) },
+      include: { convertedSalesPlan: { select: { slipNo: true } } },
       orderBy: [{ quoteDate: "desc" }, { createdAt: "desc" }],
     });
     return NextResponse.json(rows.map((row) => serialize(row, false)));
