@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { QuotationStatus } from "@prisma/client";
 import { DEMO_WORKSPACE_ID, parseDateOnly } from "@/lib/demo";
 import { assertQuotationMutable, canTransitionQuotation, calculateQuotationTotals, normalizeQuotationInput, QuotationValidationError } from "@/lib/quotation-domain";
-import { assertMasterReferences, expireStaleQuotations, failure, serialize } from "../route";
+import { assertMasterReferences, expireStaleQuotations, failure, serialize } from "@/lib/quotation-server";
 
 export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
