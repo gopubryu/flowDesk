@@ -1,12 +1,13 @@
 "use client";
-
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowRight, RefreshCw, Search, Trash2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Search, FilePlus2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { cn, formatKRW } from "@/lib/utils";
 import { convertQuotation, defaultQuotationDateRange, deleteQuotation, fetchQuotations, QUOTATION_STATUS_LABEL, type Quotation, type QuotationStatus } from "@/lib/quotations";
 
 type StatusTone = "default" | "secondary" | "success" | "warning" | "danger";
@@ -14,16 +15,175 @@ const STATUS_TONE: Record<QuotationStatus, StatusTone> = { draft: "secondary", s
 
 export function QuotationList() {
   const defaults = defaultQuotationDateRange();
-  const [rows, setRows] = useState<Quotation[]>([]); const [from, setFrom] = useState(defaults.from); const [to, setTo] = useState(defaults.to); const [status, setStatus] = useState(""); const [query, setQuery] = useState(""); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
-  async function load() { setLoading(true); setError(""); try { setRows(await fetchQuotations({ from, to, status, query })); } catch (err) { setError(err instanceof Error ? err.message : "견적서를 불러오지 못했습니다."); } finally { setLoading(false); } }
-  useEffect(() => { void load(); }, []);
-  async function remove(id: string) { if (!confirm("이 견적서를 삭제할까요?")) return; try { await deleteQuotation(id); await load(); } catch (err) { setError(err instanceof Error ? err.message : "삭제에 실패했습니다."); } }
-  async function convert(id: string) { try { const plan = await convertQuotation(id); location.assign(`/sales-plans/${plan.id}/edit`); } catch (err) { setError(err instanceof Error ? err.message : "판매계획 전환에 실패했습니다."); } }
-  const field = "h-7 rounded-none border-0 bg-white px-2 text-xs focus-visible:ring-1 focus-visible:ring-indigo-500";
-  return <div className="space-y-3">
-    <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-base font-semibold tracking-tight text-slate-900">견적서조회</h2><p className="text-xs text-muted-foreground">견적서 조회·수정·삭제와 수락 견적의 판매계획 전환을 관리합니다.</p></div><div className="flex gap-2"><Button type="button" size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => void load()} disabled={loading}><RefreshCw className="h-3.5 w-3.5" />새로고침</Button><Link href="/quotations/new"><Button size="sm" className="h-8">신규 견적</Button></Link></div></div>
-    <Card className="border-slate-200 shadow-sm"><CardContent className="p-3"><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_2fr_auto]"><div className="flex items-stretch overflow-hidden rounded border border-slate-200"><span className="flex h-7 min-w-[64px] items-center bg-slate-100 px-2 text-[11px] font-medium text-slate-600">견적일자</span><Input type="date" className={field+" flex-1"} value={from} onChange={(e) => setFrom(e.target.value)} /><span className="flex h-7 items-center text-[10px] text-slate-400">~</span><Input type="date" className={field+" flex-1"} value={to} onChange={(e) => setTo(e.target.value)} /></div><div className="flex items-stretch overflow-hidden rounded border border-slate-200"><span className="flex h-7 min-w-[64px] items-center bg-slate-100 px-2 text-[11px] font-medium text-slate-600">상태</span><select className={field+" flex-1"} value={status} onChange={(e) => setStatus(e.target.value)}><option value="">전체 상태</option>{Object.entries(QUOTATION_STATUS_LABEL).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div><div className="flex items-stretch overflow-hidden rounded border border-slate-200 sm:col-span-2 lg:col-span-1"><span className="flex h-7 min-w-[64px] items-center bg-slate-100 px-2 text-[11px] font-medium text-slate-600">검색어</span><Input className={field+" flex-1"} placeholder="거래처·견적번호·품목" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void load()} /></div><Button type="button" size="sm" className="h-7 gap-1" onClick={() => void load()}><Search className="h-3.5 w-3.5" />검색</Button></div></CardContent></Card>
-    {error && <p className="rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700">{error}</p>}
-    <Card className="overflow-hidden border-slate-200 shadow-sm"><CardContent className="p-0"><div className="overflow-x-auto"><table className="w-full min-w-[1100px] border-collapse text-left text-xs"><thead><tr className="border-b bg-slate-50 text-[11px] font-semibold tracking-wide text-slate-500">{["견적일","견적번호","거래처","담당자","품목","공급가","VAT","합계","유효기간","상태","판매계획","작업"].map((name) => <th className="px-3 py-2.5" key={name}>{name}</th>)}</tr></thead><tbody>{loading ? <tr><td colSpan={12} className="px-3 py-10 text-center text-muted-foreground">불러오는 중…</td></tr> : rows.length === 0 ? <tr><td colSpan={12} className="px-3 py-10 text-center text-muted-foreground">조회된 견적서가 없습니다.</td></tr> : rows.map((row) => <tr className="border-b border-slate-100 hover:bg-indigo-50/40" key={row.id}><td className="whitespace-nowrap px-3 py-2 text-slate-600">{row.quoteDate}</td><td className="px-3 py-2 font-medium text-slate-800"><Link className="hover:text-indigo-700 hover:underline" href={`/quotations/${row.id}`}>{row.slipNo}</Link></td><td className="px-3 py-2 font-medium text-slate-800">{row.vendorName}</td><td className="px-3 py-2 text-slate-600">{row.managerName ?? "—"}</td><td className="max-w-[180px] truncate px-3 py-2 text-slate-700">{row.item}</td><td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-700">{row.amount.toLocaleString("ko-KR")}</td><td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-600">{row.vat.toLocaleString("ko-KR")}</td><td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium text-slate-900">{row.total.toLocaleString("ko-KR")}</td><td className="px-3 py-2 text-slate-600">{row.validUntil ?? "—"}</td><td className="px-3 py-2"><Badge variant={STATUS_TONE[row.status]} className="text-[10px]">{QUOTATION_STATUS_LABEL[row.status]}</Badge></td><td className="px-3 py-2">{row.convertedSalesPlanSlipNo ? <Link className="inline-flex items-center gap-1 font-medium text-indigo-700 hover:underline" href={`/sales-plans/${row.convertedSalesPlanId}/edit`}>{row.convertedSalesPlanSlipNo}<ArrowRight className="h-3 w-3" /></Link> : <span className="text-slate-400">—</span>}</td><td className="px-3 py-2"><div className="flex items-center gap-1">{row.status === "accepted" && !row.convertedSalesPlanId ? <Button type="button" size="sm" className="h-7 px-2 text-[11px]" onClick={() => void convert(row.id)}>판매계획 전환</Button> : row.convertedSalesPlanId ? <Button type="button" size="sm" variant="outline" disabled className="h-7 px-2 text-[11px]">전환됨</Button> : null}<Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-slate-400 hover:text-red-600" onClick={() => void remove(row.id)} aria-label="견적서 삭제"><Trash2 className="h-3.5 w-3.5" /></Button></div></td></tr>)}</tbody></table></div><div className="flex items-center justify-between border-t bg-slate-50/80 px-3 py-2.5"><p className="text-[11px] text-muted-foreground">조회 결과 · {rows.length.toLocaleString("ko-KR")}건</p><p className="text-[11px] text-slate-500">금액은 서버에서 재계산됩니다.</p></div></CardContent></Card>
-  </div>;
+  const [rows, setRows] = useState<Quotation[]>([]);
+  const [from, setFrom] = useState(defaults.from);
+  const [to, setTo] = useState(defaults.to);
+  const [status, setStatus] = useState("");
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  async function load() {
+    setLoading(true);
+    setError("");
+    try {
+      setRows(await fetchQuotations({ from, to, status, query }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "견적서를 불러오지 못했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function remove(id: string) {
+    if (!confirm("이 견적서를 삭제할까요?")) return;
+    try {
+      await deleteQuotation(id);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "삭제에 실패했습니다.");
+    }
+  }
+
+  async function convert(id: string) {
+    try {
+      const plan = await convertQuotation(id);
+      location.assign(`/sales-plans/${plan.id}/edit`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "판매계획 전환에 실패했습니다.");
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold tracking-tight text-slate-900">견적서조회</h2>
+          <p className="text-xs text-muted-foreground">
+            견적서 조회·수정·삭제와 수락 견적의 판매계획 전환을 관리합니다. 행을 클릭하면 상세 화면으로 이동합니다.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <Label htmlFor="qt-from" className="sr-only">시작일</Label>
+            <Input id="qt-from" type="date" className="h-8 w-[138px] text-xs" value={from} onChange={(e) => setFrom(e.target.value)} />
+            <span className="text-xs text-muted-foreground">~</span>
+            <Label htmlFor="qt-to" className="sr-only">종료일</Label>
+            <Input id="qt-to" type="date" className="h-8 w-[138px] text-xs" value={to} onChange={(e) => setTo(e.target.value)} />
+          </div>
+          <select className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs" value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">전체 상태</option>
+            {Object.entries(QUOTATION_STATUS_LABEL).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          </select>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="h-8 w-48 pl-8 text-xs"
+              placeholder="거래처·견적번호·품목"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && void load()}
+            />
+          </div>
+          <Button type="button" size="sm" className="h-8" onClick={() => void load()}>조회</Button>
+        </div>
+      </div>
+
+      {error && <p className="rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700">{error}</p>}
+
+      <Card className="overflow-hidden border-slate-200 shadow-sm">
+        <CardContent className="p-0">
+          <div className="overflow-x-auto scrollbar-thin">
+            <table className="w-full min-w-[1180px] border-collapse text-left text-xs">
+              <thead>
+                <tr className="border-b bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  <th className="px-3 py-2.5">견적일</th>
+                  <th className="px-3 py-2.5">견적번호</th>
+                  <th className="px-3 py-2.5">거래처</th>
+                  <th className="px-3 py-2.5">담당자</th>
+                  <th className="px-3 py-2.5">품목</th>
+                  <th className="px-3 py-2.5 text-right">공급가</th>
+                  <th className="px-3 py-2.5 text-right">VAT</th>
+                  <th className="px-3 py-2.5 text-right">합계</th>
+                  <th className="px-3 py-2.5">유효기간</th>
+                  <th className="px-3 py-2.5">상태</th>
+                  <th className="px-3 py-2.5">판매계획</th>
+                  <th className="px-3 py-2.5 text-center">작업</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={12} className="px-3 py-10 text-center text-muted-foreground">불러오는 중…</td></tr>
+                ) : rows.length === 0 ? (
+                  <tr><td colSpan={12} className="px-3 py-10 text-center text-muted-foreground">조회된 견적서가 없습니다.</td></tr>
+                ) : (
+                  rows.map((row) => (
+                    <tr key={row.id} className="border-b border-slate-100 hover:bg-indigo-50/40">
+                      <td className="whitespace-nowrap px-3 py-2 text-slate-700">{row.quoteDate}</td>
+                      <td className="px-3 py-2 font-medium text-slate-900">{row.slipNo}</td>
+                      <td className="px-3 py-2 text-slate-700">{row.vendorName}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-slate-700">{row.managerName ?? "—"}</td>
+                      <td className="px-3 py-2 text-slate-700">{row.item}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-700">{formatKRW(row.amount)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-700">{formatKRW(row.vat)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium text-slate-900">{formatKRW(row.total)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-slate-700">{row.validUntil ?? "—"}</td>
+                      <td className="px-3 py-2">
+                        <Badge variant={STATUS_TONE[row.status as QuotationStatus]} className="text-[10px]">
+                          {QUOTATION_STATUS_LABEL[row.status as QuotationStatus]}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2">
+                        {row.convertedSalesPlanId ? (
+                          <Link className="font-medium text-indigo-600 underline-offset-2 hover:underline" href={`/sales-plans/${row.convertedSalesPlanId}/edit`}>
+                            {row.convertedSalesPlanSlipNo ?? "판매계획 보기"}
+                          </Link>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <div className="flex justify-center gap-1">
+                          <Link href={`/quotations/${row.id}`}>
+                            <Button type="button" size="sm" variant="outline" className="h-7 gap-1 px-2 text-[11px]">
+                              <Pencil className="h-3 w-3" />상세
+                            </Button>
+                          </Link>
+                          <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[11px]" disabled={!(["draft", "sent"] as string[]).includes(row.status)} onClick={() => void remove(row.id)}>
+                            삭제
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-7 px-2 text-[11px]"
+                            disabled={row.status !== "accepted" || Boolean(row.convertedSalesPlanId)}
+                            title={row.status !== "accepted" ? "수락 견적만 전환할 수 있습니다." : row.convertedSalesPlanId ? "이미 판매계획으로 전환되었습니다." : undefined}
+                            onClick={() => void convert(row.id)}
+                          >
+                            {row.convertedSalesPlanId ? "전환됨" : "판매계획 전환"}
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-slate-50/80 px-3 py-2.5">
+            <p className="text-[11px] text-muted-foreground">{rows.length}건</p>
+            <Link href="/quotations/new">
+              <Button type="button" size="sm" className={cn("h-8 gap-1.5")}>
+                <FilePlus2 className="h-3.5 w-3.5" />신규 견적
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
