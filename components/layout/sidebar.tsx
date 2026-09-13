@@ -43,16 +43,15 @@ const nav: NavItem[] = [
   { href: "/dashboard", label: "대시보드", icon: LayoutDashboard },
   { href: "/tasks", label: "할 일", icon: CheckSquare },
   { href: "/calendar", label: "캘린더", icon: CalendarDays },
-  { href: "/finance", label: "매출·재무", icon: Wallet },
   {
     type: "group",
-    id: "purchase-requests",
-    label: "발주",
-    icon: ClipboardList,
+    id: "quotations",
+    label: "견적",
+    icon: FilePlus2,
     children: [
-      { href: "/purchase-requests", label: "발주요청조회", icon: ClipboardList, exact: true },
-      { href: "/purchase-requests/new", label: "발주요청입력", icon: FilePlus2, exact: true },
-      { href: "/purchase-requests/status", label: "발주요청현황", icon: BarChart3, exact: true },
+      { href: "/quotations", label: "견적서조회", icon: ClipboardList, exact: true },
+      { href: "/quotations/new", label: "견적서입력", icon: FilePlus2, exact: true },
+      { href: "/quotations/status", label: "견적서현황", icon: BarChart3, exact: true },
     ],
   },
   {
@@ -68,13 +67,24 @@ const nav: NavItem[] = [
   },
   {
     type: "group",
-    id: "quotations",
-    label: "견적",
-    icon: FilePlus2,
+    id: "purchase-requests",
+    label: "발주",
+    icon: ClipboardList,
     children: [
-      { href: "/quotations", label: "견적서조회", icon: ClipboardList, exact: true },
-      { href: "/quotations/new", label: "견적서입력", icon: FilePlus2, exact: true },
-      { href: "/quotations/status", label: "견적서현황", icon: BarChart3, exact: true },
+      { href: "/purchase-requests", label: "발주요청조회", icon: ClipboardList, exact: true },
+      { href: "/purchase-requests/new", label: "발주요청입력", icon: FilePlus2, exact: true },
+      { href: "/purchase-requests/status", label: "발주요청현황", icon: BarChart3, exact: true },
+    ],
+  },
+  {
+    type: "group",
+    id: "purchases",
+    label: "구매",
+    icon: ShoppingCart,
+    children: [
+      { href: "/purchases", label: "구매조회", icon: ClipboardList, exact: true },
+      { href: "/purchases/new", label: "구매입력", icon: FilePlus2, exact: true },
+      { href: "/purchases/status", label: "구매현황", icon: BarChart3, exact: true },
     ],
   },
   {
@@ -94,19 +104,9 @@ const nav: NavItem[] = [
       { href: "/inventory/status", label: "현황", icon: BarChart3, exact: true },
     ],
   },
-  {
-    type: "group",
-    id: "purchases",
-    label: "구매",
-    icon: ShoppingCart,
-    children: [
-      { href: "/purchases", label: "구매조회", icon: ClipboardList, exact: true },
-      { href: "/purchases/new", label: "구매입력", icon: FilePlus2, exact: true },
-      { href: "/purchases/status", label: "구매현황", icon: BarChart3, exact: true },
-    ],
-  },
-  { href: "/exchange", label: "환율", icon: ArrowLeftRight },
+  { href: "/finance", label: "매출·재무", icon: Wallet },
   { href: "/mail", label: "메일", icon: Mail },
+  { href: "/exchange", label: "환율", icon: ArrowLeftRight },
   { href: "/master-data", label: "기준정보 관리", icon: Database },
 ];
 
