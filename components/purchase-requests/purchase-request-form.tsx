@@ -34,6 +34,8 @@ import { WarehouseSearchDialog } from "@/components/warehouses/warehouse-search-
 import { ItemSearchDialog } from "@/components/items/item-search-dialog";
 import { VendorSearchDialog } from "@/components/vendors/vendor-search-dialog";
 import { useAppDialog } from "@/components/ui/app-alert-dialog";
+import { fetchBalances, type StockBalanceRow } from "@/lib/inventory";
+import { buildInventoryLookup, mergeInventoryRows } from "@/lib/purchase-request-inventory";
 
 export type LineRow = {
   id: string;
@@ -263,8 +265,50 @@ export function PurchaseRequestForm({
   const [vendorSearchOpen, setVendorSearchOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [inventoryVisible, setInventoryVisible] = useState(false);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
+  const [inventoryRows, setInventoryRows] = useState<StockBalanceRow[]>([]);
+  const [inventoryRefresh, setInventoryRefresh] = useState(0);
   const [persistedStatus, setPersistedStatus] = useState<PurchaseRequestStatus>("unconfirmed");
   const saveMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!inventoryVisible) return;
+    const lookup = buildInventoryLookup(lines.map((line) => line.itemCode), master.warehouseCode);
+    if (!lookup.itemCodes.length) {
+      setInventoryRows([]);
+      setInventoryError(lookup.warehouseCode ? "조회할 품목코드를 입력하세요." : "창고를 먼저 선택하세요.");
+      return;
+    }
+    let cancelled = false;
+    setInventoryLoading(true);
+    setInventoryError(null);
+    Promise.all([
+      fetchBalances({ itemCodes: lookup.itemCodes }),
+      fetchBalances({ itemCodes: lookup.itemCodes, warehouseCode: lookup.warehouseCode }),
+    ])
+      .then(([allRows, warehouseRows]) => {
+        if (cancelled) return;
+        const selectedKeys = new Set(warehouseRows.map((row) => `${row.itemCode}\u0000${row.warehouseCode}`));
+        setInventoryRows([
+          ...allRows.filter((row) => !selectedKeys.has(`${row.itemCode}\u0000${row.warehouseCode}`)),
+          ...warehouseRows,
+        ]);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setInventoryRows([]);
+          setInventoryError(error instanceof Error ? error.message : "재고 조회에 실패했습니다.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setInventoryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [inventoryVisible, inventoryRefresh, lines, master.warehouseCode]);
 
   useEffect(() => {
     if (mode !== "edit" || !editId) return;
@@ -594,7 +638,12 @@ export function PurchaseRequestForm({
           )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {mode === "new" && <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setImportOpen(true)}>전표불러오기</Button>}
+          {mode === "new" && <>
+            <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setImportOpen(true)}>전표불러오기</Button>
+            <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => { setInventoryVisible(true); setInventoryRefresh((v) => v + 1); }} disabled={inventoryLoading}>
+              {inventoryLoading ? "재고 조회 중…" : "재고불러오기"}
+            </Button>
+          </>}
           {isModal && (
             <Button
               type="button"
@@ -802,6 +851,10 @@ export function PurchaseRequestForm({
                   비고
                 </th>
                 <th className="min-w-[96px] px-2 py-1.5 text-right">합계</th>
+                {inventoryVisible && <>
+                  <th className="min-w-[88px] px-2 py-1.5 text-right">총재고</th>
+                  <th className="min-w-[100px] px-2 py-1.5 text-right">선택창고 재고</th>
+                </>}
               </tr>
             </thead>
             <tbody>
@@ -898,6 +951,13 @@ export function PurchaseRequestForm({
                       </td>
                     );
                   })}
+                  {inventoryVisible && (() => {
+                    const stock = mergeInventoryRows([line], inventoryRows, master.warehouseCode)[0];
+                    return <>
+                      <td className="px-2 py-0.5 text-right tabular-nums text-slate-600">{inventoryError ? "-" : stock.totalStock.toLocaleString("ko-KR")}</td>
+                      <td className="px-2 py-0.5 text-right tabular-nums text-indigo-700">{inventoryError ? "-" : stock.warehouseStock.toLocaleString("ko-KR")}</td>
+                    </>;
+                  })()}
                 </tr>
               ))}
             </tbody>
@@ -920,6 +980,7 @@ export function PurchaseRequestForm({
                 <td className="px-2 py-2 text-right tabular-nums text-indigo-700">
                   {totals.total ? totals.total.toLocaleString("ko-KR") : ""}
                 </td>
+                {inventoryVisible && <td colSpan={2} className="px-2 py-2 text-center text-[10px] font-normal text-slate-500">{inventoryError ?? (inventoryLoading ? "조회 중…" : "재고는 참고용이며 저장되지 않습니다.")}</td>}
               </tr>
             </tfoot>
           </table>

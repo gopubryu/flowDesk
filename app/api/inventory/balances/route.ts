@@ -14,11 +14,15 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const warehouseCode = searchParams.get("warehouseCode")?.trim();
     const itemCode = searchParams.get("itemCode")?.trim();
+    const itemCodes = (searchParams.get("itemCodes") ?? "")
+      .split(",")
+      .map((code) => code.trim())
+      .filter(Boolean);
     const rows = await prisma.stockBalance.findMany({
       where: {
         workspaceId: DEMO_WORKSPACE_ID,
         ...(warehouseCode ? { warehouseCode } : {}),
-        ...(itemCode ? { itemCode } : {}),
+        ...(itemCode ? { itemCode } : itemCodes.length ? { itemCode: { in: itemCodes } } : {}),
       },
       orderBy: [{ warehouseCode: "asc" }, { itemCode: "asc" }],
     });

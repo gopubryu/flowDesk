@@ -149,10 +149,12 @@ async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
 export async function fetchBalances(params?: {
   warehouseCode?: string;
   itemCode?: string;
+  itemCodes?: string[];
 }): Promise<StockBalanceRow[]> {
   const q = new URLSearchParams();
   if (params?.warehouseCode) q.set("warehouseCode", params.warehouseCode);
   if (params?.itemCode) q.set("itemCode", params.itemCode);
+  if (params?.itemCodes?.length) q.set("itemCodes", params.itemCodes.join(","));
   const qs = q.toString();
   return apiJson(`/api/inventory/balances${qs ? `?${qs}` : ""}`);
 }
