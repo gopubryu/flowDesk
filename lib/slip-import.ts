@@ -2,9 +2,32 @@ export type SlipSourceType = "purchaseRequest" | "purchase" | "salesPlan" | "quo
 
 export type ImportLine = {
   id?: string | null; itemCode?: string | null; itemName?: string | null; spec?: string | null;
-  qty?: number | null; unitPrice?: number | null; supply?: number | null; vat?: number | null;
+  qty?: number | null; remainingQty?: number | null; unitPrice?: number | null; supply?: number | null; vat?: number | null;
   total?: number | null; extra?: string | null; sortOrder?: number | null;
 };
+
+export function calculateRemainingQuantity(requested: number | null | undefined, processed: number | null | undefined): number {
+  const total = Number(requested);
+  const used = Number(processed ?? 0);
+  if (!Number.isFinite(total) || total <= 0) return 0;
+  return Math.max(0, total - (Number.isFinite(used) ? Math.max(0, used) : 0));
+}
+
+export function calculateRemainingLineQuantities<T extends { itemCode?: string | null; qty?: number | null }>(
+  lines: T[], processedByItemCode: Record<string, number | null | undefined>,
+): Array<T & { remainingQty: number }> {
+  const consumed = new Map<string, number>();
+  return lines.map((line) => {
+    const code = String(line.itemCode ?? "").trim();
+    const total = Number(line.qty);
+    const alreadyConsumed = consumed.get(code) ?? 0;
+    const availableProcessed = Number(processedByItemCode[code] ?? 0);
+    const processedForLine = Math.max(0, availableProcessed - alreadyConsumed);
+    const remainingQty = calculateRemainingQuantity(total, processedForLine);
+    consumed.set(code, alreadyConsumed + Math.max(0, total - remainingQty));
+    return { ...line, remainingQty };
+  });
+}
 
 export type ImportSearchRow = {
   date?: string | Date | null; slipNo?: string | null; vendorName?: string | null;

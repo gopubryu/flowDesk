@@ -285,6 +285,15 @@ export async function fetchRelatedQty(params: {
   return apiJson(`/api/inventory/related-qty?${q}`);
 }
 
+export async function fetchRelatedLineQty(params: {
+  relatedType: string;
+  relatedIds: string[];
+}): Promise<Record<string, Record<string, number>>> {
+  if (!params.relatedIds.length) return {};
+  const q = new URLSearchParams({ relatedType: params.relatedType, relatedIds: params.relatedIds.join(","), detail: "lines" });
+  return apiJson(`/api/inventory/related-qty?${q}`);
+}
+
 export async function fetchInventoryStatus(): Promise<InventoryStatusSummary> {
   return apiJson("/api/inventory/status");
 }

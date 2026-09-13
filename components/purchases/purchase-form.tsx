@@ -16,8 +16,9 @@ import {
   type Purchase,
 } from "@/lib/purchases";
 import { fetchPurchaseRequests } from "@/lib/purchase-requests";
+import { fetchRelatedLineQty } from "@/lib/inventory";
 import { SlipImportDialog } from "@/components/slips/slip-import-dialog";
-import { hasNonEmptyBusinessFormData, normalizeImportableSlip } from "@/lib/slip-import";
+import { calculateRemainingLineQuantities, hasNonEmptyBusinessFormData, normalizeImportableSlip } from "@/lib/slip-import";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAppDialog } from "@/components/ui/app-alert-dialog";
@@ -64,6 +65,7 @@ type PurchaseImportLine = {
   itemName?: string;
   spec?: string;
   qty?: number;
+  remainingQty?: number;
   unitPrice?: number;
   supply?: number;
   vat?: number;
@@ -450,8 +452,9 @@ export function PurchaseForm({
   async function importPurchase(source: {
     sourceType?: string;
     value: PurchaseImportRecord;
-  }) {
+  }, selectedIndexes?: number[]) {
     const row = source.value;
+    const importedLines = (row.lines ?? []).filter((_, index) => selectedIndexes?.includes(index) ?? true);
     const defaults = defaultMaster();
     const header = { ...master, purchaseDate: "", slipNo: "", taxType: master.taxType === defaults.taxType ? "" : master.taxType, currency: master.currency === defaults.currency ? "" : master.currency };
     if (hasNonEmptyBusinessFormData(header, lines)) {
@@ -459,7 +462,7 @@ export function PurchaseForm({
     }
     setImportedSlip(`${source.sourceType ?? "구매"}: ${row.slipNo ?? row.id}`);
     setMaster((m) => ({ ...m, orderNo: "", slipNo: "", vendorCode: row.vendorCode ?? "", vendorName: row.vendorName ?? row.vendor ?? "", managerName: row.managerName ?? row.manager ?? "", managerCode: row.managerCode ?? "", warehouseCode: row.warehouseCode ?? "", warehouseName: row.warehouseName ?? row.warehouse ?? "", taxType: row.taxType ?? m.taxType, currency: row.currency ?? m.currency, projectName: row.project ?? "", remarks: row.remarks ?? "" }));
-    setLines((row.lines ?? []).map((line) => ({ ...emptyLine(), checked: true, itemCode: line.itemCode ?? "", itemName: line.itemName ?? "", spec: line.spec ?? "", qty: String(line.qty ?? ""), unitPrice: String(line.unitPrice ?? ""), supply: String(line.supply ?? ""), vat: String(line.vat ?? ""), total: String(line.total ?? ""), extra: line.extra ?? "" })));
+    setLines(importedLines.map((line) => ({ ...emptyLine(), checked: true, itemCode: line.itemCode ?? "", itemName: line.itemName ?? "", spec: line.spec ?? "", qty: String(line.remainingQty ?? line.qty ?? ""), unitPrice: String(line.unitPrice ?? ""), supply: String(line.supply ?? ""), vat: String(line.vat ?? ""), total: String(line.total ?? ""), extra: line.extra ?? "" })));
   }
 
   return (
@@ -858,14 +861,23 @@ export function PurchaseForm({
         open={importOpen}
         onOpenChange={setImportOpen}
         sourceConfigs={[{
-          sourceType: "purchaseRequest", label: "발주요청", load: async () => (await fetchPurchaseRequests()).filter((row) => ["confirmed", "in_progress"].includes(row.status)),
+          sourceType: "purchaseRequest", label: "발주요청", load: async () => {
+            const rows = (await fetchPurchaseRequests()).filter((row) => ["confirmed", "in_progress"].includes(row.status));
+            const processed = await fetchRelatedLineQty({ relatedType: "purchaseRequest", relatedIds: rows.map((row) => row.id) });
+            return rows.map((row) => ({ ...row, lines: calculateRemainingLineQuantities(row.lines ?? [], processed[row.id] ?? {}) }));
+          },
           normalize: (row) => normalizeImportableSlip(row, { sourceType: "purchaseRequest", sourceLabel: "발주요청", date: "requestDate", slipNo: "slipNo", vendor: "vendorName", item: "item", lines: "lines" }),
         }, {
-          sourceType: "purchase", label: "구매", load: async () => (await fetchPurchases()).filter((row) => row.status === "confirmed"),
+          sourceType: "purchase", label: "구매", load: async () => {
+            const rows = (await fetchPurchases()).filter((row) => row.status === "confirmed");
+            const processed = await fetchRelatedLineQty({ relatedType: "purchase", relatedIds: rows.map((row) => row.id) });
+            return rows.map((row) => ({ ...row, lines: calculateRemainingLineQuantities(row.lines ?? [], processed[row.id] ?? {}) }));
+          },
           normalize: (row) => normalizeImportableSlip(row, { sourceType: "purchase", sourceLabel: "구매", date: "purchaseDate", slipNo: "slipNo", vendor: "vendor", item: "item", lines: "lines" }),
         }]}
         initialSourceType="purchase"
-        onSelect={(source) => void importPurchase(source)}
+        allowLineSelection
+        onSelect={(source, selectedLines) => void importPurchase(source, selectedLines)}
       />
 
       <Label className="sr-only">구매입력 양식</Label>

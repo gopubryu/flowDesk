@@ -15,6 +15,7 @@ export async function GET(req: Request) {
       .map((s) => s.trim())
       .filter(Boolean);
     const typeParam = searchParams.get("type")?.trim() as StockMovementType | undefined;
+    const detail = searchParams.get("detail") === "lines";
     if (!relatedType || relatedIds.length === 0) {
       return NextResponse.json({});
     }
@@ -23,6 +24,19 @@ export async function GET(req: Request) {
       typeParam ||
       (relatedType === "salesPlan" ? "shipment" : "receipt");
 
+    if (detail) {
+      const rows = await prisma.stockMovement.groupBy({
+        by: ["relatedId", "itemCode"],
+        where: { workspaceId: DEMO_WORKSPACE_ID, relatedType, relatedId: { in: relatedIds }, type },
+        _sum: { qty: true },
+      });
+      const out: Record<string, Record<string, number>> = {};
+      for (const id of relatedIds) out[id] = {};
+      for (const row of rows) {
+        if (row.relatedId) out[row.relatedId][row.itemCode] = Math.abs(row._sum.qty ?? 0);
+      }
+      return NextResponse.json(out);
+    }
     const rows = await prisma.stockMovement.groupBy({
       by: ["relatedId"],
       where: {

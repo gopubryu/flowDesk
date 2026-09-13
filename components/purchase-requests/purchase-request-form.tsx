@@ -611,14 +611,15 @@ export function PurchaseRequestForm({
 
   const title = mode === "edit" ? "발주요청입력 (수정)" : "발주요청입력";
 
-  async function importRequest(row: Awaited<ReturnType<typeof fetchPurchaseRequests>>[number]) {
+  async function importRequest(row: Awaited<ReturnType<typeof fetchPurchaseRequests>>[number], selectedIndexes?: number[]) {
+    const importedLines = (row.lines ?? []).filter((_, index) => selectedIndexes?.includes(index) ?? true);
     const defaults = defaultMaster();
     const header = { ...master, requestDate: "", slipNo: "", taxType: master.taxType === defaults.taxType ? "" : master.taxType, currency: master.currency === defaults.currency ? "" : master.currency, dueDate: master.dueDate === defaults.dueDate ? "" : master.dueDate };
     if (hasNonEmptyBusinessFormData(header, lines)) {
       if (!(await confirm({ title: "전표불러오기", description: "현재 입력한 내용을 불러온 전표로 바꿀까요?" }))) return;
     }
     setMaster((m) => ({ ...m, slipNo: "", vendorCode: row.vendorCode ?? "", vendorName: row.vendorName ?? row.vendor ?? "", managerCode: row.managerCode ?? "", managerName: row.managerName ?? row.manager ?? "", warehouseCode: row.warehouseCode ?? "", warehouseName: row.warehouseName ?? row.warehouse ?? "", taxType: row.taxType ?? m.taxType, currency: row.currency ?? m.currency, dueDate: row.dueDate ?? m.dueDate }));
-    setLines((row.lines ?? []).map((line) => ({ ...emptyLine(), checked: true, itemCode: line.itemCode ?? "", itemName: line.itemName ?? "", spec: line.spec ?? "", qty: String(line.qty ?? ""), unitPrice: String(line.unitPrice ?? ""), supply: String(line.supply ?? ""), vat: String(line.vat ?? ""), total: String(line.total ?? ""), extra: line.extra ?? "" })));
+    setLines(importedLines.map((line) => ({ ...emptyLine(), checked: true, itemCode: line.itemCode ?? "", itemName: line.itemName ?? "", spec: line.spec ?? "", qty: String(line.qty ?? ""), unitPrice: String(line.unitPrice ?? ""), supply: String(line.supply ?? ""), vat: String(line.vat ?? ""), total: String(line.total ?? ""), extra: line.extra ?? "" })));
   }
 
   return (
@@ -1111,7 +1112,8 @@ export function PurchaseRequestForm({
           load: fetchPurchaseRequests,
           normalize: (row) => normalizeImportableSlip(row, { sourceType: "purchaseRequest", sourceLabel: "발주요청", date: "requestDate", slipNo: "slipNo", vendor: "vendorName", item: "item", lines: "lines" }),
         }]}
-        onSelect={(source) => void importRequest(source.value)}
+        allowLineSelection
+        onSelect={(source, selectedLines) => void importRequest(source.value, selectedLines)}
       />
 
       <Label className="sr-only">발주요청입력 양식</Label>

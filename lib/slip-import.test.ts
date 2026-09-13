@@ -10,6 +10,8 @@ import {
   resolveInitialSlipSourceType,
   todayDateOnly,
   type ImportableSlip,
+  calculateRemainingQuantity,
+  calculateRemainingLineQuantities,
 } from "./slip-import";
 
 const lines = [{ itemCode: "I-1", itemName: "Bolt", qty: 2, unitPrice: 100, supply: 200, vat: 20, total: 220, sortOrder: 0 }];
@@ -68,6 +70,20 @@ test("normalization does not mutate the source record or its lines", () => {
   normalizeImportableSlip(source, { sourceType: "purchase", sourceLabel: "구매", date: "purchaseDate", slipNo: "slipNo", vendor: "vendor", lines: "lines" });
   assert.equal(JSON.stringify(source), before);
 });
+test("remaining quantity never goes below zero and treats missing processed quantity as zero", () => {
+  assert.equal(calculateRemainingQuantity(10, 3), 7);
+  assert.equal(calculateRemainingQuantity(10, 12), 0);
+  assert.equal(calculateRemainingQuantity(10, undefined), 10);
+  assert.equal(calculateRemainingQuantity(undefined, 3), 0);
+});
+
+test("remaining line quantities match processed quantities by item code without mutating source lines", () => {
+  const source = [{ itemCode: "A", qty: 10 }, { itemCode: "B", qty: 4 }, { itemCode: "A", qty: 2 }];
+  const result = calculateRemainingLineQuantities(source, { A: 5, B: 9 });
+  assert.deepEqual(result.map((line) => line.remainingQty), [5, 0, 2]);
+  assert.deepEqual(source, [{ itemCode: "A", qty: 10 }, { itemCode: "B", qty: 4 }, { itemCode: "A", qty: 2 }]);
+});
+
 test("import replacement warning includes populated business headers even without lines", () => {
   assert.equal(hasNonEmptyBusinessFormData({ vendorName: "Acme", warehouseCode: "" }, []), true);
   assert.equal(hasNonEmptyBusinessFormData({ vendorName: "  ", warehouseCode: "" }, []), false);

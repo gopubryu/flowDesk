@@ -536,14 +536,15 @@ export function SalesPlanForm({
 
   const title = mode === "edit" ? "판매계획입력 (수정)" : "판매계획입력";
 
-  async function importPlan(row: SalesPlan) {
+  async function importPlan(row: SalesPlan, selectedIndexes?: number[]) {
+    const importedLines = (row.lines ?? []).filter((_, index) => selectedIndexes?.includes(index) ?? true);
     const defaults = defaultMaster();
     const header = { ...master, planDate: "", slipNo: "", taxType: master.taxType === defaults.taxType ? "" : master.taxType, currency: master.currency === defaults.currency ? "" : master.currency, dueDate: master.dueDate === defaults.dueDate ? "" : master.dueDate };
     if (hasNonEmptyBusinessFormData(header, lines)) {
       if (!(await confirm({ title: "전표불러오기", description: "현재 입력한 내용을 불러온 전표로 바꿀까요?" }))) return;
     }
     setMaster((m) => ({ ...m, slipNo: "", vendorCode: row.vendorCode ?? "", vendorName: row.vendor ?? "", managerName: row.manager ?? "", warehouseName: row.warehouse ?? "", taxType: row.taxType ?? m.taxType, currency: row.currency ?? m.currency, dueDate: row.dueDate ?? m.dueDate }));
-    setLines((row.lines ?? []).map((line) => ({ ...emptyLine(), checked: true, itemCode: line.itemCode ?? "", itemName: line.itemName ?? "", spec: line.spec ?? "", qty: String(line.qty ?? ""), unitPrice: String(line.unitPrice ?? ""), supply: String(line.supply ?? ""), vat: String(line.vat ?? ""), total: String(line.total ?? ""), extra: line.extra ?? "" })));
+    setLines(importedLines.map((line) => ({ ...emptyLine(), checked: true, itemCode: line.itemCode ?? "", itemName: line.itemName ?? "", spec: line.spec ?? "", qty: String(line.qty ?? ""), unitPrice: String(line.unitPrice ?? ""), supply: String(line.supply ?? ""), vat: String(line.vat ?? ""), total: String(line.total ?? ""), extra: line.extra ?? "" })));
   }
 
   return (
@@ -943,7 +944,8 @@ export function SalesPlanForm({
           sourceType: "salesPlan", label: "판매계획", load: fetchSalesPlans,
           normalize: (row) => normalizeImportableSlip(row, { sourceType: "salesPlan", sourceLabel: "판매계획", date: "planDate", slipNo: "slipNo", vendor: "vendor", item: "item", lines: "lines" }),
         }]}
-        onSelect={(source) => void importPlan(source.value)}
+        allowLineSelection
+        onSelect={(source, selectedLines) => void importPlan(source.value, selectedLines)}
       />
 
       <Label className="sr-only">판매계획입력 양식</Label>
