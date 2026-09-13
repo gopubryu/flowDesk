@@ -275,3 +275,29 @@ export function assertMasterItemCode(itemCode: string): string | null {
   return null;
 }
 
+type ItemCodeLookup = {
+  item: {
+    findMany(args: {
+      where: { workspaceId: string; code: { in: string[] } };
+      select: { code: true };
+    }): Promise<Array<{ code: string }>>;
+  };
+};
+
+/** Validate movement item codes against the workspace item master. */
+export async function validateRegisteredItemCodes(
+  itemCodes: string[],
+  workspaceId = DEMO_WORKSPACE_ID,
+  db: ItemCodeLookup = prisma,
+): Promise<string | null> {
+  const codes = [...new Set(itemCodes.map((code) => code.trim()).filter(Boolean))];
+  if (!codes.length) return null;
+  const registered = await db.item.findMany({
+    where: { workspaceId, code: { in: codes } },
+    select: { code: true },
+  });
+  const registeredCodes = new Set(registered.map((item) => item.code));
+  const unknown = codes.find((code) => !registeredCodes.has(code));
+  return unknown ? `Unknown item code ${unknown}.` : null;
+}
+

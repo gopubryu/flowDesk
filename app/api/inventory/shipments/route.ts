@@ -14,6 +14,7 @@ import {
   serializeMovement,
   serializableInventoryTransaction,
   sumRelatedQty,
+  validateRegisteredItemCodes,
 } from "@/lib/inventory-server";
 import { aggregateQtyByItem, groupRelatedLines, validateMovementQuantity } from "@/lib/erp-rules";
 
@@ -82,6 +83,10 @@ export async function POST(req: Request) {
       if (bad) {
         return NextResponse.json({ error: bad }, { status: 400 });
       }
+    }
+    const unknownItem = await validateRegisteredItemCodes(lines.map((line) => line.itemCode));
+    if (unknownItem) {
+      return NextResponse.json({ error: unknownItem }, { status: 400 });
     }
 
     if (lines.length === 0) {
