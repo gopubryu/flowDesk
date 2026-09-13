@@ -13,7 +13,7 @@ import {
   serializableInventoryTransaction,
   sumRelatedQty,
 } from "@/lib/inventory-server";
-import { groupRelatedLines } from "@/lib/erp-rules";
+import { groupRelatedLines, validateMovementQuantity } from "@/lib/erp-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +54,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "입고일자가 올바르지 않아요." }, { status: 400 });
     }
     const rawLines = Array.isArray(body.lines) ? (body.lines as LineInput[]) : [];
+    const malformedLine = rawLines.find((line) => {
+      const hasContent = Boolean(line.itemCode?.trim()) || line.qty !== undefined;
+      return hasContent && validateMovementQuantity(line.qty) !== null;
+    });
+    if (malformedLine) {
+      return NextResponse.json({ error: validateMovementQuantity(malformedLine.qty) }, { status: 400 });
+    }
     const lines = rawLines
       .map((l) => ({
         itemCode: String(l.itemCode ?? "").trim(),

@@ -14,6 +14,31 @@ export function aggregateQtyByItem<T extends { itemCode: string; qty: number }>(
   return quantities;
 }
 
+export function validateMovementQuantity(value: unknown): string | null {
+  if (value === null || value === undefined || (typeof value === "string" && value.trim() === "")) return "Quantity is required.";
+  const quantity = typeof value === "number" ? value : typeof value === "string" ? Number(value.trim()) : NaN;
+  if (!Number.isFinite(quantity)) return "Quantity must be a finite number.";
+  if (quantity <= 0) return "Quantity must be greater than zero.";
+  return null;
+}
+
+export function validateLinkedQuantities(
+  plannedByItem: Map<string, number>,
+  processedByItem: Map<string, number>,
+  requestedByItem: Map<string, number>,
+): string | null {
+  for (const [itemCode, requested] of requestedByItem) {
+    if (!Number.isFinite(requested)) return `Quantity for ${itemCode} must be a finite number.`;
+    if (requested < 0) return `Quantity for ${itemCode} must be non-negative.`;
+    const planned = plannedByItem.get(itemCode);
+    if (planned === undefined) return `Unknown item code ${itemCode}.`;
+    const processed = processedByItem.get(itemCode) ?? 0;
+    if (!Number.isFinite(planned) || !Number.isFinite(processed) || processed < 0) return `Invalid linked quantity for ${itemCode}.`;
+    if (requested > planned - processed + 1e-9) return `Requested quantity exceeds remaining quantity for ${itemCode}.`;
+  }
+  return null;
+}
+
 export function groupRelatedLines<T extends { relatedType?: string | null; relatedId?: string | null; itemCode: string; qty: number }>(lines: T[]) {
   const groups = new Map<string, Map<string, number>>();
   for (const line of lines) {

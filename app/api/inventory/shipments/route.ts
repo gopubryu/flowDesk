@@ -15,7 +15,7 @@ import {
   serializableInventoryTransaction,
   sumRelatedQty,
 } from "@/lib/inventory-server";
-import { aggregateQtyByItem, groupRelatedLines } from "@/lib/erp-rules";
+import { aggregateQtyByItem, groupRelatedLines, validateMovementQuantity } from "@/lib/erp-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +57,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "출하일자가 올바르지 않아요." }, { status: 400 });
     }
     const rawLines = Array.isArray(body.lines) ? (body.lines as LineInput[]) : [];
+    const malformedLine = rawLines.find((line) => {
+      const hasContent = Boolean(line.itemCode?.trim()) || line.qty !== undefined;
+      return hasContent && validateMovementQuantity(line.qty) !== null;
+    });
+    if (malformedLine) {
+      return NextResponse.json({ error: validateMovementQuantity(malformedLine.qty) }, { status: 400 });
+    }
     const lines = rawLines
       .map((l) => ({
         itemCode: String(l.itemCode ?? "").trim(),
@@ -156,6 +163,9 @@ export async function POST(req: Request) {
           }
         }
       } else {
+        if (!plan.itemCode || [...aggregateQtyByItem(lines).keys()].some((itemCode) => itemCode !== plan.itemCode)) {
+          return NextResponse.json({ error: "Unknown item code for linked sales plan." }, { status: 400 });
+        }
         const remain = Math.max(0, plan.quantity - already);
         const reqSum = lines.reduce((s, l) => s + l.qty, 0);
         if (reqSum > remain + 1e-9) {
@@ -187,7 +197,9 @@ export async function POST(req: Request) {
         const shipped = await tx.stockMovement.groupBy({ by: ["itemCode"], where: { workspaceId: DEMO_WORKSPACE_ID, relatedType: "salesPlan", relatedId: lineRelatedId, type: "shipment" }, _sum: { qty: true } });
         const shippedByItem = new Map(shipped.map((row) => [row.itemCode, Math.abs(row._sum.qty ?? 0)]));
         for (const [itemCode, requested] of requestedByItem) {
-          const planned = plan.lines.length ? plan.lines.filter((line) => line.itemCode === itemCode).reduce((sum, line) => sum + line.qty, 0) : plan.quantity;
+          const planned = plan.lines.length
+            ? plan.lines.filter((line) => line.itemCode === itemCode).reduce((sum, line) => sum + line.qty, 0)
+            : plan.itemCode === itemCode ? plan.quantity : 0;
           const remaining = planned - (shippedByItem.get(itemCode) ?? 0);
           if (planned <= 0 || requested > remaining + 1e-9) throw new Error(`Shipment exceeds remaining quantity for ${itemCode}.`);
         }

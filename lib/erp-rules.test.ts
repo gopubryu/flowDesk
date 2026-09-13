@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { adjustmentDelta, aggregateQtyByItem, canDeletePurchase, canTransitionPurchase, canTransitionPurchaseRequest, groupRelatedLines, validDateOnly, validatePurchaseInput } from "./erp-rules";
+import { adjustmentDelta, aggregateQtyByItem, canDeletePurchase, canTransitionPurchase, canTransitionPurchaseRequest, groupRelatedLines, validDateOnly, validateLinkedQuantities, validatePurchaseInput } from "./erp-rules";
 
 test("adjustment uses server balance and treats book quantity as OCC only", () => {
   assert.deepEqual(adjustmentDelta(10, 7, 10), { delta: -3 });
@@ -22,6 +22,19 @@ test("purchase validation rejects missing vendor, invalid items, quantities, and
   assert.ok(validatePurchaseInput("", [line]));
   assert.ok(validatePurchaseInput("Vendor", [{ ...line, qty: 0 }]));
   assert.ok(validatePurchaseInput("Vendor", [{ ...line, total: Number.NaN }]));
+});
+
+test("linked quantities reject unknown items, over-quantity, and repeated processing", () => {
+  const planned = new Map([["A", 5], ["B", 2]]);
+  assert.equal(validateLinkedQuantities(planned, new Map(), new Map([["A", 2]])), null);
+  assert.match(validateLinkedQuantities(planned, new Map(), new Map([["C", 1]])) ?? "", /unknown item/i);
+  assert.match(validateLinkedQuantities(planned, new Map([["A", 4]]), new Map([["A", 2]])) ?? "", /remaining/i);
+  assert.match(validateLinkedQuantities(planned, new Map([["A", 5]]), new Map([["A", 1]])) ?? "", /remaining/i);
+});
+
+test("linked quantity validation rejects malformed, negative, and non-finite quantities", () => {
+  assert.match(validateLinkedQuantities(new Map([["A", 5]]), new Map(), new Map([["A", Number.NaN]])) ?? "", /finite/i);
+  assert.match(validateLinkedQuantities(new Map([["A", 5]]), new Map(), new Map([["A", -1]])) ?? "", /non-negative/i);
 });
 
 test("purchase bulk operations allow only legal lifecycle changes and unreceived deletes", () => {

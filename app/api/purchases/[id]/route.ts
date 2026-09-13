@@ -7,7 +7,7 @@ import {
   parseDateOnly,
   serializePurchase,
 } from "@/lib/demo";
-import { canDeletePurchase, canTransitionPurchase, validatePurchaseInput } from "@/lib/erp-rules";
+import { canDeletePurchase, canTransitionPurchase, finiteNonNegative, validatePurchaseInput } from "@/lib/erp-rules";
 import { serializableInventoryTransaction } from "@/lib/inventory-server";
 
 export const dynamic = "force-dynamic";
@@ -90,6 +90,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
     }
 
     const body = await req.json();
+    if (body.quantity !== undefined && !finiteNonNegative(Number(body.quantity))) {
+      return NextResponse.json({ error: "Quantity must be a finite non-negative number." }, { status: 400 });
+    }
     const lineRows = mapLines(body.lines as LineInput[] | undefined);
 
     const data: Record<string, unknown> = { updatedAt: new Date() };

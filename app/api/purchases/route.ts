@@ -9,7 +9,7 @@ import {
   parseDateOnly,
   serializePurchase,
 } from "@/lib/demo";
-import { validatePurchaseInput } from "@/lib/erp-rules";
+import { finiteNonNegative, validatePurchaseInput } from "@/lib/erp-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -80,9 +80,23 @@ export async function POST(req: Request) {
   try {
     await ensureDemoWorkspace();
     const body = await req.json();
+    if (body.quantity !== undefined && !finiteNonNegative(Number(body.quantity))) {
+      return NextResponse.json({ error: "Quantity must be a finite non-negative number." }, { status: 400 });
+    }
     const lineRows = mapLines(body.lines as LineInput[] | undefined);
     const validation = validatePurchaseInput(String(body.vendorName ?? body.vendor ?? "").trim(), lineRows);
     if (validation) return NextResponse.json({ error: validation }, { status: 400 });
+
+    const itemCodes = [...new Set([
+      ...lineRows.map((line) => line.itemCode).filter((code): code is string => Boolean(code)),
+      ...(body.itemCode ? [String(body.itemCode).trim()] : []),
+    ])];
+    if (itemCodes.length) {
+      const known = await prisma.item.findMany({ where: { workspaceId: DEMO_WORKSPACE_ID, code: { in: itemCodes } }, select: { code: true } });
+      const knownCodes = new Set(known.map((item) => item.code));
+      const unknown = itemCodes.find((code) => !knownCodes.has(code));
+      if (unknown) return NextResponse.json({ error: `Unknown item code ${unknown}.` }, { status: 400 });
+    }
 
     const vendorName =
       String(body.vendorName ?? body.vendor ?? "").trim() || "(미지정)";
