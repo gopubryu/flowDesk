@@ -38,7 +38,7 @@
 - `git diff --check`: 통과
 - 배포 견적서 API QA: 14/14 통과
 - QA 테스트 데이터: 정리 완료 (`total_quotations: 0`)
-- GitHub `main` 최신 커밋: `70e1e52 fix: unify quotation list and status dashboard styling`
+- GitHub `main` 최신 커밋: `11655cb feat: unify quotation list/status page design with purchase requests`
 - 프로덕션: `https://flow-desk-ashy.vercel.app`
 - `/quotations`, `/quotations/status` 프로덕션 응답: HTTP 200
 
