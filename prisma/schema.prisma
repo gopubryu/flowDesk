@@ -330,6 +330,8 @@ model Purchase {
   accountingReflect Boolean        @default(false)
   printed           Boolean        @default(false)
   importedSlip      String?
+  sourceType        String?
+  sourceId          String?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   lines             PurchaseLine[]
@@ -353,8 +355,13 @@ model PurchaseLine {
   total      Float    @default(0)
   extra      String?
   sortOrder  Int      @default(0)
+  sourceType String?
+  sourceId   String?
+  sourceLineId String?
 
   @@index([purchaseId])
+  @@index([sourceType, sourceId])
+  @@index([sourceLineId])
 }
 
 enum SalesPlanStatus {

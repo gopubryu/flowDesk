@@ -23,6 +23,9 @@ export interface PurchaseLine {
   total?: number;
   extra?: string;
   sortOrder?: number;
+  sourceType?: string;
+  sourceId?: string;
+  sourceLineId?: string;
 }
 
 export interface Purchase {
@@ -62,6 +65,8 @@ export interface Purchase {
   printed?: boolean;
   /** 불러온전표 */
   importedSlip?: string;
+  sourceType?: string;
+  sourceId?: string;
 }
 
 export const PURCHASE_STATUS_TABS: {
@@ -426,6 +431,8 @@ export async function savePurchaseApi(row: PurchaseInput): Promise<Purchase> {
     accountingReflect: row.accountingReflect,
     printed: row.printed,
     importedSlip: row.importedSlip,
+    sourceType: row.sourceType,
+    sourceId: row.sourceId,
     lines: row.lines,
   };
   if (row.id) {

@@ -25,6 +25,9 @@ type LineInput = {
   total?: number | string | null;
   extra?: string | null;
   sortOrder?: number | null;
+  sourceType?: string | null;
+  sourceId?: string | null;
+  sourceLineId?: string | null;
 };
 
 function num(v: unknown, fallback = 0): number {
@@ -48,6 +51,9 @@ function mapLines(lines: LineInput[] | undefined) {
       total: num(l.total),
       extra: l.extra ? String(l.extra) : null,
       sortOrder: typeof l.sortOrder === "number" ? l.sortOrder : i,
+      sourceType: l.sourceType ? String(l.sourceType) : null,
+      sourceId: l.sourceId ? String(l.sourceId) : null,
+      sourceLineId: l.sourceLineId ? String(l.sourceLineId) : null,
     }))
     .filter(
       (l) =>
@@ -159,6 +165,8 @@ export async function POST(req: Request) {
         accountingReflect: Boolean(body.accountingReflect),
         printed: Boolean(body.printed),
         importedSlip: body.importedSlip ? String(body.importedSlip) : null,
+        sourceType: body.sourceType ? String(body.sourceType) : null,
+        sourceId: body.sourceId ? String(body.sourceId) : null,
         lines: lineRows.length ? { create: lineRows } : undefined,
       },
       include: { lines: { orderBy: { sortOrder: "asc" } } },

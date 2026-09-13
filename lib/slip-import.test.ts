@@ -12,6 +12,7 @@ import {
   type ImportableSlip,
   calculateRemainingQuantity,
   calculateRemainingLineQuantities,
+  mapImportedPurchaseLines,
 } from "./slip-import";
 
 const lines = [{ itemCode: "I-1", itemName: "Bolt", qty: 2, unitPrice: 100, supply: 200, vat: 20, total: 220, sortOrder: 0 }];
@@ -70,6 +71,20 @@ test("normalization does not mutate the source record or its lines", () => {
   normalizeImportableSlip(source, { sourceType: "purchase", sourceLabel: "구매", date: "purchaseDate", slipNo: "slipNo", vendor: "vendor", lines: "lines" });
   assert.equal(JSON.stringify(source), before);
 });
+test("purchase import maps source document and source line provenance onto selected lines", () => {
+  const mapped = mapImportedPurchaseLines(
+    { id: "purchase-1", sourceType: "purchaseRequest", lines: [{ id: "request-line-1", itemName: "Bolt", qty: 3 }, { id: "request-line-2", itemName: "Nut", qty: 4 }] },
+    [1],
+  );
+  assert.deepEqual(mapped, [{ id: "request-line-2", itemName: "Nut", qty: 4, sourceType: "purchaseRequest", sourceId: "purchase-1", sourceLineId: "request-line-2" }]);
+});
+
+test("purchase import leaves provenance absent for legacy unlinked lines", () => {
+  const mapped = mapImportedPurchaseLines({ id: "legacy-1", lines: [{ itemName: "Bolt", qty: 1 }] });
+  assert.deepEqual(mapped, [{ itemName: "Bolt", qty: 1 }]);
+});
+
+
 test("remaining quantity never goes below zero and treats missing processed quantity as zero", () => {
   assert.equal(calculateRemainingQuantity(10, 3), 7);
   assert.equal(calculateRemainingQuantity(10, 12), 0);

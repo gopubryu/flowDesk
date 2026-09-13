@@ -6,6 +6,17 @@ export type ImportLine = {
   total?: number | null; extra?: string | null; sortOrder?: number | null;
 };
 
+export function mapImportedPurchaseLines<T extends ImportLine>(
+  source: { id: string; sourceType?: string; lines?: T[] | null },
+  selectedIndexes?: number[],
+): Array<T & { sourceType?: string; sourceId?: string; sourceLineId?: string }> {
+  return (source.lines ?? [])
+    .filter((_, index) => selectedIndexes?.includes(index) ?? true)
+    .map((line) => source.sourceType && line.id
+      ? { ...line, sourceType: source.sourceType, sourceId: source.id, sourceLineId: line.id }
+      : { ...line });
+}
+
 export function calculateRemainingQuantity(requested: number | null | undefined, processed: number | null | undefined): number {
   const total = Number(requested);
   const used = Number(processed ?? 0);

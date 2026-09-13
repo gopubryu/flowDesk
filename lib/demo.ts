@@ -536,6 +536,8 @@ export function serializePurchase(r: {
   accountingReflect: boolean;
   printed: boolean;
   importedSlip: string | null;
+  sourceType: string | null;
+  sourceId: string | null;
   createdAt?: Date;
   updatedAt?: Date;
   lines?: {
@@ -551,6 +553,9 @@ export function serializePurchase(r: {
     total: number;
     extra: string | null;
     sortOrder: number;
+    sourceType: string | null;
+    sourceId: string | null;
+    sourceLineId: string | null;
   }[];
 }) {
   return {
@@ -579,6 +584,8 @@ export function serializePurchase(r: {
     accountingReflect: r.accountingReflect,
     printed: r.printed,
     importedSlip: r.importedSlip ?? undefined,
+    sourceType: r.sourceType ?? undefined,
+    sourceId: r.sourceId ?? undefined,
     createdAt: r.createdAt?.toISOString(),
     updatedAt: r.updatedAt?.toISOString(),
     lines: r.lines?.map((l) => ({
@@ -594,6 +601,9 @@ export function serializePurchase(r: {
       total: l.total,
       extra: l.extra ?? undefined,
       sortOrder: l.sortOrder,
+      sourceType: l.sourceType ?? undefined,
+      sourceId: l.sourceId ?? undefined,
+      sourceLineId: l.sourceLineId ?? undefined,
     })),
   };
 }

@@ -26,6 +26,9 @@ type LineInput = {
   total?: number | string | null;
   extra?: string | null;
   sortOrder?: number | null;
+  sourceType?: string | null;
+  sourceId?: string | null;
+  sourceLineId?: string | null;
 };
 
 function num(v: unknown, fallback = 0): number {
@@ -49,6 +52,9 @@ function mapLines(lines: LineInput[] | undefined) {
       total: num(l.total),
       extra: l.extra ? String(l.extra) : null,
       sortOrder: typeof l.sortOrder === "number" ? l.sortOrder : i,
+      sourceType: l.sourceType ? String(l.sourceType) : null,
+      sourceId: l.sourceId ? String(l.sourceId) : null,
+      sourceLineId: l.sourceLineId ? String(l.sourceLineId) : null,
     }))
     .filter(
       (l) =>
@@ -164,9 +170,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
       data.accountingReflect = Boolean(body.accountingReflect);
     if (body.printed !== undefined) data.printed = Boolean(body.printed);
     if (body.importedSlip !== undefined)
-      data.importedSlip = body.importedSlip
-        ? String(body.importedSlip)
-        : null;
+      data.importedSlip = body.importedSlip ? String(body.importedSlip) : null;
+    if (body.sourceType !== undefined) data.sourceType = body.sourceType ? String(body.sourceType) : null;
+    if (body.sourceId !== undefined) data.sourceId = body.sourceId ? String(body.sourceId) : null;
 
     if (lineRows) {
       if (body.item === undefined) {

@@ -18,7 +18,7 @@ import {
 import { fetchPurchaseRequests } from "@/lib/purchase-requests";
 import { fetchRelatedLineQty } from "@/lib/inventory";
 import { SlipImportDialog } from "@/components/slips/slip-import-dialog";
-import { calculateRemainingLineQuantities, hasNonEmptyBusinessFormData, normalizeImportableSlip } from "@/lib/slip-import";
+import { calculateRemainingLineQuantities, hasNonEmptyBusinessFormData, mapImportedPurchaseLines, normalizeImportableSlip } from "@/lib/slip-import";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAppDialog } from "@/components/ui/app-alert-dialog";
@@ -41,6 +41,9 @@ export type LineRow = {
   vat: string;
   extra: string;
   total: string;
+  sourceType?: string;
+  sourceId?: string;
+  sourceLineId?: string;
 };
 
 type Master = {
@@ -71,6 +74,7 @@ type PurchaseImportLine = {
   vat?: number;
   total?: number;
   extra?: string;
+  id?: string;
 };
 
 type PurchaseImportRecord = {
@@ -250,6 +254,8 @@ export function PurchaseForm({
   const [saving, setSaving] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importedSlip, setImportedSlip] = useState("");
+  const [sourceType, setSourceType] = useState<string | undefined>();
+  const [sourceId, setSourceId] = useState<string | undefined>();
   const saveMenuRef = useRef<HTMLDivElement>(null);
 
   const totals = useMemo(() => {
@@ -394,6 +400,8 @@ export function PurchaseForm({
       itemCode: first.itemCode.trim() || undefined,
       inboundStatus: "none",
       importedSlip: importedSlip || undefined,
+      sourceType,
+      sourceId,
       remarks: master.remarks.trim() || undefined,
       lines: filled.map((l, i) => ({
         itemCode: l.itemCode.trim() || undefined,
@@ -405,6 +413,9 @@ export function PurchaseForm({
         vat: parseNonNegNumber(l.vat),
         total: parseNonNegNumber(l.total) || parseNonNegNumber(l.supply),
         extra: l.extra.trim() || undefined,
+        sourceType: l.sourceType,
+        sourceId: l.sourceId,
+        sourceLineId: l.sourceLineId,
         sortOrder: i,
       })),
     };
@@ -445,6 +456,9 @@ export function PurchaseForm({
   function resetForm() {
     setMaster(defaultMaster());
     setLines(Array.from({ length: INITIAL_LINE_COUNT }, () => emptyLine()));
+    setImportedSlip("");
+    setSourceType(undefined);
+    setSourceId(undefined);
   }
 
   const title = mode === "edit" ? "구매입력 (수정)" : "구매입력";
@@ -454,15 +468,17 @@ export function PurchaseForm({
     value: PurchaseImportRecord;
   }, selectedIndexes?: number[]) {
     const row = source.value;
-    const importedLines = (row.lines ?? []).filter((_, index) => selectedIndexes?.includes(index) ?? true);
+    const importedLines = mapImportedPurchaseLines({ id: row.id, sourceType: source.sourceType, lines: row.lines }, selectedIndexes);
     const defaults = defaultMaster();
     const header = { ...master, purchaseDate: "", slipNo: "", taxType: master.taxType === defaults.taxType ? "" : master.taxType, currency: master.currency === defaults.currency ? "" : master.currency };
     if (hasNonEmptyBusinessFormData(header, lines)) {
       if (!(await confirm({ title: "전표불러오기", description: "현재 입력한 내용을 불러온 전표로 바꿀까요?" }))) return;
     }
     setImportedSlip(`${source.sourceType ?? "구매"}: ${row.slipNo ?? row.id}`);
+    setSourceType(source.sourceType);
+    setSourceId(row.id);
     setMaster((m) => ({ ...m, orderNo: "", slipNo: "", vendorCode: row.vendorCode ?? "", vendorName: row.vendorName ?? row.vendor ?? "", managerName: row.managerName ?? row.manager ?? "", managerCode: row.managerCode ?? "", warehouseCode: row.warehouseCode ?? "", warehouseName: row.warehouseName ?? row.warehouse ?? "", taxType: row.taxType ?? m.taxType, currency: row.currency ?? m.currency, projectName: row.project ?? "", remarks: row.remarks ?? "" }));
-    setLines(importedLines.map((line) => ({ ...emptyLine(), checked: true, itemCode: line.itemCode ?? "", itemName: line.itemName ?? "", spec: line.spec ?? "", qty: String(line.remainingQty ?? line.qty ?? ""), unitPrice: String(line.unitPrice ?? ""), supply: String(line.supply ?? ""), vat: String(line.vat ?? ""), total: String(line.total ?? ""), extra: line.extra ?? "" })));
+    setLines(importedLines.map((line) => ({ ...emptyLine(), checked: true, itemCode: line.itemCode ?? "", itemName: line.itemName ?? "", spec: line.spec ?? "", qty: String(line.remainingQty ?? line.qty ?? ""), unitPrice: String(line.unitPrice ?? ""), supply: String(line.supply ?? ""), vat: String(line.vat ?? ""), total: String(line.total ?? ""), extra: line.extra ?? "", sourceType: line.sourceType, sourceId: line.sourceId, sourceLineId: line.sourceLineId })));
   }
 
   return (
