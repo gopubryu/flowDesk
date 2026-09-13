@@ -19,7 +19,7 @@ import {
   type PurchaseRequestStatus,
 } from "@/lib/purchase-requests";
 import { SlipImportDialog } from "@/components/slips/slip-import-dialog";
-import { hasNonEmptyBusinessFormData } from "@/lib/slip-import";
+import { hasNonEmptyBusinessFormData, normalizeImportableSlip } from "@/lib/slip-import";
 import { cn } from "@/lib/utils";
 import {
   formatNumberWithComma,
@@ -1102,7 +1102,17 @@ export function PurchaseRequestForm({
         }}
       />
 
-      <SlipImportDialog open={importOpen} onOpenChange={setImportOpen} load={async () => (await fetchPurchaseRequests()).map((row) => ({ id: row.id, date: row.requestDate, slipNo: row.slipNo, vendorName: row.vendorName ?? row.vendor, item: row.item, lines: row.lines, value: row }))} onSelect={(source) => void importRequest(source.value)} />
+      <SlipImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        sourceConfigs={[{
+          sourceType: "purchaseRequest",
+          label: "발주요청",
+          load: fetchPurchaseRequests,
+          normalize: (row) => normalizeImportableSlip(row, { sourceType: "purchaseRequest", sourceLabel: "발주요청", date: "requestDate", slipNo: "slipNo", vendor: "vendorName", item: "item", lines: "lines" }),
+        }]}
+        onSelect={(source) => void importRequest(source.value)}
+      />
 
       <Label className="sr-only">발주요청입력 양식</Label>
       {appDialog}

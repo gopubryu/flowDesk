@@ -17,7 +17,7 @@ import {
 } from "@/lib/purchases";
 import { fetchPurchaseRequests } from "@/lib/purchase-requests";
 import { SlipImportDialog } from "@/components/slips/slip-import-dialog";
-import { hasNonEmptyBusinessFormData } from "@/lib/slip-import";
+import { hasNonEmptyBusinessFormData, normalizeImportableSlip } from "@/lib/slip-import";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAppDialog } from "@/components/ui/app-alert-dialog";
@@ -73,6 +73,9 @@ type PurchaseImportLine = {
 
 type PurchaseImportRecord = {
   id: string;
+  requestDate?: string;
+  purchaseDate?: string;
+  item?: string;
   slipNo?: string;
   vendor?: string;
   vendorCode?: string;
@@ -854,13 +857,13 @@ export function PurchaseForm({
       <SlipImportDialog<PurchaseImportRecord>
         open={importOpen}
         onOpenChange={setImportOpen}
-        load={async () => {
-          const [requests, purchases] = await Promise.all([fetchPurchaseRequests(), fetchPurchases()]);
-          return [
-            ...requests.filter((row) => ["confirmed", "in_progress"].includes(row.status)).map((row) => ({ id: row.id, sourceType: "발주요청", date: row.requestDate, slipNo: row.slipNo, vendorName: row.vendorName ?? row.vendor, item: row.item, lines: row.lines, value: row })),
-            ...purchases.filter((row) => row.status === "confirmed").map((row) => ({ id: row.id, sourceType: "구매", date: row.purchaseDate, slipNo: row.slipNo, vendorName: row.vendor, item: row.item, lines: row.lines, value: row })),
-          ];
-        }}
+        sourceConfigs={[{
+          sourceType: "purchaseRequest", label: "발주요청", load: async () => (await fetchPurchaseRequests()).filter((row) => ["confirmed", "in_progress"].includes(row.status)),
+          normalize: (row) => normalizeImportableSlip(row, { sourceType: "purchaseRequest", sourceLabel: "발주요청", date: "requestDate", slipNo: "slipNo", vendor: "vendorName", item: "item", lines: "lines" }),
+        }, {
+          sourceType: "purchase", label: "구매", load: async () => (await fetchPurchases()).filter((row) => row.status === "confirmed"),
+          normalize: (row) => normalizeImportableSlip(row, { sourceType: "purchase", sourceLabel: "구매", date: "purchaseDate", slipNo: "slipNo", vendor: "vendor", item: "item", lines: "lines" }),
+        }]}
         onSelect={(source) => void importPurchase(source)}
       />
 

@@ -6,7 +6,9 @@ import {
   hasNonEmptyBusinessFormData,
   copySalesPlanToDraft,
   matchesSlipImport,
+  normalizeImportableSlip,
   todayDateOnly,
+  type ImportableSlip,
 } from "./slip-import";
 
 const lines = [{ itemCode: "I-1", itemName: "Bolt", qty: 2, unitPrice: 100, supply: 200, vat: 20, total: 220, sortOrder: 0 }];
@@ -42,6 +44,24 @@ test("purchase import identifies the source and never carries lifecycle or recei
   assert.deepEqual(draft.lines, lines);
 });
 
+test("normalizes adapter records with stable source metadata and selectable lines", () => {
+  const normalized = normalizeImportableSlip(
+    { id: "p1", purchaseDate: "2026-09-10", slipNo: "PO-1", vendor: "Acme", item: "Bolt", lines },
+    { sourceType: "purchase", sourceLabel: "구매", date: "purchaseDate", slipNo: "slipNo", vendor: "vendor", lines: "lines" },
+  );
+  assert.equal(normalized.sourceType, "purchase");
+  assert.equal(normalized.sourceSlipNo, "PO-1");
+  assert.equal(normalized.vendorName, "Acme");
+  assert.deepEqual(normalized.lines, lines);
+  assert.deepEqual(normalized.value.lines, lines);
+});
+
+test("normalization does not mutate the source record or its lines", () => {
+  const source = { id: "p1", purchaseDate: "2026-09-10", slipNo: "PO-1", vendor: "Acme", item: "Bolt", lines };
+  const before = JSON.stringify(source);
+  normalizeImportableSlip(source, { sourceType: "purchase", sourceLabel: "구매", date: "purchaseDate", slipNo: "slipNo", vendor: "vendor", lines: "lines" });
+  assert.equal(JSON.stringify(source), before);
+});
 test("import replacement warning includes populated business headers even without lines", () => {
   assert.equal(hasNonEmptyBusinessFormData({ vendorName: "Acme", warehouseCode: "" }, []), true);
   assert.equal(hasNonEmptyBusinessFormData({ vendorName: "  ", warehouseCode: "" }, []), false);

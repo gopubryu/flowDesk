@@ -20,7 +20,7 @@ import {
   type OutboundStatus,
 } from "@/lib/sales-plans";
 import { SlipImportDialog } from "@/components/slips/slip-import-dialog";
-import { hasNonEmptyBusinessFormData } from "@/lib/slip-import";
+import { hasNonEmptyBusinessFormData, normalizeImportableSlip } from "@/lib/slip-import";
 import { formatNumberWithComma, parseNumberInput } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -936,7 +936,15 @@ export function SalesPlanForm({
         }}
       />
 
-      <SlipImportDialog open={importOpen} onOpenChange={setImportOpen} load={async () => (await fetchSalesPlans()).map((row) => ({ id: row.id, date: row.planDate, slipNo: row.slipNo, vendorName: row.vendor, item: row.item, lines: row.lines, value: row }))} onSelect={(source) => void importPlan(source.value)} />
+      <SlipImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        sourceConfigs={[{
+          sourceType: "salesPlan", label: "판매계획", load: fetchSalesPlans,
+          normalize: (row) => normalizeImportableSlip(row, { sourceType: "salesPlan", sourceLabel: "판매계획", date: "planDate", slipNo: "slipNo", vendor: "vendor", item: "item", lines: "lines" }),
+        }]}
+        onSelect={(source) => void importPlan(source.value)}
+      />
 
       <Label className="sr-only">판매계획입력 양식</Label>
       {appDialog}
