@@ -44,6 +44,12 @@ test("purchase import identifies the source and never carries lifecycle or recei
   assert.deepEqual(draft.lines, lines);
 });
 
+test("prefers a configured initial source type when available", () => {
+  const { resolveInitialSlipSourceType } = require("./slip-import") as typeof import("./slip-import");
+  assert.equal(resolveInitialSlipSourceType([{ sourceType: "purchaseRequest" }, { sourceType: "purchase" }], "purchase"), "purchase");
+  assert.equal(resolveInitialSlipSourceType([{ sourceType: "purchaseRequest" }], "purchase"), "purchaseRequest");
+});
+
 test("normalizes adapter records with stable source metadata and selectable lines", () => {
   const normalized = normalizeImportableSlip(
     { id: "p1", purchaseDate: "2026-09-10", slipNo: "PO-1", vendor: "Acme", item: "Bolt", lines },

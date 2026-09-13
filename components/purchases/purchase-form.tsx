@@ -864,6 +864,7 @@ export function PurchaseForm({
           sourceType: "purchase", label: "구매", load: async () => (await fetchPurchases()).filter((row) => row.status === "confirmed"),
           normalize: (row) => normalizeImportableSlip(row, { sourceType: "purchase", sourceLabel: "구매", date: "purchaseDate", slipNo: "slipNo", vendor: "vendor", item: "item", lines: "lines" }),
         }]}
+        initialSourceType="purchase"
         onSelect={(source) => void importPurchase(source)}
       />
 

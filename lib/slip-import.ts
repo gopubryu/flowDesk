@@ -41,6 +41,14 @@ export function normalizeImportableSlip<T extends object>(
   };
 }
 
+export function resolveInitialSlipSourceType(
+  sources: Array<Pick<SlipImportAdapter, "sourceType">>,
+  preferred?: SlipSourceType,
+): SlipSourceType | "" {
+  if (preferred && sources.some((source) => source.sourceType === preferred)) return preferred;
+  return sources[0]?.sourceType ?? "";
+}
+
 export function todayDateOnly(now = new Date()): string {
   const y = now.getFullYear(); const m = String(now.getMonth() + 1).padStart(2, "0"); const d = String(now.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
