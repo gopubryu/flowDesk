@@ -7,6 +7,7 @@ import {
   copySalesPlanToDraft,
   matchesSlipImport,
   normalizeImportableSlip,
+  resolveInitialSlipSourceType,
   todayDateOnly,
   type ImportableSlip,
 } from "./slip-import";
@@ -45,7 +46,6 @@ test("purchase import identifies the source and never carries lifecycle or recei
 });
 
 test("prefers a configured initial source type when available", () => {
-  const { resolveInitialSlipSourceType } = require("./slip-import") as typeof import("./slip-import");
   assert.equal(resolveInitialSlipSourceType([{ sourceType: "purchaseRequest" }, { sourceType: "purchase" }], "purchase"), "purchase");
   assert.equal(resolveInitialSlipSourceType([{ sourceType: "purchaseRequest" }], "purchase"), "purchaseRequest");
 });
