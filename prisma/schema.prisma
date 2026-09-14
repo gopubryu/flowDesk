@@ -85,6 +85,7 @@ model Workspace {
   vendors          Vendor[]
   quotations       Quotation[]
   members          WorkspaceMember[]
+  invitations      Invitation[]
 }
 
 model Employee {
@@ -580,6 +581,7 @@ model User {
   sessions         Session[]
   accounts         Account[]
   workspaceMembers WorkspaceMember[]
+  sentInvitations  Invitation[]
 }
 
 model WorkspaceMember {
@@ -597,6 +599,24 @@ model WorkspaceMember {
   @@index([workspaceId])
   @@index([userId])
   @@index([userId, isActive])
+}
+
+model Invitation {
+  id          String        @id @default(cuid())
+  workspaceId String
+  inviterId   String
+  email       String
+  role        WorkspaceRole
+  tokenHash   String        @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime      @default(now())
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  inviter     User          @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, acceptedAt])
+  @@index([workspaceId, email, acceptedAt])
+  @@index([expiresAt])
 }
 
 model Session {
