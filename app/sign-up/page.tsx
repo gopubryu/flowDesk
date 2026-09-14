@@ -15,9 +15,10 @@ export default function SignUpPage() {
     event.preventDefault();
     setError("");
     setPending(true);
-    const result = await signUp.email({ name, email, password, callbackURL: "/" });
+    const result = await signUp.email({ name, email, password, callbackURL: "/onboarding" });
     setPending(false);
     if (result.error) setError(result.error.message ?? "회원가입에 실패했습니다.");
+    else window.location.assign("/onboarding");
   }
 
   return (
