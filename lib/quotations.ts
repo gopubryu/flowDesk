@@ -1,4 +1,4 @@
-import { masterDataRequest } from "@/lib/master-data-client";
+import { activeWorkspaceId, masterDataRequest } from "@/lib/master-data-client";
 
 export type QuotationStatus = "draft" | "sent" | "accepted" | "rejected" | "expired";
 export type QuotationLine = { id?: string; itemCode?: string; itemName: string; spec?: string; unit?: string; qty: number; unitPrice: number; supply: number; vat: number; total: number; extra?: string; sortOrder: number };
@@ -11,9 +11,9 @@ export const CURRENCY_OPTIONS = ["내자", "달러[100]", "엔화[400]", "위안
 export function formatQuotationNo(quotation: Pick<Quotation, "slipNo">) { return quotation.slipNo || "—"; }
 export function defaultQuotationDateRange(today = new Date()) { const to = new Date(today.getFullYear(), today.getMonth(), today.getDate()); const from = new Date(to); from.setMonth(from.getMonth() - 2); const format = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; return { from: format(from), to: format(to) }; }
 
-export async function fetchQuotations(filters: { from?: string; to?: string; status?: string; query?: string } = {}) { const params = new URLSearchParams(Object.entries(filters).filter(([, value]) => Boolean(value)) as [string, string][]); return masterDataRequest<Quotation[]>(`/api/quotations${params.size ? `?${params}` : ""}`); }
-export async function fetchQuotation(id: string) { return masterDataRequest<Quotation>(`/api/quotations/${id}`); }
-export async function saveQuotation(input: QuotationInput) { const { id, ...body } = input; return masterDataRequest<Quotation>(id ? `/api/quotations/${id}` : "/api/quotations", { method: id ? "PATCH" : "POST", body: JSON.stringify(body) }); }
-export async function updateQuotationStatus(id: string, status: QuotationStatus) { return masterDataRequest<Quotation>(`/api/quotations/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }); }
-export async function deleteQuotation(id: string) { return masterDataRequest<{ ok: true }>(`/api/quotations/${id}`, { method: "DELETE" }); }
-export async function convertQuotation(id: string) { return masterDataRequest<{ id: string; slipNo?: string; sourceQuotationId: string }>(`/api/quotations/${id}/convert-to-sales-plan`, { method: "POST" }); }
+export async function fetchQuotations(filters: { from?: string; to?: string; status?: string; query?: string } = {}) { const workspaceId = await activeWorkspaceId(); const params = new URLSearchParams({ workspaceId, ...Object.fromEntries(Object.entries(filters).filter(([, value]) => Boolean(value))) }); return masterDataRequest<Quotation[]>(`/api/quotations?${params}`); }
+export async function fetchQuotation(id: string) { const workspaceId = await activeWorkspaceId(); return masterDataRequest<Quotation>(`/api/quotations/${id}?workspaceId=${encodeURIComponent(workspaceId)}`); }
+export async function saveQuotation(input: QuotationInput) { const { id, ...body } = input; const workspaceId = await activeWorkspaceId(); return masterDataRequest<Quotation>(id ? `/api/quotations/${id}` : "/api/quotations", { method: id ? "PATCH" : "POST", body: JSON.stringify({ ...body, workspaceId }) }); }
+export async function updateQuotationStatus(id: string, status: QuotationStatus) { const workspaceId = await activeWorkspaceId(); return masterDataRequest<Quotation>(`/api/quotations/${id}`, { method: "PATCH", body: JSON.stringify({ status, workspaceId }) }); }
+export async function deleteQuotation(id: string) { const workspaceId = await activeWorkspaceId(); return masterDataRequest<{ ok: true }>(`/api/quotations/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, { method: "DELETE" }); }
+export async function convertQuotation(id: string) { const workspaceId = await activeWorkspaceId(); return masterDataRequest<{ id: string; slipNo?: string; sourceQuotationId: string }>(`/api/quotations/${id}/convert-to-sales-plan?workspaceId=${encodeURIComponent(workspaceId)}`, { method: "POST" }); }

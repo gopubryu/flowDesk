@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import type { SalesPlanStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
-  DEMO_WORKSPACE_ID,
   parseDateOnly,
   serializeSalesPlan,
 } from "@/lib/demo";
+import { bodyWorkspaceId, authError } from "@/lib/master-data-server";
+import { requireResolvedWorkspace, WorkspaceRole } from "@/lib/workspace-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -53,11 +54,12 @@ function mapLines(lines: LineInput[] | undefined) {
     );
 }
 
-export async function GET(_req: Request, ctx: Ctx) {
+export async function GET(req: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
+    const { workspaceId } = await requireResolvedWorkspace(new URL(req.url).searchParams.get("workspaceId"), [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR, WorkspaceRole.VIEWER]);
     const row = await prisma.salesPlan.findFirst({
-      where: { id, workspaceId: DEMO_WORKSPACE_ID },
+      where: { id, workspaceId },
       include: { lines: { orderBy: { sortOrder: "asc" } } },
     });
     if (!row) {
@@ -65,6 +67,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     }
     return NextResponse.json(serializeSalesPlan(row));
   } catch (e) {
+    const auth = authError(e); if (auth) return auth;
     console.error("GET /api/sales-plans/[id]", e);
     return NextResponse.json(
       { error: "Failed to load sales plan" },
@@ -76,14 +79,15 @@ export async function GET(_req: Request, ctx: Ctx) {
 export async function PATCH(req: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
+    const body = await req.json();
+    const { workspaceId } = await requireResolvedWorkspace(bodyWorkspaceId(body), [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR]);
     const existing = await prisma.salesPlan.findFirst({
-      where: { id, workspaceId: DEMO_WORKSPACE_ID },
+      where: { id, workspaceId },
     });
     if (!existing) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const body = await req.json();
     const lineRows = mapLines(body.lines as LineInput[] | undefined);
     const data: Record<string, unknown> = {};
 
@@ -172,7 +176,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
         }
       }
       await tx.salesPlan.update({
-        where: { id },
+        where: { id, workspaceId },
         data,
       });
       return tx.salesPlan.findUniqueOrThrow({
@@ -183,6 +187,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
     return NextResponse.json(serializeSalesPlan(updated));
   } catch (e) {
+    const auth = authError(e); if (auth) return auth;
     console.error("PATCH /api/sales-plans/[id]", e);
     return NextResponse.json(
       { error: "Failed to update sales plan" },
@@ -191,18 +196,20 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 }
 
-export async function DELETE(_req: Request, ctx: Ctx) {
+export async function DELETE(req: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
+    const { workspaceId } = await requireResolvedWorkspace(new URL(req.url).searchParams.get("workspaceId"), [WorkspaceRole.ADMIN]);
     const existing = await prisma.salesPlan.findFirst({
-      where: { id, workspaceId: DEMO_WORKSPACE_ID },
+      where: { id, workspaceId },
     });
     if (!existing) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
-    await prisma.salesPlan.delete({ where: { id } });
+    await prisma.salesPlan.deleteMany({ where: { id, workspaceId } });
     return NextResponse.json({ ok: true });
   } catch (e) {
+    const auth = authError(e); if (auth) return auth;
     console.error("DELETE /api/sales-plans/[id]", e);
     return NextResponse.json(
       { error: "Failed to delete sales plan" },
@@ -210,3 +217,5 @@ export async function DELETE(_req: Request, ctx: Ctx) {
     );
   }
 }
+
+export const PUT = PATCH;

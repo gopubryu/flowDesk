@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import type { SalesPlanStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
-  DEMO_WORKSPACE_ID,
   allocateNextSalesPlanSlipNo,
   backfillMissingSalesPlanSlipNos,
-  ensureDemoWorkspace,
   parseDateOnly,
   serializeSalesPlan,
 } from "@/lib/demo";
+import { bodyWorkspaceId, authError } from "@/lib/master-data-server";
+import { requireResolvedWorkspace, WorkspaceRole } from "@/lib/workspace-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -104,17 +104,18 @@ function summarizeFromLines(
   return { item, quantity, amount, vat, total, unitPrice, itemCode, spec };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    await ensureDemoWorkspace();
-    await backfillMissingSalesPlanSlipNos(DEMO_WORKSPACE_ID);
+    const { workspaceId } = await requireResolvedWorkspace(new URL(req.url).searchParams.get("workspaceId"), [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR, WorkspaceRole.VIEWER]);
+    await backfillMissingSalesPlanSlipNos(workspaceId);
     const rows = await prisma.salesPlan.findMany({
-      where: { workspaceId: DEMO_WORKSPACE_ID },
+      where: { workspaceId },
       include: { lines: { orderBy: { sortOrder: "asc" } } },
       orderBy: [{ planDate: "desc" }, { createdAt: "desc" }],
     });
     return NextResponse.json(rows.map(serializeSalesPlan));
   } catch (e) {
+    const auth = authError(e); if (auth) return auth;
     console.error("GET /api/sales-plans", e);
     return NextResponse.json(
       { error: "Failed to load sales plans" },
@@ -125,20 +126,20 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    await ensureDemoWorkspace();
     const body = await req.json();
+    const { workspaceId } = await requireResolvedWorkspace(bodyWorkspaceId(body), [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR]);
     const lineRows = mapLines(body.lines as LineInput[] | undefined);
     const vendorName =
       String(body.vendorName ?? body.vendor ?? "").trim() || "(미지정)";
     const planDate = parseDateOnly(body.planDate) ?? new Date();
     const slipNo = body.slipNo
       ? String(body.slipNo)
-      : await allocateNextSalesPlanSlipNo(DEMO_WORKSPACE_ID, planDate);
+      : await allocateNextSalesPlanSlipNo(workspaceId, planDate);
     const summary = summarizeFromLines(lineRows, body);
 
     const created = await prisma.salesPlan.create({
       data: {
-        workspaceId: DEMO_WORKSPACE_ID,
+        workspaceId,
         planDate,
         slipNo,
         vendorCode: body.vendorCode ? String(body.vendorCode) : null,
@@ -167,6 +168,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(serializeSalesPlan(created), { status: 201 });
   } catch (e) {
+    const auth = authError(e); if (auth) return auth;
     console.error("POST /api/sales-plans", e);
     return NextResponse.json(
       { error: "Failed to create sales plan" },

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { Prisma, QuotationStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { DEMO_WORKSPACE_ID, toDateString } from "@/lib/demo";
+import { toDateString } from "@/lib/demo";
 import { normalizeQuotationInput, QuotationValidationError } from "@/lib/quotation-domain";
+import { authError } from "@/lib/master-data-server";
 
 export type QuotationLineRow = { id: string; itemCode: string | null; itemName: string; spec: string | null; unit: string | null; qty: number; unitPrice: number; supply: number; vat: number; total: number; extra: string | null; sortOrder: number };
 export type QuotationRow = {
@@ -31,22 +32,23 @@ export function serialize(row: QuotationRow, includeLines = true) {
   };
 }
 
-export async function assertMasterReferences(input: ReturnType<typeof normalizeQuotationInput>) {
-  if (input.vendorCode && !await prisma.vendor.findUnique({ where: { workspaceId_code: { workspaceId: DEMO_WORKSPACE_ID, code: input.vendorCode } } })) throw new QuotationValidationError("Unknown vendor code");
-  if (input.managerCode && !await prisma.employee.findUnique({ where: { workspaceId_code: { workspaceId: DEMO_WORKSPACE_ID, code: input.managerCode } } })) throw new QuotationValidationError("Unknown manager code");
-  if (input.warehouseCode && !await prisma.warehouse.findUnique({ where: { workspaceId_code: { workspaceId: DEMO_WORKSPACE_ID, code: input.warehouseCode } } })) throw new QuotationValidationError("Unknown warehouse code");
+export async function assertMasterReferences(input: ReturnType<typeof normalizeQuotationInput>, workspaceId: string) {
+  if (input.vendorCode && !await prisma.vendor.findUnique({ where: { workspaceId_code: { workspaceId, code: input.vendorCode } } })) throw new QuotationValidationError("Unknown vendor code");
+  if (input.managerCode && !await prisma.employee.findUnique({ where: { workspaceId_code: { workspaceId, code: input.managerCode } } })) throw new QuotationValidationError("Unknown manager code");
+  if (input.warehouseCode && !await prisma.warehouse.findUnique({ where: { workspaceId_code: { workspaceId, code: input.warehouseCode } } })) throw new QuotationValidationError("Unknown warehouse code");
   const codes = input.lines.flatMap((line) => line.itemCode ? [line.itemCode] : []);
   if (codes.length) {
-    const found = await prisma.item.findMany({ where: { workspaceId: DEMO_WORKSPACE_ID, code: { in: codes } }, select: { code: true } });
+    const found = await prisma.item.findMany({ where: { workspaceId, code: { in: codes } }, select: { code: true } });
     if (found.length !== new Set(codes).size) throw new QuotationValidationError("Unknown item code");
   }
 }
 
-export async function expireStaleQuotations() {
-  await prisma.quotation.updateMany({ where: { workspaceId: DEMO_WORKSPACE_ID, status: { in: ["draft", "sent"] }, validUntil: { lt: new Date(new Date().toISOString().slice(0, 10) + "T00:00:00.000Z") } }, data: { status: "expired" } });
+export async function expireStaleQuotations(workspaceId: string) {
+  await prisma.quotation.updateMany({ where: { workspaceId, status: { in: ["draft", "sent"] }, validUntil: { lt: new Date(new Date().toISOString().slice(0, 10) + "T00:00:00.000Z") } }, data: { status: "expired" } });
 }
 
 export function failure(error: unknown, fallback: string) {
+  const auth = authError(error); if (auth) return auth;
   if (error instanceof QuotationValidationError) return NextResponse.json({ error: error.message }, { status: 400 });
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return NextResponse.json({ error: "Duplicate quotation number" }, { status: 409 });
   console.error(fallback, error);

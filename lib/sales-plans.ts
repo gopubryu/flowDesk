@@ -1,3 +1,5 @@
+import { activeWorkspaceId } from "@/lib/master-data-client";
+
 export type SalesPlanStatus =
   | "confirmed"
   | "in_progress"
@@ -338,11 +340,13 @@ async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export async function fetchSalesPlans(): Promise<SalesPlan[]> {
-  return apiJson<SalesPlan[]>("/api/sales-plans");
+  const workspaceId = await activeWorkspaceId();
+  return apiJson<SalesPlan[]>(`/api/sales-plans?workspaceId=${encodeURIComponent(workspaceId)}`);
 }
 
 export async function fetchSalesPlan(id: string): Promise<SalesPlan> {
-  return apiJson<SalesPlan>(`/api/sales-plans/${id}`);
+  const workspaceId = await activeWorkspaceId();
+  return apiJson<SalesPlan>(`/api/sales-plans/${id}?workspaceId=${encodeURIComponent(workspaceId)}`);
 }
 
 export type SalesPlanInput = Omit<SalesPlan, "id"> & { id?: string };
@@ -351,29 +355,33 @@ export async function saveSalesPlanApi(
   input: SalesPlanInput
 ): Promise<SalesPlan> {
   const { id, ...rest } = input;
+  const workspaceId = await activeWorkspaceId();
+  const payload = { ...rest, workspaceId };
   if (id) {
     return apiJson<SalesPlan>(`/api/sales-plans/${id}`, {
       method: "PATCH",
-      body: JSON.stringify(rest),
+      body: JSON.stringify(payload),
     });
   }
   return apiJson<SalesPlan>("/api/sales-plans", {
     method: "POST",
-    body: JSON.stringify(rest),
+    body: JSON.stringify(payload),
   });
 }
 
 export async function deleteSalesPlanApi(id: string): Promise<void> {
-  await apiJson(`/api/sales-plans/${id}`, { method: "DELETE" });
+  const workspaceId = await activeWorkspaceId();
+  await apiJson(`/api/sales-plans/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, { method: "DELETE" });
 }
 
 export async function updateSalesPlanStatusApi(
   id: string,
   status: SalesPlanStatus
 ): Promise<SalesPlan> {
+  const workspaceId = await activeWorkspaceId();
   return apiJson<SalesPlan>(`/api/sales-plans/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, workspaceId }),
   });
 }
 
