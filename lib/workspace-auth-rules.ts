@@ -29,3 +29,26 @@ export function canAccessWorkspaceRole(
     membership?.isActive && isWorkspaceRoleAllowed(membership.role, allowedRoles),
   );
 }
+
+export type WorkspaceResolution =
+  | { kind: "explicit"; workspaceId: string }
+  | { kind: "compatibility-fallback"; workspaceId: string }
+  | { kind: "missing" }
+  | { kind: "ambiguous" };
+
+/**
+ * Selects a workspace candidate without authorizing it. Callers must pass the
+ * selected id through requireWorkspaceRole before using it for any data query.
+ */
+export function resolveWorkspaceSelection(
+  explicitWorkspaceId: unknown,
+  activeWorkspaceIds: readonly string[],
+): WorkspaceResolution {
+  if (typeof explicitWorkspaceId === "string" && explicitWorkspaceId.trim()) {
+    return { kind: "explicit", workspaceId: explicitWorkspaceId.trim() };
+  }
+  if (activeWorkspaceIds.length === 1) {
+    return { kind: "compatibility-fallback", workspaceId: activeWorkspaceIds[0] };
+  }
+  return activeWorkspaceIds.length === 0 ? { kind: "missing" } : { kind: "ambiguous" };
+}

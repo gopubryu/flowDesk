@@ -5,6 +5,7 @@ import { getServerSession } from "@/lib/auth-guards";
 import {
   canAccessWorkspaceRole,
   isWorkspaceRoleAllowed,
+  resolveWorkspaceSelection,
 } from "@/lib/workspace-auth-rules";
 
 export class UnauthorizedError extends Error {
@@ -22,6 +23,15 @@ export class ForbiddenError extends Error {
   constructor(message = "Forbidden") {
     super(message);
     this.name = "ForbiddenError";
+  }
+}
+
+export class BadRequestError extends Error {
+  readonly status = 400;
+
+  constructor(message = "Bad request") {
+    super(message);
+    this.name = "BadRequestError";
   }
 }
 
@@ -62,4 +72,36 @@ export async function requireWorkspaceRole(
   }
 
   return { session, user, membership };
+}
+
+/** Resolve a requested workspace, then authorize it before callers query data. */
+export async function requireResolvedWorkspace(
+  explicitWorkspaceId: unknown,
+  allowedRoles: readonly WorkspaceRole[],
+) {
+  if (explicitWorkspaceId !== undefined && explicitWorkspaceId !== null && typeof explicitWorkspaceId !== "string") {
+    throw new BadRequestError("workspaceId must be a string");
+  }
+
+  const explicit = typeof explicitWorkspaceId === "string" ? explicitWorkspaceId.trim() : undefined;
+  if (explicit) {
+    const authorized = await requireWorkspaceRole(explicit, allowedRoles);
+    return { ...authorized, workspaceId: explicit };
+  }
+
+  const { user } = await requireSessionUser();
+  const memberships = await prisma.workspaceMember.findMany({
+    where: { userId: user.id, isActive: true },
+    select: { workspaceId: true },
+    orderBy: { createdAt: "asc" },
+  });
+  const selection = resolveWorkspaceSelection(undefined, memberships.map(({ workspaceId }) => workspaceId));
+  if (selection.kind === "ambiguous") {
+    throw new BadRequestError("workspaceId is required when the user has multiple active workspaces");
+  }
+  if (selection.kind === "missing") {
+    throw new ForbiddenError();
+  }
+  const authorized = await requireWorkspaceRole(selection.workspaceId, allowedRoles);
+  return { ...authorized, workspaceId: selection.workspaceId };
 }
