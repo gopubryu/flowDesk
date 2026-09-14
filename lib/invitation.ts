@@ -47,3 +47,27 @@ export function createInvitationToken(): string {
 export function hashInvitationToken(token: string): string {
   return createHash("sha256").update(token, "utf8").digest("hex");
 }
+
+export function isValidInvitationToken(value: unknown): value is string {
+  return typeof value === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(value);
+}
+
+export function isInvitationEmailMatch(
+  invitationEmail: unknown,
+  sessionEmail: unknown,
+): boolean {
+  const normalizedInvitationEmail = normalizeInvitationEmail(invitationEmail);
+  const normalizedSessionEmail = normalizeInvitationEmail(sessionEmail);
+  return Boolean(
+    normalizedInvitationEmail &&
+      normalizedSessionEmail &&
+      normalizedInvitationEmail === normalizedSessionEmail,
+  );
+}
+
+export function isInvitationEligible(
+  invitation: Pick<{ acceptedAt: Date | null; expiresAt: Date }, "acceptedAt" | "expiresAt">,
+  now = new Date(),
+): boolean {
+  return invitation.acceptedAt === null && !isInvitationExpired(invitation.expiresAt, now);
+}

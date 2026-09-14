@@ -4,6 +4,8 @@ import { WorkspaceRole } from "@prisma/client";
 import {
   canInviteRole,
   hashInvitationToken,
+  isInvitationEligible,
+  isInvitationEmailMatch,
   isInvitationExpired,
   isValidInvitationRole,
   normalizeInvitationEmail,
@@ -37,4 +39,17 @@ test("token hashing is deterministic, one-way output and never the raw token", (
   assert.equal(hash, hashInvitationToken(token));
   assert.notEqual(hash, token);
   assert.match(hash, /^[a-f0-9]{64}$/);
+});
+
+test("invitation email matching is normalized and rejects different accounts", () => {
+  assert.equal(isInvitationEmailMatch(" Invitee@Example.COM ", "invitee@example.com"), true);
+  assert.equal(isInvitationEmailMatch("invitee@example.com", "other@example.com"), false);
+  assert.equal(isInvitationEmailMatch("bad-email", "bad-email"), false);
+});
+
+test("acceptance eligibility requires pending and unexpired invitation", () => {
+  const now = new Date("2026-01-01T00:00:00.000Z");
+  assert.equal(isInvitationEligible({ acceptedAt: null, expiresAt: new Date("2026-01-02T00:00:00.000Z") }, now), true);
+  assert.equal(isInvitationEligible({ acceptedAt: new Date("2026-01-01T01:00:00.000Z"), expiresAt: new Date("2026-01-02T00:00:00.000Z") }, now), false);
+  assert.equal(isInvitationEligible({ acceptedAt: null, expiresAt: now }, now), false);
 });
