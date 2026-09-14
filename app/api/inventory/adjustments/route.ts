@@ -1,8 +1,7 @@
+import { authError } from "@/lib/master-data-server";
+import { requireResolvedWorkspace, WorkspaceRole } from "@/lib/workspace-auth";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { ensureDemoWorkspace } from "@/lib/demo";
 import {
-  DEMO_WORKSPACE_ID,
   allocateSlipNoTx,
   applyBalanceDelta,
   assertMasterItemCode,
@@ -17,12 +16,13 @@ import { adjustmentDelta, validDateOnly } from "@/lib/erp-rules";
 export const dynamic = "force-dynamic";
 
 /** List adjustment slips grouped from movements */
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    await ensureDemoWorkspace();
-    const slips = await listSlipsByType("adjustment");
+    const { workspaceId } = await requireResolvedWorkspace(new URL(req.url).searchParams.get("workspaceId"), [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR, WorkspaceRole.VIEWER]);
+    const slips = await listSlipsByType("adjustment", workspaceId);
     return NextResponse.json(slips);
   } catch (e) {
+    const auth = authError(e); if (auth) return auth;
     console.error("GET /api/inventory/adjustments", e);
     return NextResponse.json({ error: "조정 조회에 실패했어요." }, { status: 500 });
   }
@@ -30,8 +30,8 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    await ensureDemoWorkspace();
     const body = await req.json();
+    const { workspaceId } = await requireResolvedWorkspace(body.workspaceId, [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR]);
     const warehouseCode = String(body.warehouseCode ?? "").trim();
     const itemCode = String(body.itemCode ?? "").trim();
     const reason = String(body.reason ?? "").trim();
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
         ? dateStr
         : date.toISOString().slice(0, 10);
 
-    const serverBookQty = await getBalanceQty(warehouseCode, itemCode);
+    const serverBookQty = await getBalanceQty(workspaceId, warehouseCode, itemCode);
     const clientBookQty = body.bookQty !== undefined && body.bookQty !== null ? Number(body.bookQty) : undefined;
     const rawActualQty = Number(body.actualQty);
     const adjustment = adjustmentDelta(serverBookQty, rawActualQty, clientBookQty);
@@ -77,14 +77,14 @@ export async function POST(req: Request) {
     const manager = body.manager ? String(body.manager).trim() : null;
 
     const movement = await serializableInventoryTransaction(async (tx) => {
-      const slipNo = await allocateSlipNoTx(tx, "adjustment", dateKey);
-      const current = await tx.stockBalance.findUnique({ where: { workspaceId_warehouseCode_itemCode: { workspaceId: DEMO_WORKSPACE_ID, warehouseCode, itemCode } } });
+      const slipNo = await allocateSlipNoTx(tx, "adjustment", dateKey, workspaceId);
+      const current = await tx.stockBalance.findUnique({ where: { workspaceId_warehouseCode_itemCode: { workspaceId: workspaceId, warehouseCode, itemCode } } });
       const currentAdjustment = adjustmentDelta(current?.qty ?? 0, rawActualQty, clientBookQty);
       if (currentAdjustment.error) throw Object.assign(new Error(currentAdjustment.error), { conflict: currentAdjustment.conflict });
       const transactionDelta = currentAdjustment.delta!;
       const m = await tx.stockMovement.create({
         data: {
-          workspaceId: DEMO_WORKSPACE_ID,
+          workspaceId: workspaceId,
           date,
           type: "adjustment",
           slipNo,
@@ -98,6 +98,7 @@ export async function POST(req: Request) {
         },
       });
       await applyBalanceDelta(tx, {
+          workspaceId,
         warehouseCode,
         warehouseName,
         itemCode,
@@ -112,6 +113,7 @@ export async function POST(req: Request) {
       { status: 201 }
     );
   } catch (e) {
+    const auth = authError(e); if (auth) return auth;
     console.error("POST /api/inventory/adjustments", e);
     const error = e as Error & { conflict?: boolean };
     if (error.conflict) return NextResponse.json({ error: error.message }, { status: 409 });

@@ -1,8 +1,8 @@
+import { authError } from "@/lib/master-data-server";
+import { requireResolvedWorkspace, WorkspaceRole } from "@/lib/workspace-auth";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ensureDemoWorkspace } from "@/lib/demo";
 import {
-  DEMO_WORKSPACE_ID,
   allocateSlipNoTx,
   applyBalanceDelta,
   assertMasterItemCode,
@@ -30,12 +30,13 @@ type LineInput = {
 };
 
 /** List receipt slips grouped from movements */
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    await ensureDemoWorkspace();
-    const slips = await listSlipsByType("receipt");
+    const { workspaceId } = await requireResolvedWorkspace(new URL(req.url).searchParams.get("workspaceId"), [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR, WorkspaceRole.VIEWER]);
+    const slips = await listSlipsByType("receipt", workspaceId);
     return NextResponse.json(slips);
   } catch (e) {
+    const auth = authError(e); if (auth) return auth;
     console.error("GET /api/inventory/receipts", e);
     return NextResponse.json({ error: "입고 조회에 실패했어요." }, { status: 500 });
   }
@@ -43,8 +44,8 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    await ensureDemoWorkspace();
     const body = await req.json();
+    const { workspaceId } = await requireResolvedWorkspace(body.workspaceId, [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR]);
     const warehouseCode = String(body.warehouseCode ?? "").trim();
     if (!warehouseCode) {
       return NextResponse.json({ error: "입고창고는 필수예요." }, { status: 400 });
@@ -81,7 +82,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: bad }, { status: 400 });
       }
     }
-    const unknownItem = await validateRegisteredItemCodes(lines.map((line) => line.itemCode));
+    const unknownItem = await validateRegisteredItemCodes(lines.map((line) => line.itemCode), workspaceId);
     if (unknownItem) {
       return NextResponse.json({ error: unknownItem }, { status: 400 });
     }
@@ -108,7 +109,7 @@ export async function POST(req: Request) {
     // Validate before writing movements so an invalid receipt is atomic.
     if (relatedType === "purchase" && relatedId) {
       const purchase = await prisma.purchase.findFirst({
-        where: { id: relatedId, workspaceId: DEMO_WORKSPACE_ID },
+        where: { id: relatedId, workspaceId: workspaceId },
         include: { lines: true },
       });
       if (!purchase) {
@@ -140,7 +141,7 @@ export async function POST(req: Request) {
       const receivedByItem = await prisma.stockMovement.groupBy({
         by: ["itemCode"],
         where: {
-          workspaceId: DEMO_WORKSPACE_ID,
+          workspaceId: workspaceId,
           relatedType: "purchase",
           relatedId,
           type: "receipt",
@@ -173,17 +174,17 @@ export async function POST(req: Request) {
     }
 
     const created = await serializableInventoryTransaction(async (tx) => {
-      const slipNo = await allocateSlipNoTx(tx, "receipt", dateStr);
+      const slipNo = await allocateSlipNoTx(tx, "receipt", dateStr, workspaceId);
       // Revalidate linked quantities in the same transaction as the movement.
       for (const [key, requestedByItem] of groupRelatedLines(lines)) {
         const [lineRelatedType, lineRelatedId] = key.split(":", 2);
         if (lineRelatedType !== "purchase") continue;
-        const purchase = await tx.purchase.findFirst({ where: { id: lineRelatedId, workspaceId: DEMO_WORKSPACE_ID }, include: { lines: true } });
+        const purchase = await tx.purchase.findFirst({ where: { id: lineRelatedId, workspaceId: workspaceId }, include: { lines: true } });
         if (!purchase) throw new Error("Linked purchase was not found.");
         const orderedByItem = new Map<string, number>();
         for (const line of purchase.lines) if (line.itemCode) orderedByItem.set(line.itemCode, (orderedByItem.get(line.itemCode) ?? 0) + line.qty);
         if (!purchase.lines.length && purchase.itemCode) orderedByItem.set(purchase.itemCode, purchase.quantity);
-        const received = await tx.stockMovement.groupBy({ by: ["itemCode"], where: { workspaceId: DEMO_WORKSPACE_ID, relatedType: "purchase", relatedId: lineRelatedId, type: "receipt" }, _sum: { qty: true } });
+        const received = await tx.stockMovement.groupBy({ by: ["itemCode"], where: { workspaceId: workspaceId, relatedType: "purchase", relatedId: lineRelatedId, type: "receipt" }, _sum: { qty: true } });
         const receivedByItem = new Map(received.map((row) => [row.itemCode, row._sum.qty ?? 0]));
         for (const [itemCode, requested] of requestedByItem) {
           const remaining = (orderedByItem.get(itemCode) ?? -Infinity) - (receivedByItem.get(itemCode) ?? 0);
@@ -194,7 +195,7 @@ export async function POST(req: Request) {
       for (const line of lines) {
         const m = await tx.stockMovement.create({
           data: {
-            workspaceId: DEMO_WORKSPACE_ID,
+            workspaceId: workspaceId,
             date,
             type: "receipt",
             slipNo,
@@ -214,6 +215,7 @@ export async function POST(req: Request) {
           },
         });
         await applyBalanceDelta(tx, {
+          workspaceId,
           warehouseCode,
           warehouseName,
           itemCode: line.itemCode,
@@ -226,10 +228,10 @@ export async function POST(req: Request) {
       for (const [key] of groupRelatedLines(lines)) {
         const [lineRelatedType, lineRelatedId] = key.split(":", 2);
         if (lineRelatedType !== "purchase") continue;
-        const purchase = await tx.purchase.findFirst({ where: { id: lineRelatedId, workspaceId: DEMO_WORKSPACE_ID }, include: { lines: true } });
+        const purchase = await tx.purchase.findFirst({ where: { id: lineRelatedId, workspaceId: workspaceId }, include: { lines: true } });
         if (!purchase) throw new Error("Linked purchase was not found.");
         const ordered = purchase.lines.length ? purchase.lines.reduce((total, line) => total + line.qty, 0) : purchase.quantity;
-        const aggregate = await tx.stockMovement.aggregate({ where: { workspaceId: DEMO_WORKSPACE_ID, relatedType: "purchase", relatedId: lineRelatedId, type: "receipt" }, _sum: { qty: true } });
+        const aggregate = await tx.stockMovement.aggregate({ where: { workspaceId: workspaceId, relatedType: "purchase", relatedId: lineRelatedId, type: "receipt" }, _sum: { qty: true } });
         const received = aggregate._sum.qty ?? 0;
         await tx.purchase.update({ where: { id: purchase.id }, data: { inboundStatus: received + 1e-9 >= ordered ? "complete" : "partial" } });
       }
@@ -239,6 +241,7 @@ export async function POST(req: Request) {
     let relatedReceivedQty = 0;
     if (relatedType && relatedId) {
       relatedReceivedQty = await sumRelatedQty({
+        workspaceId,
         relatedType,
         relatedId,
         type: "receipt",
@@ -254,6 +257,7 @@ export async function POST(req: Request) {
       { status: 201 }
     );
   } catch (e) {
+    const auth = authError(e); if (auth) return auth;
     console.error("POST /api/inventory/receipts", e);
     if (e instanceof Error && (e.message.startsWith("Receipt exceeds") || e.message.startsWith("Linked purchase"))) {
       return NextResponse.json({ error: e.message }, { status: 409 });

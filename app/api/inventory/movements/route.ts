@@ -1,18 +1,16 @@
+import { authError } from "@/lib/master-data-server";
+import { requireResolvedWorkspace, WorkspaceRole } from "@/lib/workspace-auth";
 import { NextResponse } from "next/server";
 import type { StockMovementType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import {
-  DEMO_WORKSPACE_ID,
-  ensureDemoWorkspace,
-  parseDateOnly,
-} from "@/lib/demo";
+import { parseDateOnly } from "@/lib/demo";
 import { serializeMovement } from "@/lib/inventory-server";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
-    await ensureDemoWorkspace();
+    const { workspaceId } = await requireResolvedWorkspace(new URL(req.url).searchParams.get("workspaceId"), [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR, WorkspaceRole.VIEWER]);
     const { searchParams } = new URL(req.url);
     const dateFrom = searchParams.get("dateFrom");
     const dateTo = searchParams.get("dateTo");
@@ -31,7 +29,7 @@ export async function GET(req: Request) {
 
     const rows = await prisma.stockMovement.findMany({
       where: {
-        workspaceId: DEMO_WORKSPACE_ID,
+        workspaceId: workspaceId,
         ...(Object.keys(dateFilter).length ? { date: dateFilter } : {}),
         ...(warehouseCode ? { warehouseCode } : {}),
         ...(itemCode ? { itemCode } : {}),
@@ -45,6 +43,7 @@ export async function GET(req: Request) {
     });
     return NextResponse.json(rows.map(serializeMovement));
   } catch (e) {
+    const auth = authError(e); if (auth) return auth;
     console.error("GET /api/inventory/movements", e);
     return NextResponse.json({ error: "수불 조회에 실패했어요." }, { status: 500 });
   }

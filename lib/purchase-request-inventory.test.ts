@@ -38,12 +38,15 @@ test("fetchBalances accepts itemCodes for one inventory request", async () => {
   let requested = "";
   globalThis.fetch = async (input) => {
     requested = String(input);
+    if (requested === "/api/auth/workspaces") {
+      return new Response(JSON.stringify({ memberships: [{ workspace: { id: "workspace-1" } }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
     return new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } });
   };
   try {
     const { fetchBalances } = await import("./inventory");
     await fetchBalances({ itemCodes: ["A-01", "B-02"], warehouseCode: "WH-01" });
-    assert.equal(requested, "/api/inventory/balances?warehouseCode=WH-01&itemCodes=A-01%2CB-02");
+    assert.equal(requested, "/api/inventory/balances?workspaceId=workspace-1&warehouseCode=WH-01&itemCodes=A-01%2CB-02");
   } finally {
     globalThis.fetch = originalFetch;
   }

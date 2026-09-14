@@ -1,7 +1,6 @@
 import { Prisma, type OutboundStatus, type StockMovementType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
-  DEMO_WORKSPACE_ID,
   parseDateOnly,
   toDateString,
 } from "@/lib/demo";
@@ -96,7 +95,8 @@ export function yymmdd(dateStr: string): string {
 
 export async function allocateSlipNo(
   type: "receipt" | "shipment" | "adjustment",
-  dateStr: string
+  dateStr: string,
+  workspaceId: string
 ): Promise<string> {
   const prefix =
     type === "receipt" ? "RCV" : type === "shipment" ? "SHP" : "ADJ";
@@ -104,7 +104,7 @@ export async function allocateSlipNo(
   const head = `${prefix}-${stamp}-`;
   const rows = await prisma.stockMovement.findMany({
     where: {
-      workspaceId: DEMO_WORKSPACE_ID,
+      workspaceId,
       slipNo: { startsWith: head },
     },
     select: { slipNo: true },
@@ -123,11 +123,12 @@ export async function allocateSlipNo(
 export async function allocateSlipNoTx(
   tx: Prisma.TransactionClient,
   type: "receipt" | "shipment" | "adjustment",
-  dateStr: string
+  dateStr: string,
+  workspaceId: string
 ): Promise<string> {
   const row = await tx.slipSequence.upsert({
-    where: { workspaceId_type_dateKey: { workspaceId: DEMO_WORKSPACE_ID, type, dateKey: dateStr } },
-    create: { workspaceId: DEMO_WORKSPACE_ID, type, dateKey: dateStr, nextNumber: 1 },
+    where: { workspaceId_type_dateKey: { workspaceId, type, dateKey: dateStr } },
+    create: { workspaceId, type, dateKey: dateStr, nextNumber: 1 },
     update: { nextNumber: { increment: 1 } },
   });
   const prefix = type === "receipt" ? "RCV" : type === "shipment" ? "SHP" : "ADJ";
@@ -142,12 +143,13 @@ export async function applyBalanceDelta(
     itemCode: string;
     itemName?: string | null;
     delta: number;
+    workspaceId: string;
   }
 ) {
   const existing = await tx.stockBalance.findUnique({
     where: {
       workspaceId_warehouseCode_itemCode: {
-        workspaceId: DEMO_WORKSPACE_ID,
+        workspaceId: args.workspaceId,
         warehouseCode: args.warehouseCode,
         itemCode: args.itemCode,
       },
@@ -165,7 +167,7 @@ export async function applyBalanceDelta(
   }
   return tx.stockBalance.create({
     data: {
-      workspaceId: DEMO_WORKSPACE_ID,
+      workspaceId: args.workspaceId,
       warehouseCode: args.warehouseCode,
       warehouseName: args.warehouseName ?? null,
       itemCode: args.itemCode,
@@ -176,13 +178,14 @@ export async function applyBalanceDelta(
 }
 
 export async function getBalanceQty(
+  workspaceId: string,
   warehouseCode: string,
   itemCode: string
 ): Promise<number> {
   const row = await prisma.stockBalance.findUnique({
     where: {
       workspaceId_warehouseCode_itemCode: {
-        workspaceId: DEMO_WORKSPACE_ID,
+        workspaceId,
         warehouseCode,
         itemCode,
       },
@@ -192,13 +195,14 @@ export async function getBalanceQty(
 }
 
 export async function sumRelatedQty(args: {
+  workspaceId: string;
   relatedType: string;
   relatedId: string;
   type: StockMovementType;
 }): Promise<number> {
   const agg = await prisma.stockMovement.aggregate({
     where: {
-      workspaceId: DEMO_WORKSPACE_ID,
+      workspaceId: args.workspaceId,
       relatedType: args.relatedType,
       relatedId: args.relatedId,
       type: args.type,
@@ -216,7 +220,7 @@ export function outboundFromQtys(planQty: number, shippedAbs: number): OutboundS
   return "partial";
 }
 
-export { parseDateOnly, DEMO_WORKSPACE_ID, toDateString };
+export { parseDateOnly, toDateString };
 
 export type InventorySlipSummary = {
   slipNo: string;
@@ -233,10 +237,11 @@ export type InventorySlipSummary = {
 
 /** Group stock movements of one type into slip list rows (newest first). */
 export async function listSlipsByType(
-  type: StockMovementType
+  type: StockMovementType,
+  workspaceId: string
 ): Promise<InventorySlipSummary[]> {
   const rows = await prisma.stockMovement.findMany({
-    where: { workspaceId: DEMO_WORKSPACE_ID, type },
+    where: { workspaceId, type },
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
     take: 3000,
   });
@@ -287,7 +292,7 @@ type ItemCodeLookup = {
 /** Validate movement item codes against the workspace item master. */
 export async function validateRegisteredItemCodes(
   itemCodes: string[],
-  workspaceId = DEMO_WORKSPACE_ID,
+  workspaceId: string,
   db: ItemCodeLookup = prisma,
 ): Promise<string | null> {
   const codes = [...new Set(itemCodes.map((code) => code.trim()).filter(Boolean))];

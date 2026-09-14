@@ -1,5 +1,7 @@
 /** Client types & helpers for FlowDesk 재고 v1 */
 
+import { activeWorkspaceId } from "./master-data-client";
+
 export type StockMovementType = "receipt" | "shipment" | "adjustment";
 
 export type InboundStatus = "none" | "partial" | "complete";
@@ -151,7 +153,8 @@ export async function fetchBalances(params?: {
   itemCode?: string;
   itemCodes?: string[];
 }): Promise<StockBalanceRow[]> {
-  const q = new URLSearchParams();
+  const workspaceId = await activeWorkspaceId();
+  const q = new URLSearchParams({ workspaceId });
   if (params?.warehouseCode) q.set("warehouseCode", params.warehouseCode);
   if (params?.itemCode) q.set("itemCode", params.itemCode);
   if (params?.itemCodes?.length) q.set("itemCodes", params.itemCodes.join(","));
@@ -169,7 +172,8 @@ export async function fetchMovements(params?: {
   relatedId?: string;
   slipNo?: string;
 }): Promise<StockMovementRow[]> {
-  const q = new URLSearchParams();
+  const workspaceId = await activeWorkspaceId();
+  const q = new URLSearchParams({ workspaceId });
   if (params) {
     for (const [k, v] of Object.entries(params)) {
       if (v) q.set(k, v);
@@ -183,7 +187,8 @@ export async function fetchNextSlipNo(
   type: "receipt" | "shipment",
   date: string
 ): Promise<string> {
-  const q = new URLSearchParams({ type, date });
+  const workspaceId = await activeWorkspaceId();
+  const q = new URLSearchParams({ type, date, workspaceId });
   const res = await apiJson<{ slipNo: string }>(`/api/inventory/next-slip?${q}`);
   return res.slipNo;
 }
@@ -193,9 +198,10 @@ export async function createReceipt(input: ReceiptInput): Promise<{
   movements: StockMovementRow[];
   relatedReceivedQty: number;
 }> {
+  const workspaceId = await activeWorkspaceId();
   return apiJson("/api/inventory/receipts", {
     method: "POST",
-    body: JSON.stringify(input),
+    body: JSON.stringify({ ...input, workspaceId }),
   });
 }
 
@@ -205,9 +211,10 @@ export async function createShipment(input: ShipmentInput): Promise<{
   relatedShippedQty: number;
   outboundStatus?: OutboundStatus;
 }> {
+  const workspaceId = await activeWorkspaceId();
   return apiJson("/api/inventory/shipments", {
     method: "POST",
-    body: JSON.stringify(input),
+    body: JSON.stringify({ ...input, workspaceId }),
   });
 }
 
@@ -215,9 +222,10 @@ export async function createAdjustment(input: AdjustmentInput): Promise<{
   slipNo: string;
   movement: StockMovementRow;
 }> {
+  const workspaceId = await activeWorkspaceId();
   return apiJson("/api/inventory/adjustments", {
     method: "POST",
-    body: JSON.stringify(input),
+    body: JSON.stringify({ ...input, workspaceId }),
   });
 }
 
@@ -235,7 +243,8 @@ export async function fetchReceiptSlips(): Promise<
     lineCount: number;
   }[]
 > {
-  return apiJson("/api/inventory/receipts");
+  const workspaceId = await activeWorkspaceId();
+  return apiJson(`/api/inventory/receipts?workspaceId=${encodeURIComponent(workspaceId)}`);
 }
 
 
@@ -253,7 +262,8 @@ export async function fetchShipmentSlips(): Promise<
     lineCount: number;
   }[]
 > {
-  return apiJson("/api/inventory/shipments");
+  const workspaceId = await activeWorkspaceId();
+  return apiJson(`/api/inventory/shipments?workspaceId=${encodeURIComponent(workspaceId)}`);
 }
 
 export async function fetchAdjustmentSlips(): Promise<
@@ -270,7 +280,8 @@ export async function fetchAdjustmentSlips(): Promise<
     lineCount: number;
   }[]
 > {
-  return apiJson("/api/inventory/adjustments");
+  const workspaceId = await activeWorkspaceId();
+  return apiJson(`/api/inventory/adjustments?workspaceId=${encodeURIComponent(workspaceId)}`);
 }
 
 export async function fetchRelatedQty(params: {
@@ -278,7 +289,9 @@ export async function fetchRelatedQty(params: {
   relatedIds: string[];
 }): Promise<Record<string, number>> {
   if (!params.relatedIds.length) return {};
+  const workspaceId = await activeWorkspaceId();
   const q = new URLSearchParams({
+    workspaceId,
     relatedType: params.relatedType,
     relatedIds: params.relatedIds.join(","),
   });
@@ -290,12 +303,14 @@ export async function fetchRelatedLineQty(params: {
   relatedIds: string[];
 }): Promise<Record<string, Record<string, number>>> {
   if (!params.relatedIds.length) return {};
-  const q = new URLSearchParams({ relatedType: params.relatedType, relatedIds: params.relatedIds.join(","), detail: "lines" });
+  const workspaceId = await activeWorkspaceId();
+  const q = new URLSearchParams({ workspaceId, relatedType: params.relatedType, relatedIds: params.relatedIds.join(","), detail: "lines" });
   return apiJson(`/api/inventory/related-qty?${q}`);
 }
 
 export async function fetchInventoryStatus(): Promise<InventoryStatusSummary> {
-  return apiJson("/api/inventory/status");
+  const workspaceId = await activeWorkspaceId();
+  return apiJson(`/api/inventory/status?workspaceId=${encodeURIComponent(workspaceId)}`);
 }
 
 export function todayISO(d = new Date()): string {

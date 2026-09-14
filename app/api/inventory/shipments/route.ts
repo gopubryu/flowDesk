@@ -1,8 +1,8 @@
+import { authError } from "@/lib/master-data-server";
+import { requireResolvedWorkspace, WorkspaceRole } from "@/lib/workspace-auth";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ensureDemoWorkspace } from "@/lib/demo";
 import {
-  DEMO_WORKSPACE_ID,
   allocateSlipNoTx,
   applyBalanceDelta,
   assertMasterItemCode,
@@ -33,12 +33,13 @@ type LineInput = {
 
 
 /** List shipment slips grouped from movements */
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    await ensureDemoWorkspace();
-    const slips = await listSlipsByType("shipment");
+    const { workspaceId } = await requireResolvedWorkspace(new URL(req.url).searchParams.get("workspaceId"), [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR, WorkspaceRole.VIEWER]);
+    const slips = await listSlipsByType("shipment", workspaceId);
     return NextResponse.json(slips);
   } catch (e) {
+    const auth = authError(e); if (auth) return auth;
     console.error("GET /api/inventory/shipments", e);
     return NextResponse.json({ error: "출하 조회에 실패했어요." }, { status: 500 });
   }
@@ -46,8 +47,8 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    await ensureDemoWorkspace();
     const body = await req.json();
+    const { workspaceId } = await requireResolvedWorkspace(body.workspaceId, [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR]);
     const warehouseCode = String(body.warehouseCode ?? "").trim();
     if (!warehouseCode) {
       return NextResponse.json({ error: "출하창고는 필수예요." }, { status: 400 });
@@ -84,7 +85,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: bad }, { status: 400 });
       }
     }
-    const unknownItem = await validateRegisteredItemCodes(lines.map((line) => line.itemCode));
+    const unknownItem = await validateRegisteredItemCodes(lines.map((line) => line.itemCode), workspaceId);
     if (unknownItem) {
       return NextResponse.json({ error: unknownItem }, { status: 400 });
     }
@@ -99,7 +100,7 @@ export async function POST(req: Request) {
     // Insufficient stock check (no negative outbound)
     for (const [itemCode, requested] of aggregateQtyByItem(lines)) {
       const line = { itemCode, qty: requested };
-      const bal = await getBalanceQty(warehouseCode, itemCode);
+      const bal = await getBalanceQty(workspaceId, warehouseCode, itemCode);
       if (requested > bal + 1e-9) {
         return NextResponse.json(
           {
@@ -116,7 +117,7 @@ export async function POST(req: Request) {
     // Optional: validate against sales plan remaining qty
     if (relatedType === "salesPlan" && relatedId) {
       const plan = await prisma.salesPlan.findFirst({
-        where: { id: relatedId, workspaceId: DEMO_WORKSPACE_ID },
+        where: { id: relatedId, workspaceId: workspaceId },
         include: { lines: true },
       });
       if (!plan) {
@@ -129,6 +130,7 @@ export async function POST(req: Request) {
         );
       }
       const already = await sumRelatedQty({
+        workspaceId,
         relatedType: "salesPlan",
         relatedId,
         type: "shipment",
@@ -144,7 +146,7 @@ export async function POST(req: Request) {
         const shippedByItem = await prisma.stockMovement.groupBy({
           by: ["itemCode"],
           where: {
-            workspaceId: DEMO_WORKSPACE_ID,
+            workspaceId: workspaceId,
             relatedType: "salesPlan",
             relatedId,
             type: "shipment",
@@ -192,14 +194,14 @@ export async function POST(req: Request) {
     const vendorName = body.vendorName ? String(body.vendorName).trim() : null;
 
     const created = await serializableInventoryTransaction(async (tx) => {
-      const slipNo = await allocateSlipNoTx(tx, "shipment", dateStr);
+      const slipNo = await allocateSlipNoTx(tx, "shipment", dateStr, workspaceId);
       // Linked plan limits are rechecked with the movement, not merely before it.
       for (const [key, requestedByItem] of groupRelatedLines(lines)) {
         const [lineRelatedType, lineRelatedId] = key.split(":", 2);
         if (lineRelatedType !== "salesPlan") continue;
-        const plan = await tx.salesPlan.findFirst({ where: { id: lineRelatedId, workspaceId: DEMO_WORKSPACE_ID }, include: { lines: true } });
+        const plan = await tx.salesPlan.findFirst({ where: { id: lineRelatedId, workspaceId: workspaceId }, include: { lines: true } });
         if (!plan || !["confirmed", "in_progress"].includes(plan.status)) throw new Error("Linked sales plan is not available for shipment.");
-        const shipped = await tx.stockMovement.groupBy({ by: ["itemCode"], where: { workspaceId: DEMO_WORKSPACE_ID, relatedType: "salesPlan", relatedId: lineRelatedId, type: "shipment" }, _sum: { qty: true } });
+        const shipped = await tx.stockMovement.groupBy({ by: ["itemCode"], where: { workspaceId: workspaceId, relatedType: "salesPlan", relatedId: lineRelatedId, type: "shipment" }, _sum: { qty: true } });
         const shippedByItem = new Map(shipped.map((row) => [row.itemCode, Math.abs(row._sum.qty ?? 0)]));
         for (const [itemCode, requested] of requestedByItem) {
           const planned = plan.lines.length
@@ -215,7 +217,7 @@ export async function POST(req: Request) {
         const bal = await tx.stockBalance.findUnique({
           where: {
             workspaceId_warehouseCode_itemCode: {
-              workspaceId: DEMO_WORKSPACE_ID,
+              workspaceId: workspaceId,
               warehouseCode,
               itemCode,
             },
@@ -234,7 +236,7 @@ export async function POST(req: Request) {
         const signed = -Math.abs(line.qty);
         const m = await tx.stockMovement.create({
           data: {
-            workspaceId: DEMO_WORKSPACE_ID,
+            workspaceId: workspaceId,
             date,
             type: "shipment",
             slipNo,
@@ -254,6 +256,7 @@ export async function POST(req: Request) {
           },
         });
         await applyBalanceDelta(tx, {
+          workspaceId,
           warehouseCode,
           warehouseName,
           itemCode: line.itemCode,
@@ -268,12 +271,12 @@ export async function POST(req: Request) {
         const [lineRelatedType, lineRelatedId] = key.split(":", 2);
         if (lineRelatedType !== "salesPlan") continue;
         const plan = await tx.salesPlan.findFirst({
-          where: { id: lineRelatedId, workspaceId: DEMO_WORKSPACE_ID },
+          where: { id: lineRelatedId, workspaceId: workspaceId },
         });
         if (plan) {
           const agg = await tx.stockMovement.aggregate({
             where: {
-              workspaceId: DEMO_WORKSPACE_ID,
+              workspaceId: workspaceId,
               relatedType: "salesPlan",
               relatedId: lineRelatedId,
               type: "shipment",
@@ -295,6 +298,7 @@ export async function POST(req: Request) {
     let relatedShippedQty = 0;
     if (relatedType && relatedId) {
       relatedShippedQty = await sumRelatedQty({
+        workspaceId,
         relatedType,
         relatedId,
         type: "shipment",

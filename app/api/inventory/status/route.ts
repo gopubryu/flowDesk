@@ -1,35 +1,32 @@
+import { authError } from "@/lib/master-data-server";
+import { requireResolvedWorkspace, WorkspaceRole } from "@/lib/workspace-auth";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import {
-  DEMO_WORKSPACE_ID,
-  ensureDemoWorkspace,
-  parseDateOnly,
-  toDateString,
-} from "@/lib/demo";
+import { parseDateOnly, toDateString } from "@/lib/demo";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    await ensureDemoWorkspace();
+    const { workspaceId } = await requireResolvedWorkspace(new URL(req.url).searchParams.get("workspaceId"), [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR, WorkspaceRole.VIEWER]);
     const todayStr = new Date().toISOString().slice(0, 10);
     const today = parseDateOnly(todayStr)!;
 
     const [todayMoves, balances, pendingPlans] = await Promise.all([
       prisma.stockMovement.findMany({
         where: {
-          workspaceId: DEMO_WORKSPACE_ID,
+          workspaceId: workspaceId,
           date: today,
         },
         select: { type: true, qty: true },
       }),
       prisma.stockBalance.findMany({
-        where: { workspaceId: DEMO_WORKSPACE_ID },
+        where: { workspaceId: workspaceId },
         orderBy: [{ warehouseCode: "asc" }, { itemCode: "asc" }],
       }),
       prisma.salesPlan.findMany({
         where: {
-          workspaceId: DEMO_WORKSPACE_ID,
+          workspaceId: workspaceId,
           status: { in: ["confirmed", "in_progress"] },
           outboundStatus: { in: ["none", "partial"] },
         },
@@ -54,7 +51,7 @@ export async function GET() {
     for (const p of pendingPlans) {
       const agg = await prisma.stockMovement.aggregate({
         where: {
-          workspaceId: DEMO_WORKSPACE_ID,
+          workspaceId: workspaceId,
           relatedType: "salesPlan",
           relatedId: p.id,
           type: "shipment",
@@ -104,6 +101,7 @@ export async function GET() {
       todayOut,
     });
   } catch (e) {
+    const auth = authError(e); if (auth) return auth;
     console.error("GET /api/inventory/status", e);
     return NextResponse.json({ error: "재고 현황 조회에 실패했어요." }, { status: 500 });
   }
