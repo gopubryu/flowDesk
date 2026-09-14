@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import type { PurchaseRequestStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { bodyWorkspaceId, authError } from "@/lib/master-data-server";
+import { requireResolvedWorkspace, WorkspaceRole } from "@/lib/workspace-auth";
 import {
-  DEMO_WORKSPACE_ID,
   allocateNextSlipNo,
   backfillMissingPurchaseRequestSlipNos,
-  ensureDemoWorkspace,
   parseDateOnly,
   serializePurchaseRequest,
 } from "@/lib/demo";
@@ -113,19 +113,18 @@ function mapAttachments(raw: unknown): {
   return out;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    await ensureDemoWorkspace();
-    await backfillMissingPurchaseRequestSlipNos(DEMO_WORKSPACE_ID);
+    const { workspaceId } = await requireResolvedWorkspace(new URL(req.url).searchParams.get("workspaceId"), [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR, WorkspaceRole.VIEWER]);
+    await backfillMissingPurchaseRequestSlipNos(workspaceId);
     const rows = await prisma.purchaseRequest.findMany({
-      where: { workspaceId: DEMO_WORKSPACE_ID },
+      where: { workspaceId: workspaceId },
       include: { lines: { orderBy: { sortOrder: "asc" } } },
       orderBy: [{ requestDate: "desc" }, { createdAt: "desc" }],
     });
     return NextResponse.json(rows.map(serializePurchaseRequest));
   } catch (e) {
-    console.error("GET /api/purchase-requests", e);
-    return NextResponse.json(
+    return authError(e) ?? NextResponse.json(
       { error: "Failed to load purchase requests" },
       { status: 500 }
     );
@@ -134,8 +133,8 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    await ensureDemoWorkspace();
     const body = await req.json();
+    const { workspaceId } = await requireResolvedWorkspace(bodyWorkspaceId(body), [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR]);
     const lineRows = mapLines(body.lines as LineInput[] | undefined);
     const attachments =
       body.attachments !== undefined
@@ -164,11 +163,11 @@ export async function POST(req: Request) {
     const requestDate = parseDateOnly(body.requestDate) ?? new Date();
     const slipNo = body.slipNo
       ? String(body.slipNo)
-      : await allocateNextSlipNo(DEMO_WORKSPACE_ID, requestDate);
+      : await allocateNextSlipNo(workspaceId, requestDate);
 
     const created = await prisma.purchaseRequest.create({
       data: {
-        workspaceId: DEMO_WORKSPACE_ID,
+        workspaceId: workspaceId,
         requestDate,
         slipNo,
         vendorCode: body.vendorCode ? String(body.vendorCode) : null,
@@ -201,7 +200,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json(serializePurchaseRequest(created), { status: 201 });
   } catch (e) {
-    console.error("POST /api/purchase-requests", e);
+    const auth = authError(e);
+    if (auth) return auth;
     const msg = e instanceof Error ? e.message : "Failed to create purchase request";
     const status = msg.includes("5MB") ? 400 : 500;
     return NextResponse.json(

@@ -1,3 +1,4 @@
+import { activeWorkspaceId } from "./master-data-client";
 export type PurchaseStatus =
   | "approval"
   | "unconfirmed"
@@ -392,11 +393,13 @@ async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
 
 /** Fetch all purchases from Neon/Prisma API */
 export async function fetchPurchases(): Promise<Purchase[]> {
-  return apiJson<Purchase[]>("/api/purchases");
+  const workspaceId = await activeWorkspaceId();
+  return apiJson<Purchase[]>(`/api/purchases?workspaceId=${encodeURIComponent(workspaceId)}`);
 }
 
 export async function fetchPurchase(id: string): Promise<Purchase> {
-  return apiJson<Purchase>(`/api/purchases/${id}`);
+  const workspaceId = await activeWorkspaceId();
+  return apiJson<Purchase>(`/api/purchases/${id}?workspaceId=${encodeURIComponent(workspaceId)}`);
 }
 
 export type PurchaseInput = Omit<Purchase, "id"> & {
@@ -406,7 +409,9 @@ export type PurchaseInput = Omit<Purchase, "id"> & {
 
 /** Create (POST) or update (PATCH) a purchase via API */
 export async function savePurchaseApi(row: PurchaseInput): Promise<Purchase> {
+  const workspaceId = await activeWorkspaceId();
   const payload = {
+    workspaceId,
     purchaseDate: row.purchaseDate,
     slipNo: row.slipNo,
     orderNo: row.orderNo,
@@ -448,15 +453,18 @@ export async function savePurchaseApi(row: PurchaseInput): Promise<Purchase> {
 }
 
 export async function deletePurchaseApi(id: string): Promise<void> {
-  await apiJson(`/api/purchases/${id}`, { method: "DELETE" });
+  const workspaceId = await activeWorkspaceId();
+  await apiJson(`/api/purchases/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, { method: "DELETE" });
 }
 
 export async function bulkUpdatePurchaseStatusApi(ids: string[], status: PurchaseStatus): Promise<Purchase[]> {
-  return apiJson<Purchase[]>("/api/purchases/bulk", { method: "PATCH", body: JSON.stringify({ ids, status }) });
+  const workspaceId = await activeWorkspaceId();
+  return apiJson<Purchase[]>("/api/purchases/bulk", { method: "PATCH", body: JSON.stringify({ ids, status, workspaceId }) });
 }
 
 export async function bulkDeletePurchasesApi(ids: string[]): Promise<void> {
-  await apiJson("/api/purchases/bulk", { method: "DELETE", body: JSON.stringify({ ids }) });
+  const workspaceId = await activeWorkspaceId();
+  await apiJson("/api/purchases/bulk", { method: "DELETE", body: JSON.stringify({ ids, workspaceId }) });
 }
 
 /** PATCH only status for selected rows on list */
@@ -464,9 +472,10 @@ export async function updatePurchaseStatusApi(
   id: string,
   status: PurchaseStatus
 ): Promise<Purchase> {
+  const workspaceId = await activeWorkspaceId();
   return apiJson<Purchase>(`/api/purchases/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, workspaceId }),
   });
 }
 
@@ -474,9 +483,10 @@ export async function updatePurchaseInboundStatusApi(
   id: string,
   inboundStatus: InboundStatus
 ): Promise<Purchase> {
+  const workspaceId = await activeWorkspaceId();
   return apiJson<Purchase>(`/api/purchases/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ inboundStatus }),
+    body: JSON.stringify({ inboundStatus, workspaceId }),
   });
 }
 

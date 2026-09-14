@@ -1,3 +1,4 @@
+import { activeWorkspaceId } from "./master-data-client";
 export type PurchaseRequestStatus =
   | "approval"
   | "unconfirmed"
@@ -253,13 +254,15 @@ async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
 
 /** Fetch all purchase requests from Neon/Prisma API */
 export async function fetchPurchaseRequests(): Promise<PurchaseRequest[]> {
-  return apiJson<PurchaseRequest[]>("/api/purchase-requests");
+  const workspaceId = await activeWorkspaceId();
+  return apiJson<PurchaseRequest[]>(`/api/purchase-requests?workspaceId=${encodeURIComponent(workspaceId)}`);
 }
 
 export async function fetchPurchaseRequest(
   id: string
 ): Promise<PurchaseRequest> {
-  return apiJson<PurchaseRequest>(`/api/purchase-requests/${id}`);
+  const workspaceId = await activeWorkspaceId();
+  return apiJson<PurchaseRequest>(`/api/purchase-requests/${id}?workspaceId=${encodeURIComponent(workspaceId)}`);
 }
 
 export type PurchaseRequestInput = Omit<PurchaseRequest, "id"> & {
@@ -272,7 +275,9 @@ export type PurchaseRequestInput = Omit<PurchaseRequest, "id"> & {
 export async function savePurchaseRequestApi(
   row: PurchaseRequestInput
 ): Promise<PurchaseRequest> {
+  const workspaceId = await activeWorkspaceId();
   const payload = {
+    workspaceId,
     requestDate: row.requestDate,
     slipNo: row.slipNo,
     vendorCode: row.vendorCode,
@@ -308,7 +313,8 @@ export async function savePurchaseRequestApi(
 }
 
 export async function deletePurchaseRequestApi(id: string): Promise<void> {
-  await apiJson(`/api/purchase-requests/${id}`, { method: "DELETE" });
+  const workspaceId = await activeWorkspaceId();
+  await apiJson(`/api/purchase-requests/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, { method: "DELETE" });
 }
 
 /** PATCH only status for selected rows on list */
@@ -316,9 +322,10 @@ export async function updatePurchaseRequestStatusApi(
   id: string,
   status: PurchaseRequestStatus
 ): Promise<PurchaseRequest> {
+  const workspaceId = await activeWorkspaceId();
   return apiJson<PurchaseRequest>(`/api/purchase-requests/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, workspaceId }),
   });
 }
 

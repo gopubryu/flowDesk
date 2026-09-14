@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import type { InboundStatus, PurchaseStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
-  DEMO_WORKSPACE_ID,
   allocateNextPurchaseSlipNo,
   parseDateOnly,
   serializePurchase,
 } from "@/lib/demo";
 import { canDeletePurchase, canTransitionPurchase, finiteNonNegative, validatePurchaseInput } from "@/lib/erp-rules";
 import { serializableInventoryTransaction } from "@/lib/inventory-server";
+import { bodyWorkspaceId, authError } from "@/lib/master-data-server";
+import { requireResolvedWorkspace, WorkspaceRole } from "@/lib/workspace-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -64,11 +65,12 @@ function mapLines(lines: LineInput[] | undefined) {
     );
 }
 
-export async function GET(_req: Request, ctx: Ctx) {
+export async function GET(req: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
+    const { workspaceId } = await requireResolvedWorkspace(new URL(req.url).searchParams.get("workspaceId"), [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR, WorkspaceRole.VIEWER]);
     const row = await prisma.purchase.findFirst({
-      where: { id, workspaceId: DEMO_WORKSPACE_ID },
+      where: { id, workspaceId: workspaceId },
       include: { lines: { orderBy: { sortOrder: "asc" } } },
     });
     if (!row) {
@@ -76,8 +78,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     }
     return NextResponse.json(serializePurchase(row));
   } catch (e) {
-    console.error("GET /api/purchases/[id]", e);
-    return NextResponse.json(
+    return authError(e) ?? NextResponse.json(
       { error: "Failed to load purchase" },
       { status: 500 }
     );
@@ -87,15 +88,16 @@ export async function GET(_req: Request, ctx: Ctx) {
 export async function PATCH(req: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
+    const body = await req.json();
+    const { workspaceId } = await requireResolvedWorkspace(bodyWorkspaceId(body), [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR]);
     const existing = await prisma.purchase.findFirst({
-      where: { id, workspaceId: DEMO_WORKSPACE_ID },
+      where: { id, workspaceId: workspaceId },
       include: { lines: { orderBy: { sortOrder: "asc" } } },
     });
     if (!existing) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const body = await req.json();
     if (body.quantity !== undefined && !finiteNonNegative(Number(body.quantity))) {
       return NextResponse.json({ error: "Quantity must be a finite non-negative number." }, { status: 400 });
     }
@@ -116,7 +118,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
         : existing.slipNo;
     if (!nextSlip) {
       data.slipNo = await allocateNextPurchaseSlipNo(
-        DEMO_WORKSPACE_ID,
+        workspaceId,
         nextPurchaseDate
       );
     }
@@ -195,10 +197,10 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (validation) return NextResponse.json({ error: validation }, { status: 400 });
 
     const updated = await serializableInventoryTransaction(async (tx) => {
-      const receiptCount = await tx.stockMovement.count({ where: { workspaceId: DEMO_WORKSPACE_ID, relatedType: "purchase", relatedId: id, type: "receipt" } });
+      const receiptCount = await tx.stockMovement.count({ where: { workspaceId: workspaceId, relatedType: "purchase", relatedId: id, type: "receipt" } });
       const receiptSensitive = ["vendorCode", "vendorName", "vendor", "lines", "item", "itemCode", "quantity", "amount"].some((key) => body[key] !== undefined);
       if (receiptCount > 0 && receiptSensitive) throw new Error("Purchases with receipt movements cannot change vendor, lines, quantities, or amounts.");
-      const current = await tx.purchase.findUniqueOrThrow({ where: { id } });
+      const current = await tx.purchase.findFirstOrThrow({ where: { id, workspaceId } });
       if (body.status !== undefined && !canTransitionPurchase(current.status, body.status as PurchaseStatus)) throw new Error("Purchase status changed; refresh and try again.");
       if (lineRows) {
         await tx.purchaseLine.deleteMany({ where: { purchaseId: id } });
@@ -208,30 +210,33 @@ export async function PATCH(req: Request, ctx: Ctx) {
           });
         }
       }
-      await tx.purchase.update({ where: { id }, data });
-      return tx.purchase.findUniqueOrThrow({
-        where: { id },
+      const result = await tx.purchase.updateMany({ where: { id, workspaceId }, data });
+      if (result.count === 0) throw new Error("Purchase no longer exists.");
+      return tx.purchase.findFirstOrThrow({
+        where: { id, workspaceId },
         include: { lines: { orderBy: { sortOrder: "asc" } } },
       });
     });
 
     return NextResponse.json(serializePurchase(updated));
   } catch (e) {
-    console.error("PATCH /api/purchases/[id]", e);
+    const auth = authError(e);
+    if (auth) return auth;
     const msg = e instanceof Error ? e.message : "Failed to update purchase";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
-export async function DELETE(_req: Request, ctx: Ctx) {
+export async function DELETE(req: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
+    const { workspaceId } = await requireResolvedWorkspace(new URL(req.url).searchParams.get("workspaceId"), [WorkspaceRole.ADMIN]);
     await serializableInventoryTransaction(async (tx) => {
-      const current = await tx.purchase.findFirst({ where: { id, workspaceId: DEMO_WORKSPACE_ID } });
+      const current = await tx.purchase.findFirst({ where: { id, workspaceId: workspaceId } });
       if (!current) throw new Error("Not found");
-      const movements = await tx.stockMovement.count({ where: { workspaceId: DEMO_WORKSPACE_ID, relatedType: "purchase", relatedId: id, type: "receipt" } });
+      const movements = await tx.stockMovement.count({ where: { workspaceId: workspaceId, relatedType: "purchase", relatedId: id, type: "receipt" } });
       if (!canDeletePurchase(current.status, current.inboundStatus) || movements > 0) throw new Error("Received purchases cannot be deleted.");
-      const result = await tx.purchase.deleteMany({ where: { id, workspaceId: DEMO_WORKSPACE_ID } });
+      const result = await tx.purchase.deleteMany({ where: { id, workspaceId: workspaceId } });
       if (result.count === 0) throw new Error("Not found");
     });
     return NextResponse.json({ ok: true });

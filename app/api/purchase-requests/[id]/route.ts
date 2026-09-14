@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import type { PurchaseRequestStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { bodyWorkspaceId, authError } from "@/lib/master-data-server";
+import { requireResolvedWorkspace, WorkspaceRole } from "@/lib/workspace-auth";
 import {
-  DEMO_WORKSPACE_ID,
   allocateNextSlipNo,
   parseDateOnly,
   serializePurchaseRequest,
@@ -113,11 +114,12 @@ function mapAttachments(raw: unknown): {
   return out;
 }
 
-export async function GET(_req: Request, ctx: Ctx) {
+export async function GET(req: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
+    const { workspaceId } = await requireResolvedWorkspace(new URL(req.url).searchParams.get("workspaceId"), [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR, WorkspaceRole.VIEWER]);
     const row = await prisma.purchaseRequest.findFirst({
-      where: { id, workspaceId: DEMO_WORKSPACE_ID },
+      where: { id, workspaceId: workspaceId },
       include: { lines: { orderBy: { sortOrder: "asc" } } },
     });
     if (!row) {
@@ -125,8 +127,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     }
     return NextResponse.json(serializePurchaseRequest(row));
   } catch (e) {
-    console.error("GET /api/purchase-requests/[id]", e);
-    return NextResponse.json(
+    return authError(e) ?? NextResponse.json(
       { error: "Failed to load purchase request" },
       { status: 500 }
     );
@@ -136,14 +137,15 @@ export async function GET(_req: Request, ctx: Ctx) {
 export async function PATCH(req: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
+    const body = await req.json();
+    const { workspaceId } = await requireResolvedWorkspace(bodyWorkspaceId(body), [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR]);
     const existing = await prisma.purchaseRequest.findFirst({
-      where: { id, workspaceId: DEMO_WORKSPACE_ID },
+      where: { id, workspaceId: workspaceId },
     });
     if (!existing) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const body = await req.json();
     const lineRows = mapLines(body.lines as LineInput[] | undefined);
 
     const data: Record<string, unknown> = { updatedAt: new Date() };
@@ -163,7 +165,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
         ? (data.slipNo as string | null)
         : existing.slipNo;
     if (!nextSlip) {
-      data.slipNo = await allocateNextSlipNo(DEMO_WORKSPACE_ID, nextRequestDate);
+      data.slipNo = await allocateNextSlipNo(workspaceId, nextRequestDate);
     }
     if (body.vendorCode !== undefined)
       data.vendorCode = body.vendorCode ? String(body.vendorCode) : null;
@@ -221,19 +223,21 @@ export async function PATCH(req: Request, ctx: Ctx) {
           });
         }
       }
-      await tx.purchaseRequest.update({
-        where: { id },
+      const result = await tx.purchaseRequest.updateMany({
+        where: { id, workspaceId },
         data,
       });
-      return tx.purchaseRequest.findUniqueOrThrow({
-        where: { id },
+      if (result.count === 0) throw new Error("Purchase request no longer exists.");
+      return tx.purchaseRequest.findFirstOrThrow({
+        where: { id, workspaceId },
         include: { lines: { orderBy: { sortOrder: "asc" } } },
       });
     });
 
     return NextResponse.json(serializePurchaseRequest(updated));
   } catch (e) {
-    console.error("PATCH /api/purchase-requests/[id]", e);
+    const auth = authError(e);
+    if (auth) return auth;
     const msg = e instanceof Error ? e.message : "Failed to update purchase request";
     const status = msg.includes("5MB") ? 400 : 500;
     return NextResponse.json(
@@ -243,18 +247,20 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 }
 
-export async function DELETE(_req: Request, ctx: Ctx) {
+export async function DELETE(req: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
+    const { workspaceId } = await requireResolvedWorkspace(new URL(req.url).searchParams.get("workspaceId"), [WorkspaceRole.ADMIN]);
     const result = await prisma.purchaseRequest.deleteMany({
-      where: { id, workspaceId: DEMO_WORKSPACE_ID },
+      where: { id, workspaceId: workspaceId },
     });
     if (result.count === 0) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
     return NextResponse.json({ ok: true });
   } catch (e) {
-    console.error("DELETE /api/purchase-requests/[id]", e);
+    const auth = authError(e);
+    if (auth) return auth;
     return NextResponse.json(
       { error: "Failed to delete purchase request" },
       { status: 500 }

@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import type { InboundStatus, PurchaseStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { bodyWorkspaceId, authError } from "@/lib/master-data-server";
+import { requireResolvedWorkspace, WorkspaceRole } from "@/lib/workspace-auth";
 import {
-  DEMO_WORKSPACE_ID,
   allocateNextPurchaseSlipNo,
   backfillMissingPurchaseSlipNos,
-  ensureDemoWorkspace,
   parseDateOnly,
   serializePurchase,
 } from "@/lib/demo";
@@ -63,19 +63,18 @@ function mapLines(lines: LineInput[] | undefined) {
     );
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    await ensureDemoWorkspace();
-    await backfillMissingPurchaseSlipNos(DEMO_WORKSPACE_ID);
+    const { workspaceId } = await requireResolvedWorkspace(new URL(req.url).searchParams.get("workspaceId"), [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR, WorkspaceRole.VIEWER]);
+    await backfillMissingPurchaseSlipNos(workspaceId);
     const rows = await prisma.purchase.findMany({
-      where: { workspaceId: DEMO_WORKSPACE_ID },
+      where: { workspaceId: workspaceId },
       include: { lines: { orderBy: { sortOrder: "asc" } } },
       orderBy: [{ purchaseDate: "desc" }, { createdAt: "desc" }],
     });
     return NextResponse.json(rows.map(serializePurchase));
   } catch (e) {
-    console.error("GET /api/purchases", e);
-    return NextResponse.json(
+    return authError(e) ?? NextResponse.json(
       { error: "Failed to load purchases" },
       { status: 500 }
     );
@@ -84,8 +83,8 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    await ensureDemoWorkspace();
     const body = await req.json();
+    const { workspaceId } = await requireResolvedWorkspace(bodyWorkspaceId(body), [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR]);
     if (body.quantity !== undefined && !finiteNonNegative(Number(body.quantity))) {
       return NextResponse.json({ error: "Quantity must be a finite non-negative number." }, { status: 400 });
     }
@@ -98,7 +97,7 @@ export async function POST(req: Request) {
       ...(body.itemCode ? [String(body.itemCode).trim()] : []),
     ])];
     if (itemCodes.length) {
-      const known = await prisma.item.findMany({ where: { workspaceId: DEMO_WORKSPACE_ID, code: { in: itemCodes } }, select: { code: true } });
+      const known = await prisma.item.findMany({ where: { workspaceId: workspaceId, code: { in: itemCodes } }, select: { code: true } });
       const knownCodes = new Set(known.map((item) => item.code));
       const unknown = itemCodes.find((code) => !knownCodes.has(code));
       if (unknown) return NextResponse.json({ error: `Unknown item code ${unknown}.` }, { status: 400 });
@@ -126,12 +125,12 @@ export async function POST(req: Request) {
     const purchaseDate = parseDateOnly(body.purchaseDate) ?? new Date();
     const slipNo = body.slipNo
       ? String(body.slipNo)
-      : await allocateNextPurchaseSlipNo(DEMO_WORKSPACE_ID, purchaseDate);
+      : await allocateNextPurchaseSlipNo(workspaceId, purchaseDate);
 
     const first = lineRows[0];
     const created = await prisma.purchase.create({
       data: {
-        workspaceId: DEMO_WORKSPACE_ID,
+        workspaceId: workspaceId,
         purchaseDate,
         slipNo,
         orderNo: body.orderNo ? String(body.orderNo) : null,
@@ -174,7 +173,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json(serializePurchase(created), { status: 201 });
   } catch (e) {
-    console.error("POST /api/purchases", e);
+    const auth = authError(e);
+    if (auth) return auth;
     const msg = e instanceof Error ? e.message : "Failed to create purchase";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
