@@ -12,6 +12,10 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function POST() {
+  if (process.env.NEXT_PUBLIC_ALLOW_DEMO_RESET !== "true") {
+    return NextResponse.json({ error: "Demo reset is disabled" }, { status: 404 });
+  }
+
   try {
     const result = await wipeAndSeedDemoWorkspace();
     const [tasks, events, finances, mails] = await Promise.all([
