@@ -18,6 +18,26 @@ import {
 const DELIVERY_NOTICE =
   "Invitation acceptance delivery is blocked because no email provider is configured.";
 
+async function deliverInvitationEmail(input: { email: string; workspaceName: string; token: string; expiresAt: Date }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM_EMAIL;
+  const baseUrl = process.env.BETTER_AUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL;
+  if (!apiKey || !from || !baseUrl) return { status: "not_configured" as const };
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from,
+      to: [input.email],
+      subject: `${input.workspaceName} 업무 공간 초대`,
+      text: `${input.workspaceName} 업무 공간에 초대되었습니다.\n\n초대 수락: ${baseUrl}/invitations/accept?token=${encodeURIComponent(input.token)}\n\n초대 만료: ${input.expiresAt.toISOString()}`,
+    }),
+  });
+  if (!response.ok) return { status: "failed" as const };
+  return { status: "sent" as const };
+}
+
 function requestField(body: unknown, field: string): unknown {
   return typeof body === "object" && body !== null && field in body
     ? (body as Record<string, unknown>)[field]
@@ -154,10 +174,22 @@ export async function POST(request: Request) {
       },
     });
 
+    const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId.trim() }, select: { name: true } });
+    if (!workspace) return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+
+    const delivery = await deliverInvitationEmail({ email, workspaceName: workspace.name, token, expiresAt });
+    if (delivery.status === "failed") {
+      return NextResponse.json({
+        invitation: serializeInvitation(invitation),
+        delivery: "failed",
+        deliveryMessage: "초대는 생성됐지만 이메일 발송에 실패했습니다.",
+      }, { status: 502 });
+    }
+
     return NextResponse.json({
       invitation: serializeInvitation(invitation),
-      delivery: "not_configured",
-      deliveryMessage: DELIVERY_NOTICE,
+      delivery: delivery.status,
+      ...(delivery.status === "not_configured" ? { deliveryMessage: DELIVERY_NOTICE } : {}),
     }, { status: 201 });
   } catch (error) {
     if (error instanceof UnauthorizedError) {
