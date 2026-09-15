@@ -15,10 +15,15 @@ export default function SignUpPage() {
     event.preventDefault();
     setError("");
     setPending(true);
-    const result = await signUp.email({ name, email, password, callbackURL: "/onboarding" });
-    setPending(false);
-    if (result.error) setError(result.error.message ?? "회원가입에 실패했습니다.");
-    else window.location.assign("/onboarding");
+    try {
+      const result = await signUp.email({ name, email, password, callbackURL: "/onboarding" });
+      if (result.error) setError(result.error.message ?? "회원가입에 실패했습니다.");
+      else window.location.assign("/onboarding");
+    } catch {
+      setError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
