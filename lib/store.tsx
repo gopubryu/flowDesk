@@ -8,6 +8,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { usePathname } from "next/navigation";
 import type {
   CalendarEvent,
   FinanceRecord,
@@ -87,6 +88,7 @@ async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -126,8 +128,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (pathname === "/sign-in" || pathname === "/sign-up" || pathname === "/onboarding" || pathname === "/invitations/accept") {
+      setLoading(false);
+      setError(null);
+      return;
+    }
     void refresh();
-  }, [refresh]);
+  }, [pathname, refresh]);
 
   const addTask = useCallback(
     async (task: Omit<Task, "id" | "createdAt" | "updatedAt">) => {
