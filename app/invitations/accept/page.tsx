@@ -13,6 +13,7 @@ export default function AcceptInvitationPage() {
 
     const url = new URL(window.location.href);
     const token = url.searchParams.get("token");
+    if (token) window.sessionStorage.setItem("flowdesk_pending_invitation", token);
     url.searchParams.delete("token");
     window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
 
@@ -30,9 +31,14 @@ export default function AcceptInvitationPage() {
         });
         const result = await response.json();
         if (!response.ok) {
+          if (response.status === 401) {
+            window.location.assign("/sign-in?returnTo=%2Finvitations%2Faccept");
+            return;
+          }
           setError(result.error ?? "초대를 수락할 수 없습니다.");
           return;
         }
+        window.sessionStorage.removeItem("flowdesk_pending_invitation");
         setStatus(`${result.workspace.name} 업무 공간에 ${result.role} 권한으로 참여했습니다.`);
       } catch {
         setError("초대를 수락할 수 없습니다.");

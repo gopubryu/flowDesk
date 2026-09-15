@@ -14,9 +14,20 @@ export default function SignInPage() {
     event.preventDefault();
     setError("");
     setPending(true);
-    const result = await signIn.email({ email, password, callbackURL: "/" });
-    setPending(false);
-    if (result.error) setError(result.error.message ?? "로그인에 실패했습니다.");
+    try {
+      const result = await signIn.email({ email, password, callbackURL: "/" });
+      if (result.error) setError(result.error.message ?? "로그인에 실패했습니다.");
+      else {
+        const pendingToken = window.sessionStorage.getItem("flowdesk_pending_invitation");
+        window.location.assign(pendingToken
+          ? `/invitations/accept?token=${encodeURIComponent(pendingToken)}`
+          : "/dashboard");
+      }
+    } catch {
+      setError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
