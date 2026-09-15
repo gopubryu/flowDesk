@@ -100,8 +100,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     try {
       const workspaceId = await activeWorkspaceId();
       const [t, e, f, m] = await Promise.all([
-        apiJson<Task[]>("/api/tasks"),
-        apiJson<CalendarEvent[]>("/api/events"),
+        apiJson<Task[]>(`/api/tasks?workspaceId=${encodeURIComponent(workspaceId)}`),
+        apiJson<CalendarEvent[]>(`/api/events?workspaceId=${encodeURIComponent(workspaceId)}`),
         apiJson<FinanceRecord[]>(`/api/finances?workspaceId=${encodeURIComponent(workspaceId)}`),
         apiJson<MailMessage[]>("/api/mails"),
       ]);
@@ -131,9 +131,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const addTask = useCallback(
     async (task: Omit<Task, "id" | "createdAt" | "updatedAt">) => {
+      const workspaceId = await activeWorkspaceId();
       const created = await apiJson<Task>("/api/tasks", {
         method: "POST",
-        body: JSON.stringify(task),
+        body: JSON.stringify({ ...task, workspaceId }),
       });
       setTasks((prev) => [created, ...prev]);
     },
@@ -141,15 +142,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   );
 
   const updateTask = useCallback(async (id: string, patch: Partial<Task>) => {
+    const workspaceId = await activeWorkspaceId();
     const updated = await apiJson<Task>(`/api/tasks/${id}`, {
       method: "PATCH",
-      body: JSON.stringify(patch),
+      body: JSON.stringify({ ...patch, workspaceId }),
     });
     setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)));
   }, []);
 
   const deleteTask = useCallback(async (id: string) => {
-    await apiJson(`/api/tasks/${id}`, { method: "DELETE" });
+    const workspaceId = await activeWorkspaceId();
+    await apiJson(`/api/tasks/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, { method: "DELETE" });
     setTasks((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
@@ -161,23 +164,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   );
 
   const addEvent = useCallback(async (event: Omit<CalendarEvent, "id">) => {
+    const workspaceId = await activeWorkspaceId();
     const created = await apiJson<CalendarEvent>("/api/events", {
       method: "POST",
-      body: JSON.stringify(event),
+      body: JSON.stringify({ ...event, workspaceId }),
     });
     setEvents((prev) => [created, ...prev]);
   }, []);
 
   const updateEvent = useCallback(async (id: string, patch: Partial<CalendarEvent>) => {
+    const workspaceId = await activeWorkspaceId();
     const updated = await apiJson<CalendarEvent>(`/api/events/${id}`, {
       method: "PATCH",
-      body: JSON.stringify(patch),
+      body: JSON.stringify({ ...patch, workspaceId }),
     });
     setEvents((prev) => prev.map((e) => (e.id === id ? updated : e)));
   }, []);
 
   const deleteEvent = useCallback(async (id: string) => {
-    await apiJson(`/api/events/${id}`, { method: "DELETE" });
+    const workspaceId = await activeWorkspaceId();
+    await apiJson(`/api/events/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, { method: "DELETE" });
     setEvents((prev) => prev.filter((e) => e.id !== id));
   }, []);
 

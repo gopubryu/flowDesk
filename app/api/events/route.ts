@@ -1,36 +1,35 @@
 import { NextResponse } from "next/server";
 import type { EventType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import {
-  DEMO_WORKSPACE_ID,
-  ensureDemoWorkspace,
-  parseDateOnly,
-  serializeEvent,
-} from "@/lib/demo";
+import { authError } from "@/lib/master-data-server";
+import { requireResolvedWorkspace, WorkspaceRole } from "@/lib/workspace-auth";
+import { parseDateOnly, serializeEvent } from "@/lib/demo";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    await ensureDemoWorkspace();
+    const { workspaceId } = await requireResolvedWorkspace(
+      new URL(req.url).searchParams.get("workspaceId"),
+      [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR, WorkspaceRole.VIEWER],
+    );
     const events = await prisma.calendarEvent.findMany({
-      where: { workspaceId: DEMO_WORKSPACE_ID },
+      where: { workspaceId },
       orderBy: { date: "asc" },
     });
     return NextResponse.json(events.map(serializeEvent));
-  } catch (e) {
-    console.error("GET /api/events", e);
-    return NextResponse.json({ error: "Failed to load events" }, { status: 500 });
+  } catch (error) {
+    return authError(error) ?? NextResponse.json({ error: "Failed to load events" }, { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
-    await ensureDemoWorkspace();
     const body = await req.json();
+    const { workspaceId } = await requireResolvedWorkspace(body?.workspaceId, [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR]);
     const event = await prisma.calendarEvent.create({
       data: {
-        workspaceId: DEMO_WORKSPACE_ID,
+        workspaceId,
         title: String(body.title ?? ""),
         description: body.description ?? null,
         date: parseDateOnly(body.date) ?? new Date(),
@@ -46,8 +45,7 @@ export async function POST(req: Request) {
       },
     });
     return NextResponse.json(serializeEvent(event), { status: 201 });
-  } catch (e) {
-    console.error("POST /api/events", e);
-    return NextResponse.json({ error: "Failed to create event" }, { status: 500 });
+  } catch (error) {
+    return authError(error) ?? NextResponse.json({ error: "Failed to create event" }, { status: 500 });
   }
 }

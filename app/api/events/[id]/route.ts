@@ -1,16 +1,34 @@
 import { NextResponse } from "next/server";
 import type { EventType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { DEMO_WORKSPACE_ID, parseDateOnly, serializeEvent } from "@/lib/demo";
+import { authError } from "@/lib/master-data-server";
+import { requireResolvedWorkspace, WorkspaceRole } from "@/lib/workspace-auth";
+import { parseDateOnly, serializeEvent } from "@/lib/demo";
 
 export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string }> };
 
+export async function GET(req: Request, ctx: Ctx) {
+  try {
+    const { id } = await ctx.params;
+    const { workspaceId } = await requireResolvedWorkspace(
+      new URL(req.url).searchParams.get("workspaceId"),
+      [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR, WorkspaceRole.VIEWER],
+    );
+    const event = await prisma.calendarEvent.findFirst({ where: { id, workspaceId } });
+    if (!event) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json(serializeEvent(event));
+  } catch (error) {
+    return authError(error) ?? NextResponse.json({ error: "Failed to load event" }, { status: 500 });
+  }
+}
+
 export async function PATCH(req: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
     const body = await req.json();
+    const { workspaceId } = await requireResolvedWorkspace(body?.workspaceId, [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR]);
     const data: Record<string, unknown> = {};
     if (body.title !== undefined) data.title = String(body.title);
     if (body.description !== undefined) data.description = body.description ?? null;
@@ -23,37 +41,28 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (body.company !== undefined) data.company = body.company ?? null;
     if (body.location !== undefined) data.location = body.location ?? null;
     if (body.project !== undefined) data.project = body.project ?? null;
-    if (body.attendees !== undefined) {
-      data.attendees = Array.isArray(body.attendees) ? body.attendees.map(String) : [];
-    }
+    if (body.attendees !== undefined) data.attendees = Array.isArray(body.attendees) ? body.attendees.map(String) : [];
 
-    const result = await prisma.calendarEvent.updateMany({
-      where: { id, workspaceId: DEMO_WORKSPACE_ID },
-      data,
-    });
-    if (result.count === 0) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-    const updated = await prisma.calendarEvent.findUniqueOrThrow({ where: { id } });
+    const result = await prisma.calendarEvent.updateMany({ where: { id, workspaceId }, data });
+    if (result.count === 0) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const updated = await prisma.calendarEvent.findFirstOrThrow({ where: { id, workspaceId } });
     return NextResponse.json(serializeEvent(updated));
-  } catch (e) {
-    console.error("PATCH /api/events/[id]", e);
-    return NextResponse.json({ error: "Failed to update event" }, { status: 500 });
+  } catch (error) {
+    return authError(error) ?? NextResponse.json({ error: "Failed to update event" }, { status: 500 });
   }
 }
 
-export async function DELETE(_req: Request, ctx: Ctx) {
+export async function DELETE(req: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
-    const result = await prisma.calendarEvent.deleteMany({
-      where: { id, workspaceId: DEMO_WORKSPACE_ID },
-    });
-    if (result.count === 0) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
+    const { workspaceId } = await requireResolvedWorkspace(
+      new URL(req.url).searchParams.get("workspaceId"),
+      [WorkspaceRole.ADMIN],
+    );
+    const result = await prisma.calendarEvent.deleteMany({ where: { id, workspaceId } });
+    if (result.count === 0) return NextResponse.json({ error: "Not found" }, { status: 404 });
     return NextResponse.json({ ok: true });
-  } catch (e) {
-    console.error("DELETE /api/events/[id]", e);
-    return NextResponse.json({ error: "Failed to delete event" }, { status: 500 });
+  } catch (error) {
+    return authError(error) ?? NextResponse.json({ error: "Failed to delete event" }, { status: 500 });
   }
 }
