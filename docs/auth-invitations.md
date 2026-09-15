@@ -26,6 +26,19 @@ The minimal `/invitations/accept?token=...` page submits the token once, removes
 it from the browser URL immediately, and does not render the token. It also
 explains the delivery limitation to recipients.
 
+## 초대 받은 사용자 로그인 순서
+
+초대 이메일을 받은 사용자는 다음 순서로 참여한다.
+
+1. 초대 이메일의 **초대 수락** 링크를 클릭한다.
+2. 로그인되지 않은 경우 FlowDesk 로그인 화면으로 자동 이동한다.
+3. 초대 이메일을 받은 주소와 **동일한 이메일 주소**로 로그인한다.
+   - 계정이 없으면 같은 주소로 먼저 회원가입한다.
+   - 다른 이메일로 로그인하면 이메일 불일치로 초대를 수락할 수 없다.
+4. 로그인 성공 후 초대 수락 화면으로 자동 복귀한다.
+5. 초대 수락이 완료되면 지정된 workspace와 역할로 자동 참여하고 대시보드로 이동한다.
+
+초대 링크를 로그인 전에 열었을 때 표시되는 `Unauthorized`는 정상적인 보안 응답이다. 이 경우 로그인 후 초대 이메일의 링크를 다시 클릭하면 된다. 초대 토큰이 포함된 링크는 다른 사람에게 공유하지 않는다.
 ## Email-provider blocker
 
 No email provider is configured yet. The invitation POST response therefore
