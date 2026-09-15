@@ -1,11 +1,12 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Bell, Menu, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppDialog } from "@/components/ui/app-alert-dialog";
 import { useStore } from "@/lib/store";
+import { signOut } from "@/lib/auth-client";
 
 const titles: { match: (pathname: string) => boolean; title: string; desc: string }[] = [
   {
@@ -95,6 +96,8 @@ function resolveMeta(pathname: string) {
 export function Header({ onMenu }: { onMenu?: () => void }) {
   const { confirm: appConfirm, dialog: appDialog } = useAppDialog();
   const pathname = usePathname();
+  const router = useRouter();
+  const [profileOpen, setProfileOpen] = useState(false);
   const { resetDemo } = useStore();
   const meta = resolveMeta(pathname);
 
@@ -132,12 +135,33 @@ export function Header({ onMenu }: { onMenu?: () => void }) {
         <Button variant="ghost" size="icon" type="button" aria-label="알림">
           <Bell className="h-4 w-4" />
         </Button>
-        <Link
-          href="/dashboard"
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground"
-        >
-          JD
-        </Link>
+        <div className="relative">
+          <button
+            type="button"
+            aria-label="프로필 메뉴"
+            aria-expanded={profileOpen}
+            onClick={() => setProfileOpen((open) => !open)}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground"
+          >
+            JD
+          </button>
+          {profileOpen && (
+            <div className="absolute right-0 top-11 z-50 w-36 rounded-lg border bg-card p-1 shadow-lg">
+              <button
+                type="button"
+                className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted"
+                onClick={async () => {
+                  await signOut();
+                  setProfileOpen(false);
+                  router.replace("/sign-in");
+                  router.refresh();
+                }}
+              >
+                로그아웃
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       {appDialog}
     </header>
