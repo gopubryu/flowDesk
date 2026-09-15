@@ -17,6 +17,7 @@ import type {
   TaskStatus,
 } from "./types";
 import { ME_FROM } from "./mock-data";
+import { activeWorkspaceId } from "./master-data-client";
 
 interface StoreContextValue {
   tasks: Task[];
@@ -97,10 +98,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     setError(null);
     try {
+      const workspaceId = await activeWorkspaceId();
       const [t, e, f, m] = await Promise.all([
         apiJson<Task[]>("/api/tasks"),
         apiJson<CalendarEvent[]>("/api/events"),
-        apiJson<FinanceRecord[]>("/api/finances"),
+        apiJson<FinanceRecord[]>(`/api/finances?workspaceId=${encodeURIComponent(workspaceId)}`),
         apiJson<MailMessage[]>("/api/mails"),
       ]);
       setTasks(t);
@@ -180,23 +182,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addFinance = useCallback(async (record: Omit<FinanceRecord, "id">) => {
+    const workspaceId = await activeWorkspaceId();
     const created = await apiJson<FinanceRecord>("/api/finances", {
       method: "POST",
-      body: JSON.stringify(record),
+      body: JSON.stringify({ ...record, workspaceId }),
     });
     setFinances((prev) => [created, ...prev]);
   }, []);
 
   const updateFinance = useCallback(async (id: string, patch: Partial<FinanceRecord>) => {
+    const workspaceId = await activeWorkspaceId();
     const updated = await apiJson<FinanceRecord>(`/api/finances/${id}`, {
       method: "PATCH",
-      body: JSON.stringify(patch),
+      body: JSON.stringify({ ...patch, workspaceId }),
     });
     setFinances((prev) => prev.map((f) => (f.id === id ? updated : f)));
   }, []);
 
   const deleteFinance = useCallback(async (id: string) => {
-    await apiJson(`/api/finances/${id}`, { method: "DELETE" });
+    const workspaceId = await activeWorkspaceId();
+    await apiJson(`/api/finances/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, { method: "DELETE" });
     setFinances((prev) => prev.filter((f) => f.id !== id));
   }, []);
 

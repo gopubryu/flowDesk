@@ -2,35 +2,40 @@ import { NextResponse } from "next/server";
 import type { FinanceCategory, PaymentStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
-  DEMO_WORKSPACE_ID,
-  ensureDemoWorkspace,
   parseDateOnly,
   serializeFinance,
 } from "@/lib/demo";
+import { authError, bodyWorkspaceId } from "@/lib/master-data-server";
+import { requireResolvedWorkspace, WorkspaceRole } from "@/lib/workspace-auth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    await ensureDemoWorkspace();
+    const { workspaceId } = await requireResolvedWorkspace(
+      new URL(req.url).searchParams.get("workspaceId"),
+      [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR, WorkspaceRole.VIEWER],
+    );
     const finances = await prisma.financeRecord.findMany({
-      where: { workspaceId: DEMO_WORKSPACE_ID },
+      where: { workspaceId },
       orderBy: { date: "desc" },
     });
     return NextResponse.json(finances.map(serializeFinance));
   } catch (e) {
-    console.error("GET /api/finances", e);
-    return NextResponse.json({ error: "Failed to load finances" }, { status: 500 });
+    return authError(e) ?? NextResponse.json({ error: "Failed to load finances" }, { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
-    await ensureDemoWorkspace();
     const body = await req.json();
+    const { workspaceId } = await requireResolvedWorkspace(
+      bodyWorkspaceId(body),
+      [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR],
+    );
     const record = await prisma.financeRecord.create({
       data: {
-        workspaceId: DEMO_WORKSPACE_ID,
+        workspaceId,
         client: String(body.client ?? ""),
         description: String(body.description ?? ""),
         amount: Number(body.amount) || 0,
@@ -42,7 +47,6 @@ export async function POST(req: Request) {
     });
     return NextResponse.json(serializeFinance(record), { status: 201 });
   } catch (e) {
-    console.error("POST /api/finances", e);
-    return NextResponse.json({ error: "Failed to create finance" }, { status: 500 });
+    return authError(e) ?? NextResponse.json({ error: "Failed to create finance" }, { status: 500 });
   }
 }
