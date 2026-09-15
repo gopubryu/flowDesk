@@ -73,3 +73,6 @@
 - 로컬 `.env.local`에는 staging 연결 정보와 임시 `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`이 저장되어 있으며 Git ignore 상태
 - 실제 운영 Vercel 환경 변수와 운영 Neon `main`은 변경하지 않음
 - build lint 경고는 기존 미사용 import 및 React Hook dependency 경고이며 build 자체는 성공함
+- 로컬 staging 서버에서 `/api/auth/me`와 `/api/items`는 비로그인 요청에 `401 {"error":"Unauthorized"}` 반환
+- `/sign-in`, `/sign-up`, `/onboarding`, `/invitations/accept` 페이지는 HTTP 200 응답
+- 실제 회원가입·로그인·초대 수락은 비밀번호를 도구에 입력하지 않는 보안 원칙에 따라 이번 자동 검증에서 실행하지 않음
