@@ -40,6 +40,7 @@ export default function AcceptInvitationPage() {
         }
         window.sessionStorage.removeItem("flowdesk_pending_invitation");
         setStatus(`${result.workspace.name} 업무 공간에 ${result.role} 권한으로 참여했습니다.`);
+        window.setTimeout(() => window.location.assign("/dashboard"), 700);
       } catch {
         setError("초대를 수락할 수 없습니다.");
       }
