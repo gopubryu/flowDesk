@@ -99,6 +99,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const pathname = usePathname();
   const { loading, error, refresh } = useStore();
+  const isAuthRoute = pathname === "/sign-in" || pathname === "/sign-up" || pathname === "/onboarding" || pathname === "/invitations/accept";
 
   useEffect(() => {
     setOpenGroups((prev) => {
@@ -118,6 +119,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const toggleGroup = (id: string) => {
     setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }));
   };
+
+  if (isAuthRoute) return <>{children}</>;
 
   return (
     <div className="flex min-h-screen bg-background">
