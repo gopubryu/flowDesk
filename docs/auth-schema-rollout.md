@@ -58,3 +58,18 @@
 4. 인증 API 401/정상 세션 응답 확인
 5. workspace 교차 접근 403 확인
 6. 문제 없을 때만 운영 적용 승인 여부 판단
+
+## 2026-09-15 staging 검증 결과
+
+- Neon staging branch: `flowdesk-auth-staging-20260915`
+- 부모 branch: `main`
+- 생성 방식: `Branch schema only` (운영 데이터 복제 없음)
+- Prisma `db push`: 성공
+- `information_schema` read-back: `Account`, `Invitation`, `Session`, `User`, `Verification`, `WorkspaceMember` 6개 테이블 확인
+- staging 연결로 `npm run build`: 성공
+- build 중 Prisma schema sync: `The database is already in sync with the Prisma schema.`
+- staging branch 자동 삭제 예정: 2026-09-16 22:42 KST
+- staging branch에는 테스트 데이터를 생성하지 않음
+- 로컬 `.env.local`에는 staging 연결 정보와 임시 `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`이 저장되어 있으며 Git ignore 상태
+- 실제 운영 Vercel 환경 변수와 운영 Neon `main`은 변경하지 않음
+- build lint 경고는 기존 미사용 import 및 React Hook dependency 경고이며 build 자체는 성공함
