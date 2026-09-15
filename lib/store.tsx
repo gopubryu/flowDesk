@@ -103,7 +103,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         apiJson<Task[]>(`/api/tasks?workspaceId=${encodeURIComponent(workspaceId)}`),
         apiJson<CalendarEvent[]>(`/api/events?workspaceId=${encodeURIComponent(workspaceId)}`),
         apiJson<FinanceRecord[]>(`/api/finances?workspaceId=${encodeURIComponent(workspaceId)}`),
-        apiJson<MailMessage[]>("/api/mails"),
+        apiJson<MailMessage[]>(`/api/mails?workspaceId=${encodeURIComponent(workspaceId)}`),
       ]);
       setTasks(t);
       setEvents(e);
@@ -215,10 +215,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     async (
       mail: Omit<MailMessage, "id" | "createdAt" | "snippet"> & { snippet?: string }
     ) => {
+      const workspaceId = await activeWorkspaceId();
       const created = await apiJson<MailMessage>("/api/mails", {
         method: "POST",
         body: JSON.stringify({
           ...mail,
+          workspaceId,
           snippet: mail.snippet ?? makeSnippet(mail.body),
         }),
       });
@@ -228,15 +230,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   );
 
   const updateMail = useCallback(async (id: string, patch: Partial<MailMessage>) => {
+    const workspaceId = await activeWorkspaceId();
     const updated = await apiJson<MailMessage>(`/api/mails/${id}`, {
       method: "PATCH",
-      body: JSON.stringify(patch),
+      body: JSON.stringify({ ...patch, workspaceId }),
     });
     setMails((prev) => prev.map((m) => (m.id === id ? updated : m)));
   }, []);
 
   const deleteMail = useCallback(async (id: string) => {
-    await apiJson(`/api/mails/${id}`, { method: "DELETE" });
+    const workspaceId = await activeWorkspaceId();
+    await apiJson(`/api/mails/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, { method: "DELETE" });
     setMails((prev) => prev.filter((m) => m.id !== id));
   }, []);
 
@@ -248,7 +252,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       body: string;
       draftId?: string;
     }) => {
+      const workspaceId = await activeWorkspaceId();
       const payload = {
+        workspaceId,
         folder: "sent" as MailFolder,
         from: ME_FROM,
         to: input.to,
@@ -285,7 +291,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       body: string;
       draftId?: string;
     }) => {
+      const workspaceId = await activeWorkspaceId();
       const payload = {
+        workspaceId,
         folder: "drafts" as MailFolder,
         from: ME_FROM,
         to: input.to,
@@ -330,9 +338,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     async (id: string) => {
       const current = mails.find((m) => m.id === id);
       if (!current || current.folder !== "trash") return;
+      const workspaceId = await activeWorkspaceId();
       await apiJson<MailMessage>(`/api/mails/${id}`, {
         method: "PATCH",
         body: JSON.stringify({
+          workspaceId,
           folder: current.previousFolder ?? "inbox",
           previousFolder: null,
         }),
