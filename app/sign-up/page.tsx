@@ -18,7 +18,12 @@ export default function SignUpPage() {
     try {
       const result = await signUp.email({ name, email, password, callbackURL: "/onboarding" });
       if (result.error) setError(result.error.message ?? "회원가입에 실패했습니다.");
-      else window.location.assign("/onboarding");
+      else {
+        const pendingToken = window.sessionStorage.getItem("flowdesk_pending_invitation");
+        window.location.assign(pendingToken
+          ? `/invitations/accept?token=${encodeURIComponent(pendingToken)}`
+          : "/onboarding");
+      }
     } catch {
       setError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
