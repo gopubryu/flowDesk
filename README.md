@@ -1,3 +1,5 @@
+Open-source job flow hub for SMBs - Tasks, Calendar, Finance, Mail in one Next.js MVP.
+
 # 플로우데스크 (FlowDesk)
 
 중소기업(SMB)을 위한 **할 일 · 일정 · 매출 · 메일** 통합 업무 관리 MVP입니다.  
