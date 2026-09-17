@@ -10,6 +10,7 @@ test("items runtime authorization isolates workspaces and roles", { skip: !enabl
 
   const { prisma } = await import("./prisma");
   const { setIntegrationTestSession } = await import("./auth-guards");
+  const { combineIntegrationErrors } = await import("./integration-cleanup");
   const itemsRoute = await import("../app/api/items/route");
   const itemByCodeRoute = await import("../app/api/items/[code]/route");
   const { WorkspaceRole } = await import("@prisma/client");
@@ -30,6 +31,7 @@ test("items runtime authorization isolates workspaces and roles", { skip: !enabl
 
   const session = (user: { id: string; name: string; email: string }) => ({ user: { ...user, emailVerified: true, createdAt: new Date(), updatedAt: new Date() }, session: { id: `session-${user.id}`, userId: user.id, expiresAt: new Date(Date.now() + 60_000), token: `token-${user.id}`, createdAt: new Date(), updatedAt: new Date() } });
   const request = (url: string, init?: RequestInit) => new Request(`http://integration.invalid${url}`, init);
+  let primaryError: unknown;
   try {
     setIntegrationTestSession(session(admin));
     const beforeB = await prisma.item.findUnique({ where: { id: itemB.id } });
@@ -54,6 +56,8 @@ test("items runtime authorization isolates workspaces and roles", { skip: !enabl
     setIntegrationTestSession(session(admin));
     const adminDelete = await itemByCodeRoute.DELETE(request(`/api/items/${itemA.code}?workspaceId=${workspaceA.id}`, { method: "DELETE" }), { params: Promise.resolve({ code: itemA.code }) });
     assert.equal(adminDelete.status, 200);
+  } catch (error) {
+    primaryError = error;
   } finally {
     setIntegrationTestSession(null);
     const cleanupErrors: unknown[] = [];
@@ -72,8 +76,7 @@ test("items runtime authorization isolates workspaces and roles", { skip: !enabl
     } catch (error) {
       cleanupErrors.push(error);
     }
-    if (cleanupErrors.length > 0) {
-      throw new AggregateError(cleanupErrors, "Integration fixture cleanup failed");
-    }
+    const finalError = combineIntegrationErrors(primaryError, cleanupErrors);
+    if (finalError) throw finalError;
   }
 });

@@ -14,3 +14,8 @@ test("integration database accepts a credentialed local test URL", () => {
   assert.equal(url.hostname, "127.0.0.1");
   assert.equal(url.pathname, "/flowdesk_test");
 });
+
+test("integration database accepts IPv6 loopback test URL", () => {
+  const url = assertSafeIntegrationDatabase("postgresql://test:***@[::1]:54329/flowdesk_test", "postgresql://u:***@prod.example/db");
+  assert.equal(url.hostname.replace(/^\[|\]$/g, ""), "::1");
+});
