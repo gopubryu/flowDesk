@@ -25,8 +25,8 @@ test("items runtime authorization isolates workspaces and roles", { skip: !enabl
     { workspaceId: workspaceA.id, userId: operator.id, role: WorkspaceRole.OPERATOR },
     { workspaceId: workspaceA.id, userId: viewer.id, role: WorkspaceRole.VIEWER },
   ] });
-  const itemA = await prisma.item.create({ data: { workspaceId: workspaceA.id, code: `IA${suffix.slice(-8)}`, name: "A item", inboundPrice: 1, outboundPrice: 2, inboundVatIncluded: false, outboundVatIncluded: false } });
-  const itemB = await prisma.item.create({ data: { workspaceId: workspaceB.id, code: `IB${suffix.slice(-8)}`, name: "B item", inboundPrice: 1, outboundPrice: 2, inboundVatIncluded: false, outboundVatIncluded: false } });
+  const itemA = await prisma.item.create({ data: { workspaceId: workspaceA.id, code: `IA${suffix.slice(-8).toUpperCase()}`, name: "A item", inboundPrice: 1, outboundPrice: 2, inboundVatIncluded: false, outboundVatIncluded: false } });
+  const itemB = await prisma.item.create({ data: { workspaceId: workspaceB.id, code: `IB${suffix.slice(-8).toUpperCase()}`, name: "B item", inboundPrice: 1, outboundPrice: 2, inboundVatIncluded: false, outboundVatIncluded: false } });
 
   const session = (user: { id: string; name: string; email: string }) => ({ user: { ...user, emailVerified: true, createdAt: new Date(), updatedAt: new Date() }, session: { id: `session-${user.id}`, userId: user.id, expiresAt: new Date(Date.now() + 60_000), token: `token-${user.id}`, createdAt: new Date(), updatedAt: new Date() } });
   const request = (url: string, init?: RequestInit) => new Request(`http://integration.invalid${url}`, init);
