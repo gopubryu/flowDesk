@@ -84,25 +84,27 @@ function hasRoles(source: string, roles: string[]) {
   return normalized.includes(`[${roles.join(", ")}]`);
 }
 
+function validateHandler(source: string, contract: RouteContract) {
+  const errors: string[] = [];
+  if (!source.includes("requireResolvedWorkspace(")) errors.push("shared workspace guard missing");
+  for (const { method, body } of methodBlocks(source)) {
+    const scope = authorizationScope(source, body);
+    if (!body.includes("workspaceId")) errors.push(`${method} workspace scope missing`);
+    if (method === "GET") {
+      if (!contract.reads || !hasRoles(scope, ["WorkspaceRole.ADMIN", "WorkspaceRole.OPERATOR", "WorkspaceRole.VIEWER"])) errors.push(`${method} read role policy invalid`);
+    } else if (method === "DELETE") {
+      if (!contract.deletes || !hasRoles(scope, ["WorkspaceRole.ADMIN"])) errors.push(`${method} delete role policy invalid`);
+    } else if (!contract.writes || !hasRoles(scope, ["WorkspaceRole.ADMIN", "WorkspaceRole.OPERATOR"]) || /body\??\.(?:role|userId)/.test(body)) {
+      errors.push(`${method} write role policy invalid`);
+    }
+  }
+  return errors;
+}
+
 for (const contract of contracts) {
   test(`${contract.route} enforces shared workspace authorization`, () => {
     const source = readRoute(contract.route);
-    assert.match(source, /requireResolvedWorkspace\(/);
-
-    for (const { method, body } of methodBlocks(source)) {
-      const scope = authorizationScope(source, body);
-      if (method === "GET") {
-        assert.equal(contract.reads, true, `${contract.route} exposes an undocumented GET policy`);
-        assert.equal(hasRoles(scope, ["WorkspaceRole.ADMIN", "WorkspaceRole.OPERATOR", "WorkspaceRole.VIEWER"]), true, `${contract.route} GET must allow all read roles`);
-      } else if (method === "DELETE") {
-        assert.equal(contract.deletes, true, `${contract.route} exposes an undocumented DELETE policy`);
-        assert.equal(hasRoles(scope, ["WorkspaceRole.ADMIN"]), true, `${contract.route} DELETE must be ADMIN-only`);
-      } else {
-        assert.equal(contract.writes, true, `${contract.route} exposes an undocumented ${method} policy`);
-        assert.equal(hasRoles(scope, ["WorkspaceRole.ADMIN", "WorkspaceRole.OPERATOR"]), true, `${contract.route} ${method} must allow ADMIN/OPERATOR only`);
-        assert.doesNotMatch(body, /body\??\.(?:role|userId)/);
-      }
-    }
+    assert.deepEqual(validateHandler(source, contract), [], contract.route);
   });
 }
 
@@ -124,4 +126,19 @@ test("every contract uses explicit workspace input for cross-workspace denial", 
     const source = readRoute(contract.route);
     assert.match(source, /workspaceId/);
   }
+});
+
+test("authorization contracts detect six representative RBAC/workspace mutants", () => {
+  const contract: RouteContract = { route: "mutation-fixture", reads: true, writes: true, deletes: true };
+  const valid = `export async function GET() { await requireResolvedWorkspace(id, [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR, WorkspaceRole.VIEWER]); return prisma.item.findMany({ where: { workspaceId } }); } export async function POST() { await requireResolvedWorkspace(id, [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR]); return prisma.item.create({ data: { workspaceId } }); } export async function DELETE() { await requireResolvedWorkspace(id, [WorkspaceRole.ADMIN]); return prisma.item.deleteMany({ where: { workspaceId } }); }`;
+  const mutants = [
+    valid.replace("WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR, WorkspaceRole.VIEWER", "WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR"),
+    valid.replace("WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR]); return prisma.item.create", "WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR, WorkspaceRole.VIEWER]); return prisma.item.create"),
+    valid.replace("await requireResolvedWorkspace(id, [WorkspaceRole.ADMIN]); return prisma.item.deleteMany", "return prisma.item.deleteMany"),
+    valid.replace("where: { workspaceId }", "where: { code: id }"),
+    valid.replace("[WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR]); return prisma.item.create", "[WorkspaceRole.ADMIN]); return prisma.item.create"),
+    valid.replace("[WorkspaceRole.ADMIN]); return prisma.item.deleteMany", "[WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR]); return prisma.item.deleteMany"),
+  ];
+  for (const mutant of mutants) assert.notDeepEqual(validateHandler(mutant, contract), [], mutant);
+  assert.deepEqual(validateHandler(valid, contract), []);
 });
