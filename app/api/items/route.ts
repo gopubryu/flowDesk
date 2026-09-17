@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { normalizeItem, SEED_ITEMS } from "@/lib/master-data";
+import { normalizeItem } from "@/lib/master-data";
+import { buildItemCreateData, buildItemWorkspaceWhere, buildSeedItemData } from "@/lib/items-query";
 import { apiError, publicRow } from "@/lib/master-data-server";
 import {
   BadRequestError,
@@ -28,13 +29,14 @@ export async function GET(req: Request) {
       [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR, WorkspaceRole.VIEWER],
     );
     const workspaceId = workspace.workspaceId;
-    if (await prisma.item.count({ where: { workspaceId } }) === 0) {
+    const where = buildItemWorkspaceWhere(workspaceId);
+    if (await prisma.item.count({ where }) === 0) {
       await prisma.item.createMany({
-        data: SEED_ITEMS.map(normalizeItem).map((row) => ({ ...row, workspaceId })),
+        data: buildSeedItemData(workspaceId),
         skipDuplicates: true,
       });
     }
-    const rows = await prisma.item.findMany({ where: { workspaceId }, orderBy: { code: "asc" } });
+    const rows = await prisma.item.findMany({ where, orderBy: { code: "asc" } });
     return NextResponse.json(rows.map(publicRow));
   } catch (error) {
     return authError(error) ?? apiError(error, "Failed to load items");
@@ -52,7 +54,7 @@ export async function POST(req: Request) {
     }
     const workspace = await requireResolvedWorkspace(workspaceId, [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR]);
     const data = normalizeItem(body);
-    const row = await prisma.item.create({ data: { ...data, workspaceId: workspace.workspaceId } });
+    const row = await prisma.item.create({ data: buildItemCreateData(data, workspace.workspaceId) });
     return NextResponse.json(publicRow(row), { status: 201 });
   } catch (error) {
     return authError(error) ?? apiError(error, "Failed to create item");
