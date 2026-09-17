@@ -129,6 +129,14 @@ test("every contract uses explicit workspace input for cross-workspace denial", 
   }
 });
 
+test("items route is connected to the scoped orchestration helpers", () => {
+  const source = readRoute("app/api/items/route.ts");
+  assert.match(source, /listItemsForWorkspace\(prisma, workspaceId\)/);
+  assert.match(source, /createItemForWorkspace\(prisma, data, workspace\.workspaceId\)/);
+  assert.doesNotMatch(source, /prisma\.item\.create\(\{\s*data:/);
+  assert.doesNotMatch(source, /prisma\.item\.findMany\(\{\s*where:\s*\{\}/);
+});
+
 test("authorization contracts detect six representative RBAC/workspace mutants", () => {
   const contract: RouteContract = { route: "mutation-fixture", reads: true, writes: true, deletes: true };
   const valid = `export async function GET() { await requireResolvedWorkspace(id, [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR, WorkspaceRole.VIEWER]); return prisma.item.findMany({ where: { workspaceId } }); } export async function POST() { await requireResolvedWorkspace(id, [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR]); return prisma.item.create({ data: { workspaceId } }); } export async function DELETE() { await requireResolvedWorkspace(id, [WorkspaceRole.ADMIN]); return prisma.item.deleteMany({ where: { workspaceId } }); }`;
