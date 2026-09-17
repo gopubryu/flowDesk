@@ -56,8 +56,24 @@ test("items runtime authorization isolates workspaces and roles", { skip: !enabl
     assert.equal(adminDelete.status, 200);
   } finally {
     setIntegrationTestSession(null);
-    await prisma.workspace.deleteMany({ where: { id: { in: [workspaceA.id, workspaceB.id] } } });
-    await prisma.user.deleteMany({ where: { id: { in: [admin.id, operator.id, viewer.id] } } });
-    await prisma.$disconnect();
+    const cleanupErrors: unknown[] = [];
+    try {
+      await prisma.workspace.deleteMany({ where: { id: { in: [workspaceA.id, workspaceB.id] } } });
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+    try {
+      await prisma.user.deleteMany({ where: { id: { in: [admin.id, operator.id, viewer.id] } } });
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+    try {
+      await prisma.$disconnect();
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+    if (cleanupErrors.length > 0) {
+      throw new AggregateError(cleanupErrors, "Integration fixture cleanup failed");
+    }
   }
 });
