@@ -9,7 +9,8 @@
 debug.log*
 error.log*
 node_modules
-.env*.local
-.env
+# Local environment files; keep only the committed template
+.env*
+!.env.example
 
 .vercel
