@@ -65,20 +65,43 @@ function readRoute(route: string) {
   return compact(readFileSync(resolve(process.cwd(), route), "utf8"));
 }
 
+function methodBlocks(source: string) {
+  const matches = [...source.matchAll(/export async function (GET|POST|PUT|PATCH|DELETE)\b/g)];
+  return matches.map((match, index) => ({
+    method: match[1],
+    body: source.slice(match.index ?? 0, matches[index + 1]?.index ?? source.length),
+  }));
+}
+
+function authorizationScope(source: string, body: string) {
+  if (!body.includes("requestedWorkspace")) return body;
+  const helper = source.match(/async function requestedWorkspace\([\s\S]*?return requireResolvedWorkspace\([\s\S]*?\);?\s*}/);
+  return `${body} ${helper?.[0] ?? ""}`;
+}
+
+function hasRoles(source: string, roles: string[]) {
+  const normalized = source.replace(/\s+/g, " ");
+  return normalized.includes(`[${roles.join(", ")}]`);
+}
+
 for (const contract of contracts) {
   test(`${contract.route} enforces shared workspace authorization`, () => {
     const source = readRoute(contract.route);
     assert.match(source, /requireResolvedWorkspace\(/);
 
-    if (contract.reads) {
-      assert.match(source, /WorkspaceRole\.ADMIN, WorkspaceRole\.OPERATOR, WorkspaceRole\.VIEWER/);
-    }
-    if (contract.writes) {
-      assert.match(source, /WorkspaceRole\.ADMIN, WorkspaceRole\.OPERATOR/);
-      assert.doesNotMatch(source, /body\??\.(?:role|userId)/);
-    }
-    if (contract.deletes) {
-      assert.match(source, /\[WorkspaceRole\.ADMIN\]/);
+    for (const { method, body } of methodBlocks(source)) {
+      const scope = authorizationScope(source, body);
+      if (method === "GET") {
+        assert.equal(contract.reads, true, `${contract.route} exposes an undocumented GET policy`);
+        assert.equal(hasRoles(scope, ["WorkspaceRole.ADMIN", "WorkspaceRole.OPERATOR", "WorkspaceRole.VIEWER"]), true, `${contract.route} GET must allow all read roles`);
+      } else if (method === "DELETE") {
+        assert.equal(contract.deletes, true, `${contract.route} exposes an undocumented DELETE policy`);
+        assert.equal(hasRoles(scope, ["WorkspaceRole.ADMIN"]), true, `${contract.route} DELETE must be ADMIN-only`);
+      } else {
+        assert.equal(contract.writes, true, `${contract.route} exposes an undocumented ${method} policy`);
+        assert.equal(hasRoles(scope, ["WorkspaceRole.ADMIN", "WorkspaceRole.OPERATOR"]), true, `${contract.route} ${method} must allow ADMIN/OPERATOR only`);
+        assert.doesNotMatch(body, /body\??\.(?:role|userId)/);
+      }
     }
   });
 }
