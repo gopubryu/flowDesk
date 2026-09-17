@@ -2,6 +2,9 @@ name: Integration tests
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feat/auth-workspace
   pull_request:
     paths:
       - "app/api/**"
