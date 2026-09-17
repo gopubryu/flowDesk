@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "test": "tsx --test lib/*.test.ts",
+    "test:integration": "tsx --test lib/runtime-api.integration.ts",
     "dev": "next dev",
     "build": "next build",
     "db:migrate:deploy": "prisma migrate deploy",
