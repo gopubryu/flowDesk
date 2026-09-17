@@ -1,7 +1,7 @@
 # Runtime API integration test design
 
 작성 기준: 2026-09-17  
-상태: 설계·안전 harness 준비, 실제 DB 실행 대기
+상태: CI 격리 PostgreSQL 실행 기반 추가, 실제 route handler suite 구현·실행 대기
 
 ## 목표
 
