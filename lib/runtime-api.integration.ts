@@ -189,6 +189,16 @@ const ID_MODULES = [
     payload: (label: string) => ({ subject: label, from: "a@test.invalid", to: "b@test.invalid", body: label }),
     labelOf: (row: Record<string, unknown>) => row.subject as string,
   },
+  {
+    name: "purchase-requests",
+    delegate: "purchaseRequest" as const,
+    basePath: "/api/purchase-requests",
+    importList: () => import("../app/api/purchase-requests/route"),
+    importDetail: () => import("../app/api/purchase-requests/[id]/route"),
+    seed: (label: string) => ({ requestDate: new Date("2026-01-01T00:00:00.000Z"), vendorName: label, item: label, quantity: 1, amount: 10, status: "unconfirmed" }),
+    payload: (label: string) => ({ vendorName: label, item: label, quantity: 1, amount: 10 }),
+    labelOf: (row: Record<string, unknown>) => row.item as string,
+  },
 ] as const;
 
 for (const mod of ID_MODULES) {
