@@ -58,7 +58,9 @@ jobs:
           # A green run must come from executed scenarios, never from a silent skip.
           passed=$(grep -E '^# pass [0-9]+$' integration-output.txt | awk '{print $3}')
           skipped=$(grep -E '^# skipped [0-9]+$' integration-output.txt | awk '{print $3}')
-          echo "integration pass=$passed skipped=$skipped"
+          echo "--- integration output ---"
+          cat integration-output.txt
+          echo "--- end integration output ---"
           if [ "${skipped:-0}" -ne 0 ]; then
             echo "::error::Integration suite skipped $skipped scenario(s); the isolated database was not exercised."
             exit 1
