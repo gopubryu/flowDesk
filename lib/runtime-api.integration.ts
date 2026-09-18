@@ -199,6 +199,16 @@ const ID_MODULES = [
     payload: (label: string) => ({ vendorName: label, item: label, quantity: 1, amount: 10 }),
     labelOf: (row: Record<string, unknown>) => row.item as string,
   },
+  {
+    name: "sales-plans",
+    delegate: "salesPlan" as const,
+    basePath: "/api/sales-plans",
+    importList: () => import("../app/api/sales-plans/route"),
+    importDetail: () => import("../app/api/sales-plans/[id]/route"),
+    seed: (label: string) => ({ planDate: new Date("2026-01-01T00:00:00.000Z"), vendorName: label, item: label, quantity: 1, unitPrice: 10, amount: 10, vat: 0, total: 10, status: "confirmed", outboundStatus: "none", closed: false }),
+    payload: (label: string) => ({ vendorName: label, item: label, quantity: 1, unitPrice: 10, amount: 10, vat: 0, total: 10 }),
+    labelOf: (row: Record<string, unknown>) => row.item as string,
+  },
 ] as const;
 
 for (const mod of ID_MODULES) {
