@@ -206,7 +206,7 @@ const ID_MODULES = [
     importList: () => import("../app/api/purchases/route"),
     importDetail: () => import("../app/api/purchases/[id]/route"),
     seed: (label: string) => ({ purchaseDate: new Date("2026-01-01T00:00:00.000Z"), vendorName: label, item: label, quantity: 1, amount: 10, status: "unconfirmed", inboundStatus: "none" }),
-    payload: (label: string) => ({ vendorName: label, item: label, quantity: 1, amount: 10 }),
+    payload: (label: string) => ({ vendorName: label, item: label, quantity: 1, amount: 10, lines: [{ itemName: label, qty: 1, unitPrice: 10, supply: 10, vat: 0, total: 10 }] }),
     labelOf: (row: Record<string, unknown>) => row.item as string,
   },
 ] as const;
