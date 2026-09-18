@@ -429,6 +429,33 @@ test("inventory adjustments runtime authorization isolates workspaces and roles"
   });
 });
 
+test("inventory receipts runtime authorization isolates workspaces and roles", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const receiptsRoute = await import("../app/api/inventory/receipts/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ suffix, workspaceA, workspaceB, admin, operator, viewer }) => {
+    const itemA = await prisma.item.create({ data: { workspaceId: workspaceA.id, code: `IRA${suffix.slice(-8).toUpperCase()}`, name: "Receipt item A", inboundPrice: 10, outboundPrice: 0, inboundVatIncluded: false, outboundVatIncluded: false } });
+    await prisma.item.create({ data: { workspaceId: workspaceB.id, code: `IRB${suffix.slice(-8).toUpperCase()}`, name: "Receipt item B", inboundPrice: 10, outboundPrice: 0, inboundVatIncluded: false, outboundVatIncluded: false } });
+    const warehouseCode = `WRA${suffix.slice(-6).toUpperCase()}`;
+    try {
+      setIntegrationTestSession(integrationSession(admin));
+      assert.equal((await receiptsRoute.GET(integrationRequest(`/api/inventory/receipts?workspaceId=${workspaceB.id}`))).status, 403);
+      assert.equal((await receiptsRoute.GET(integrationRequest(`/api/inventory/receipts?workspaceId=${workspaceA.id}`))).status, 200);
+      setIntegrationTestSession(integrationSession(viewer));
+      assert.equal((await receiptsRoute.POST(integrationRequest("/api/inventory/receipts", { method: "POST", body: JSON.stringify({ workspaceId: workspaceA.id, warehouseCode, date: "2026-01-01", lines: [{ itemCode: itemA.code, itemName: itemA.name, qty: 3 }] }) }))).status, 403);
+      setIntegrationTestSession(integrationSession(operator));
+      assert.equal((await receiptsRoute.POST(integrationRequest("/api/inventory/receipts", { method: "POST", body: JSON.stringify({ workspaceId: workspaceA.id, warehouseCode, date: "2026-01-01", lines: [{ itemCode: itemA.code, itemName: itemA.name, qty: 3 }] }) }))).status, 201);
+      const balance = await prisma.stockBalance.findUnique({ where: { workspaceId_warehouseCode_itemCode: { workspaceId: workspaceA.id, warehouseCode, itemCode: itemA.code } } });
+      assert.equal(balance?.qty, 3);
+      assert.equal(await prisma.stockMovement.count({ where: { workspaceId: workspaceA.id, type: "receipt", itemCode: itemA.code } }), 1);
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
