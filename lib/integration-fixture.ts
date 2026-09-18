@@ -63,33 +63,44 @@ export async function withWorkspaceFixture(
       },
     });
 
-  const workspaceA = await prisma.workspace.create({ data: { name: `integration-a-${suffix}` } });
-  const workspaceB = await prisma.workspace.create({ data: { name: `integration-b-${suffix}` } });
-  const admin = await makeUser("admin", "Admin");
-  const operator = await makeUser("operator", "Operator");
-  const viewer = await makeUser("viewer", "Viewer");
-  await prisma.workspaceMember.createMany({
-    data: [
-      { workspaceId: workspaceA.id, userId: admin.id, role: WorkspaceRole.ADMIN },
-      { workspaceId: workspaceA.id, userId: operator.id, role: WorkspaceRole.OPERATOR },
-      { workspaceId: workspaceA.id, userId: viewer.id, role: WorkspaceRole.VIEWER },
-    ],
-  });
-
+  const workspaceIds: string[] = [];
+  const userIds: string[] = [];
   let primaryError: unknown;
   try {
+    const workspaceA = await prisma.workspace.create({ data: { name: `integration-a-${suffix}` } });
+    workspaceIds.push(workspaceA.id);
+    const workspaceB = await prisma.workspace.create({ data: { name: `integration-b-${suffix}` } });
+    workspaceIds.push(workspaceB.id);
+    const admin = await makeUser("admin", "Admin");
+    userIds.push(admin.id);
+    const operator = await makeUser("operator", "Operator");
+    userIds.push(operator.id);
+    const viewer = await makeUser("viewer", "Viewer");
+    userIds.push(viewer.id);
+    await prisma.workspaceMember.createMany({
+      data: [
+        { workspaceId: workspaceA.id, userId: admin.id, role: WorkspaceRole.ADMIN },
+        { workspaceId: workspaceA.id, userId: operator.id, role: WorkspaceRole.OPERATOR },
+        { workspaceId: workspaceA.id, userId: viewer.id, role: WorkspaceRole.VIEWER },
+      ],
+    });
+
     await body({ suffix, workspaceA, workspaceB, admin, operator, viewer });
   } catch (error) {
     primaryError = error;
   } finally {
     const cleanupErrors: unknown[] = [];
     try {
-      await prisma.workspace.deleteMany({ where: { id: { in: [workspaceA.id, workspaceB.id] } } });
+      if (workspaceIds.length > 0) {
+        await prisma.workspace.deleteMany({ where: { id: { in: workspaceIds } } });
+      }
     } catch (error) {
       cleanupErrors.push(error);
     }
     try {
-      await prisma.user.deleteMany({ where: { id: { in: [admin.id, operator.id, viewer.id] } } });
+      if (userIds.length > 0) {
+        await prisma.user.deleteMany({ where: { id: { in: userIds } } });
+      }
     } catch (error) {
       cleanupErrors.push(error);
     }
