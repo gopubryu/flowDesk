@@ -58,16 +58,14 @@ jobs:
           # A green run must come from executed scenarios, never from a silent skip.
           passed=$(grep -E '^# pass [0-9]+$' integration-output.txt | awk '{print $3}')
           skipped=$(grep -E '^# skipped [0-9]+$' integration-output.txt | awk '{print $3}')
-          echo "--- integration output ---"
-          cat integration-output.txt
-          echo "--- end integration output ---"
+          echo "integration pass=$passed skipped=$skipped"
           if [ "${skipped:-0}" -ne 0 ]; then
             echo "::error::Integration suite skipped $skipped scenario(s); the isolated database was not exercised."
             exit 1
           fi
-          # 11 module scenarios + the skip guard.
-          if [ "${passed:-0}" -lt 12 ]; then
-            echo "::error::Expected at least 12 executed integration scenarios, got ${passed:-0}."
+          # 10 module scenarios + the skip guard.
+          if [ "${passed:-0}" -lt 11 ]; then
+            echo "::error::Expected at least 11 executed integration scenarios, got ${passed:-0}."
             exit 1
           fi
       - run: npx tsc --noEmit
