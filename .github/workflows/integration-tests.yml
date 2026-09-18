@@ -51,6 +51,22 @@ jobs:
       - run: npm ci
       - run: npx prisma migrate deploy
       - run: npm test
-      - run: npm run test:integration
+      - name: Run isolated-database integration suite
+        run: npm run test:integration | tee integration-output.txt
+      - name: Assert integration scenarios actually executed
+        run: |
+          # A green run must come from executed scenarios, never from a silent skip.
+          passed=$(grep -E '^# pass [0-9]+$' integration-output.txt | awk '{print $3}')
+          skipped=$(grep -E '^# skipped [0-9]+$' integration-output.txt | awk '{print $3}')
+          echo "integration pass=$passed skipped=$skipped"
+          if [ "${skipped:-0}" -ne 0 ]; then
+            echo "::error::Integration suite skipped $skipped scenario(s); the isolated database was not exercised."
+            exit 1
+          fi
+          # 4 module scenarios + the skip guard.
+          if [ "${passed:-0}" -lt 5 ]; then
+            echo "::error::Expected at least 5 executed integration scenarios, got ${passed:-0}."
+            exit 1
+          fi
       - run: npx tsc --noEmit
       - run: git diff --check
