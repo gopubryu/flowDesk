@@ -397,6 +397,38 @@ test("inventory balances runtime authorization isolates workspaces and roles", {
   });
 });
 
+test("inventory adjustments runtime authorization isolates workspaces and roles", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const adjustmentsRoute = await import("../app/api/inventory/adjustments/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ suffix, workspaceA, workspaceB, admin, operator, viewer }) => {
+    const warehouseA = `WHA${suffix.slice(-6).toUpperCase()}`;
+    const itemA = `IAA${suffix.slice(-8).toUpperCase()}`;
+    const warehouseB = `WHB${suffix.slice(-6).toUpperCase()}`;
+    const itemB = `IAB${suffix.slice(-8).toUpperCase()}`;
+    await prisma.stockBalance.create({ data: { workspaceId: workspaceA.id, warehouseCode: warehouseA, itemCode: itemA, qty: 7 } });
+    await prisma.stockBalance.create({ data: { workspaceId: workspaceB.id, warehouseCode: warehouseB, itemCode: itemB, qty: 11 } });
+    try {
+      setIntegrationTestSession(integrationSession(admin));
+      assert.equal((await adjustmentsRoute.GET(integrationRequest(`/api/inventory/adjustments?workspaceId=${workspaceB.id}`))).status, 403);
+      assert.equal((await adjustmentsRoute.GET(integrationRequest(`/api/inventory/adjustments?workspaceId=${workspaceA.id}`))).status, 200);
+      const beforeB = await prisma.stockBalance.findUnique({ where: { workspaceId_warehouseCode_itemCode: { workspaceId: workspaceB.id, warehouseCode: warehouseB, itemCode: itemB } } });
+
+      setIntegrationTestSession(integrationSession(viewer));
+      assert.equal((await adjustmentsRoute.POST(integrationRequest("/api/inventory/adjustments", { method: "POST", body: JSON.stringify({ workspaceId: workspaceA.id, warehouseCode: warehouseA, itemCode: itemA, reason: "blocked", date: "2026-01-01", bookQty: 7, actualQty: 9 }) }))).status, 403);
+
+      setIntegrationTestSession(integrationSession(operator));
+      assert.equal((await adjustmentsRoute.POST(integrationRequest("/api/inventory/adjustments", { method: "POST", body: JSON.stringify({ workspaceId: workspaceA.id, warehouseCode: warehouseA, itemCode: itemA, reason: "cycle count", date: "2026-01-01", bookQty: 7, actualQty: 9, warehouseName: "A warehouse", itemName: "A item" }) }))).status, 201);
+      assert.equal((await prisma.stockBalance.findUnique({ where: { workspaceId_warehouseCode_itemCode: { workspaceId: workspaceA.id, warehouseCode: warehouseA, itemCode: itemA } } }))?.qty, 9);
+      assert.deepEqual(await prisma.stockBalance.findUnique({ where: { workspaceId_warehouseCode_itemCode: { workspaceId: workspaceB.id, warehouseCode: warehouseB, itemCode: itemB } } }), beforeB);
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
