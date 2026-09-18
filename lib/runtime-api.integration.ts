@@ -1,82 +1,140 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { after } from "node:test";
 import { assertSafeIntegrationDatabase } from "./test-db-safety";
+import { integrationRequest, integrationSession, uniqueCode, withWorkspaceFixture } from "./integration-fixture";
 
 const enabled = Boolean(process.env.TEST_DATABASE_URL);
-
-test("items runtime authorization isolates workspaces and roles", { skip: !enabled }, async () => {
+if (enabled) {
   assertSafeIntegrationDatabase(process.env.TEST_DATABASE_URL, process.env.DATABASE_URL);
   process.env.INTEGRATION_TEST = "1";
+}
 
+/** Each entry drives the same workspace/role matrix against one master-data resource. */
+const MODULES = [
+  {
+    name: "items",
+    delegate: "item" as const,
+    listPath: "/api/items",
+    detailPath: "/api/items",
+    importList: () => import("../app/api/items/route"),
+    importDetail: () => import("../app/api/items/[code]/route"),
+    seed: (code: string) => ({ code, name: "seed", inboundPrice: 1, outboundPrice: 2, inboundVatIncluded: false, outboundVatIncluded: false }),
+    payload: (code: string) => ({ code, name: "payload", inboundPrice: 1, outboundPrice: 2 }),
+  },
+  {
+    name: "vendors",
+    delegate: "vendor" as const,
+    listPath: "/api/vendors",
+    detailPath: "/api/vendors",
+    importList: () => import("../app/api/vendors/route"),
+    importDetail: () => import("../app/api/vendors/[code]/route"),
+    seed: (code: string) => ({ code, name: "seed", codeType: "비사업자(내국인)" }),
+    payload: (code: string) => ({ code, name: "payload", codeType: "비사업자(내국인)" }),
+  },
+  {
+    name: "warehouses",
+    delegate: "warehouse" as const,
+    listPath: "/api/warehouses",
+    detailPath: "/api/warehouses",
+    importList: () => import("../app/api/warehouses/route"),
+    importDetail: () => import("../app/api/warehouses/[code]/route"),
+    seed: (code: string) => ({ code, name: "seed" }),
+    payload: (code: string) => ({ code, name: "payload" }),
+  },
+  {
+    name: "departments",
+    delegate: "department" as const,
+    listPath: "/api/departments",
+    detailPath: "/api/departments",
+    importList: () => import("../app/api/departments/route"),
+    importDetail: () => import("../app/api/departments/[code]/route"),
+    seed: (code: string) => ({ code, name: "seed" }),
+    payload: (code: string) => ({ code, name: "payload" }),
+  },
+] as const;
+
+for (const mod of MODULES) {
+  test(`${mod.name} runtime authorization isolates workspaces and roles`, { skip: !enabled }, async () => {
+    const { prisma } = await import("./prisma");
+    const { setIntegrationTestSession } = await import("./auth-guards");
+    const { WorkspaceRole } = await import("@prisma/client");
+    const listRoute = await mod.importList();
+    const detailRoute = await mod.importDetail();
+
+    await withWorkspaceFixture(prisma, WorkspaceRole, async ({ suffix, workspaceA, workspaceB, admin, operator, viewer }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const table = (prisma as any)[mod.delegate];
+      const codeA = uniqueCode("XA", suffix);
+      const codeB = uniqueCode("XB", suffix);
+      const rowA = await table.create({ data: { ...mod.seed(codeA), workspaceId: workspaceA.id } });
+      const rowB = await table.create({ data: { ...mod.seed(codeB), workspaceId: workspaceB.id } });
+
+      try {
+        // --- cross-workspace access is refused and leaves the other tenant untouched
+        setIntegrationTestSession(integrationSession(admin));
+        const beforeB = await table.findUnique({ where: { id: rowB.id } });
+
+        const crossRead = await listRoute.GET(integrationRequest(`${mod.listPath}?workspaceId=${workspaceB.id}`));
+        assert.equal(crossRead.status, 403, "cross-workspace GET must be refused");
+
+        const crossUpdate = await detailRoute.PUT(
+          integrationRequest(`${mod.detailPath}/${codeB}`, { method: "PUT", body: JSON.stringify({ ...mod.payload(codeB), workspaceId: workspaceB.id, name: "tampered" }) }),
+          { params: Promise.resolve({ code: codeB }) },
+        );
+        assert.equal(crossUpdate.status, 403, "cross-workspace PUT must be refused");
+
+        const crossDelete = await detailRoute.DELETE(
+          integrationRequest(`${mod.detailPath}/${codeB}?workspaceId=${workspaceB.id}`, { method: "DELETE" }),
+          { params: Promise.resolve({ code: codeB }) },
+        );
+        assert.equal(crossDelete.status, 403, "cross-workspace DELETE must be refused");
+        assert.deepEqual(await table.findUnique({ where: { id: rowB.id } }), beforeB, "refused requests must not mutate the other workspace");
+
+        // --- own-workspace reads never leak the other tenant's rows
+        const ownRead = await listRoute.GET(integrationRequest(`${mod.listPath}?workspaceId=${workspaceA.id}`));
+        assert.equal(ownRead.status, 200);
+        const listed = (await ownRead.json()) as Array<{ code: string }>;
+        assert.ok(listed.some((row) => row.code === codeA), "own workspace row must be listed");
+        assert.ok(!listed.some((row) => row.code === codeB), "other workspace row must not leak into the list");
+
+        // --- VIEWER is read-only
+        setIntegrationTestSession(integrationSession(viewer));
+        const viewerRead = await listRoute.GET(integrationRequest(`${mod.listPath}?workspaceId=${workspaceA.id}`));
+        assert.equal(viewerRead.status, 200, "VIEWER may read");
+        const viewerWrite = await listRoute.POST(
+          integrationRequest(mod.listPath, { method: "POST", body: JSON.stringify({ ...mod.payload(uniqueCode("XV", suffix)), workspaceId: workspaceA.id }) }),
+        );
+        assert.equal(viewerWrite.status, 403, "VIEWER must not create");
+
+        // --- OPERATOR may write but not delete
+        setIntegrationTestSession(integrationSession(operator));
+        const operatorWrite = await listRoute.POST(
+          integrationRequest(mod.listPath, { method: "POST", body: JSON.stringify({ ...mod.payload(uniqueCode("XO", suffix)), workspaceId: workspaceA.id }) }),
+        );
+        assert.equal(operatorWrite.status, 201, "OPERATOR may create");
+        const operatorDelete = await detailRoute.DELETE(
+          integrationRequest(`${mod.detailPath}/${codeA}?workspaceId=${workspaceA.id}`, { method: "DELETE" }),
+          { params: Promise.resolve({ code: codeA }) },
+        );
+        assert.equal(operatorDelete.status, 403, "OPERATOR must not delete");
+
+        // --- ADMIN may delete
+        setIntegrationTestSession(integrationSession(admin));
+        const adminDelete = await detailRoute.DELETE(
+          integrationRequest(`${mod.detailPath}/${codeA}?workspaceId=${workspaceA.id}`, { method: "DELETE" }),
+          { params: Promise.resolve({ code: codeA }) },
+        );
+        assert.equal(adminDelete.status, 200, "ADMIN may delete");
+        assert.equal(await table.findUnique({ where: { id: rowA.id } }), null, "ADMIN delete must remove the row");
+      } finally {
+        setIntegrationTestSession(null);
+      }
+    });
+  });
+}
+
+after(async () => {
+  if (!enabled) return;
   const { prisma } = await import("./prisma");
-  const { setIntegrationTestSession } = await import("./auth-guards");
-  const { combineIntegrationErrors } = await import("./integration-cleanup");
-  const itemsRoute = await import("../app/api/items/route");
-  const itemByCodeRoute = await import("../app/api/items/[code]/route");
-  const { WorkspaceRole } = await import("@prisma/client");
-
-  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const workspaceA = await prisma.workspace.create({ data: { name: `integration-a-${suffix}` } });
-  const workspaceB = await prisma.workspace.create({ data: { name: `integration-b-${suffix}` } });
-  const admin = await prisma.user.create({ data: { id: `it-admin-${suffix}`, name: "Integration Admin", email: `admin-${suffix}@test.invalid`, emailVerified: true, createdAt: new Date(), updatedAt: new Date() } });
-  const operator = await prisma.user.create({ data: { id: `it-operator-${suffix}`, name: "Integration Operator", email: `operator-${suffix}@test.invalid`, emailVerified: true, createdAt: new Date(), updatedAt: new Date() } });
-  const viewer = await prisma.user.create({ data: { id: `it-viewer-${suffix}`, name: "Integration Viewer", email: `viewer-${suffix}@test.invalid`, emailVerified: true, createdAt: new Date(), updatedAt: new Date() } });
-  await prisma.workspaceMember.createMany({ data: [
-    { workspaceId: workspaceA.id, userId: admin.id, role: WorkspaceRole.ADMIN },
-    { workspaceId: workspaceA.id, userId: operator.id, role: WorkspaceRole.OPERATOR },
-    { workspaceId: workspaceA.id, userId: viewer.id, role: WorkspaceRole.VIEWER },
-  ] });
-  const itemA = await prisma.item.create({ data: { workspaceId: workspaceA.id, code: `IA${suffix.slice(-8).toUpperCase()}`, name: "A item", inboundPrice: 1, outboundPrice: 2, inboundVatIncluded: false, outboundVatIncluded: false } });
-  const itemB = await prisma.item.create({ data: { workspaceId: workspaceB.id, code: `IB${suffix.slice(-8).toUpperCase()}`, name: "B item", inboundPrice: 1, outboundPrice: 2, inboundVatIncluded: false, outboundVatIncluded: false } });
-
-  const session = (user: { id: string; name: string; email: string }) => ({ user: { ...user, emailVerified: true, createdAt: new Date(), updatedAt: new Date() }, session: { id: `session-${user.id}`, userId: user.id, expiresAt: new Date(Date.now() + 60_000), token: `token-${user.id}`, createdAt: new Date(), updatedAt: new Date() } });
-  const request = (url: string, init?: RequestInit) => new Request(`http://integration.invalid${url}`, init);
-  let primaryError: unknown;
-  try {
-    setIntegrationTestSession(session(admin));
-    const beforeB = await prisma.item.findUnique({ where: { id: itemB.id } });
-    const crossRead = await itemsRoute.GET(request(`/api/items?workspaceId=${workspaceB.id}`));
-    assert.equal(crossRead.status, 403);
-    const crossPatch = await itemByCodeRoute.PUT(request(`/api/items/${itemB.code}?workspaceId=${workspaceB.id}`, { method: "PUT", body: JSON.stringify({ workspaceId: workspaceB.id, code: itemB.code, name: "tampered" }) }), { params: Promise.resolve({ code: itemB.code }) });
-    assert.equal(crossPatch.status, 403);
-    const crossDelete = await itemByCodeRoute.DELETE(request(`/api/items/${itemB.code}?workspaceId=${workspaceB.id}`, { method: "DELETE" }), { params: Promise.resolve({ code: itemB.code }) });
-    assert.equal(crossDelete.status, 403);
-    assert.deepEqual(await prisma.item.findUnique({ where: { id: itemB.id } }), beforeB);
-
-    setIntegrationTestSession(session(viewer));
-    const viewerWrite = await itemsRoute.POST(request(`/api/items?workspaceId=${workspaceA.id}`, { method: "POST", body: JSON.stringify({ workspaceId: workspaceA.id, code: `IV${suffix.slice(-8)}`, name: "viewer", inboundPrice: 1, outboundPrice: 2 }) }));
-    assert.equal(viewerWrite.status, 403);
-
-    setIntegrationTestSession(session(operator));
-    const operatorWrite = await itemsRoute.POST(request(`/api/items?workspaceId=${workspaceA.id}`, { method: "POST", body: JSON.stringify({ workspaceId: workspaceA.id, code: `IO${suffix.slice(-8)}`, name: "operator", inboundPrice: 1, outboundPrice: 2 }) }));
-    assert.equal(operatorWrite.status, 201);
-    const operatorDelete = await itemByCodeRoute.DELETE(request(`/api/items/${itemA.code}?workspaceId=${workspaceA.id}`, { method: "DELETE" }), { params: Promise.resolve({ code: itemA.code }) });
-    assert.equal(operatorDelete.status, 403);
-
-    setIntegrationTestSession(session(admin));
-    const adminDelete = await itemByCodeRoute.DELETE(request(`/api/items/${itemA.code}?workspaceId=${workspaceA.id}`, { method: "DELETE" }), { params: Promise.resolve({ code: itemA.code }) });
-    assert.equal(adminDelete.status, 200);
-  } catch (error) {
-    primaryError = error;
-  } finally {
-    setIntegrationTestSession(null);
-    const cleanupErrors: unknown[] = [];
-    try {
-      await prisma.workspace.deleteMany({ where: { id: { in: [workspaceA.id, workspaceB.id] } } });
-    } catch (error) {
-      cleanupErrors.push(error);
-    }
-    try {
-      await prisma.user.deleteMany({ where: { id: { in: [admin.id, operator.id, viewer.id] } } });
-    } catch (error) {
-      cleanupErrors.push(error);
-    }
-    try {
-      await prisma.$disconnect();
-    } catch (error) {
-      cleanupErrors.push(error);
-    }
-    const finalError = combineIntegrationErrors(primaryError, cleanupErrors);
-    if (finalError) throw finalError;
-  }
+  await prisma.$disconnect();
 });
