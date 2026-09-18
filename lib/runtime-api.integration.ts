@@ -348,6 +348,49 @@ test("finances runtime authorization isolates workspaces and roles", { skip: !en
   });
 });
 
+/** Purchases need a real workspace item and valid line payload; do not use the generic ID fixture. */
+test("purchases runtime authorization isolates workspaces and lifecycle deletes", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const listRoute = await import("../app/api/purchases/route");
+  const detailRoute = await import("../app/api/purchases/[id]/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ suffix, workspaceA, workspaceB, admin, operator, viewer }) => {
+    const itemA = await prisma.item.create({ data: { workspaceId: workspaceA.id, code: `PIA${suffix.slice(-8).toUpperCase()}`, name: "Runtime purchase item A", inboundPrice: 10, outboundPrice: 0, inboundVatIncluded: false, outboundVatIncluded: false } });
+    const itemB = await prisma.item.create({ data: { workspaceId: workspaceB.id, code: `PIB${suffix.slice(-8).toUpperCase()}`, name: "Runtime purchase item B", inboundPrice: 20, outboundPrice: 0, inboundVatIncluded: false, outboundVatIncluded: false } });
+    const line = (item: { code: string; name: string; inboundPrice: number }, qty = 1) => ({ itemCode: item.code, itemName: item.name, qty, unitPrice: item.inboundPrice ?? 10, supply: qty * (item.inboundPrice ?? 10), vat: 0, total: qty * (item.inboundPrice ?? 10) });
+    const rowA = await prisma.purchase.create({ data: { workspaceId: workspaceA.id, purchaseDate: new Date("2026-01-01T00:00:00.000Z"), vendorName: `vendor-a-${suffix}`, item: itemA.name, itemCode: itemA.code, quantity: 1, amount: 10, status: "unconfirmed", inboundStatus: "none", lines: { create: line(itemA) } } });
+    const rowB = await prisma.purchase.create({ data: { workspaceId: workspaceB.id, purchaseDate: new Date("2026-01-01T00:00:00.000Z"), vendorName: `vendor-b-${suffix}`, item: itemB.name, itemCode: itemB.code, quantity: 1, amount: 20, status: "unconfirmed", inboundStatus: "none", lines: { create: line(itemB) } } });
+    try {
+      setIntegrationTestSession(integrationSession(admin));
+      const beforeB = await prisma.purchase.findUnique({ where: { id: rowB.id }, include: { lines: true } });
+      assert.equal((await listRoute.GET(integrationRequest(`/api/purchases?workspaceId=${workspaceB.id}`))).status, 403);
+      assert.equal((await detailRoute.GET(integrationRequest(`/api/purchases/${rowB.id}?workspaceId=${workspaceB.id}`), { params: Promise.resolve({ id: rowB.id }) })).status, 403);
+      assert.equal((await detailRoute.PATCH(integrationRequest(`/api/purchases/${rowB.id}`, { method: "PATCH", body: JSON.stringify({ workspaceId: workspaceB.id, vendorName: "tampered" }) }), { params: Promise.resolve({ id: rowB.id }) })).status, 403);
+      assert.equal((await detailRoute.DELETE(integrationRequest(`/api/purchases/${rowB.id}?workspaceId=${workspaceB.id}`, { method: "DELETE" }), { params: Promise.resolve({ id: rowB.id }) })).status, 403);
+      assert.equal((await detailRoute.GET(integrationRequest(`/api/purchases/${rowB.id}?workspaceId=${workspaceA.id}`), { params: Promise.resolve({ id: rowB.id }) })).status, 404);
+      assert.equal((await detailRoute.PATCH(integrationRequest(`/api/purchases/${rowB.id}`, { method: "PATCH", body: JSON.stringify({ workspaceId: workspaceA.id, vendorName: "tampered-own" }) }), { params: Promise.resolve({ id: rowB.id }) })).status, 404);
+      assert.equal((await detailRoute.DELETE(integrationRequest(`/api/purchases/${rowB.id}?workspaceId=${workspaceA.id}`, { method: "DELETE" }), { params: Promise.resolve({ id: rowB.id }) })).status, 404);
+      assert.deepEqual(await prisma.purchase.findUnique({ where: { id: rowB.id }, include: { lines: true } }), beforeB);
+
+      setIntegrationTestSession(integrationSession(viewer));
+      assert.equal((await listRoute.GET(integrationRequest(`/api/purchases?workspaceId=${workspaceA.id}`))).status, 200);
+      assert.equal((await listRoute.POST(integrationRequest("/api/purchases", { method: "POST", body: JSON.stringify({ workspaceId: workspaceA.id, vendorName: "viewer", lines: [line(itemA)] }) }))).status, 403);
+
+      setIntegrationTestSession(integrationSession(operator));
+      assert.equal((await listRoute.POST(integrationRequest("/api/purchases", { method: "POST", body: JSON.stringify({ workspaceId: workspaceA.id, vendorName: "operator", lines: [line(itemA)] }) }))).status, 201);
+      assert.equal((await detailRoute.DELETE(integrationRequest(`/api/purchases/${rowA.id}?workspaceId=${workspaceA.id}`, { method: "DELETE" }), { params: Promise.resolve({ id: rowA.id }) })).status, 403);
+
+      setIntegrationTestSession(integrationSession(admin));
+      assert.equal((await detailRoute.DELETE(integrationRequest(`/api/purchases/${rowA.id}?workspaceId=${workspaceA.id}`, { method: "DELETE" }), { params: Promise.resolve({ id: rowA.id }) })).status, 200);
+      assert.equal(await prisma.purchase.findUnique({ where: { id: rowA.id } }), null);
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
