@@ -241,6 +241,22 @@ for (const mod of ID_MODULES) {
         );
         assert.equal(foreignIdOwnWorkspace.status, 404, "another workspace's id must not resolve under the caller's workspace");
 
+        const foreignPatchOwnWorkspace = await detailRoute.PATCH(
+          integrationRequest(`${mod.basePath}/${rowB.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ ...mod.payload("tampered-own"), workspaceId: workspaceA.id }),
+          }),
+          { params: Promise.resolve({ id: rowB.id }) },
+        );
+        assert.equal(foreignPatchOwnWorkspace.status, 404, "PATCH with a foreign id and own workspace must not resolve");
+
+        const foreignDeleteOwnWorkspace = await detailRoute.DELETE(
+          integrationRequest(`${mod.basePath}/${rowB.id}?workspaceId=${workspaceA.id}`, { method: "DELETE" }),
+          { params: Promise.resolve({ id: rowB.id }) },
+        );
+        assert.equal(foreignDeleteOwnWorkspace.status, 404, "DELETE with a foreign id and own workspace must not resolve");
+        assert.deepEqual(await table.findUnique({ where: { id: rowB.id } }), beforeB, "foreign id write attempts must not mutate the other workspace");
+
         // --- own-workspace reads never leak the other tenant's rows
         const ownList = await listRoute.GET(integrationRequest(`${mod.basePath}?workspaceId=${workspaceA.id}`));
         assert.equal(ownList.status, 200);
