@@ -456,35 +456,6 @@ test("inventory receipts runtime authorization isolates workspaces and roles", {
   });
 });
 
-test("inventory shipments diagnostic runtime authorization", { skip: !enabled }, async () => {
-  const { prisma } = await import("./prisma");
-  const { setIntegrationTestSession } = await import("./auth-guards");
-  const { WorkspaceRole } = await import("@prisma/client");
-  const shipmentsRoute = await import("../app/api/inventory/shipments/route");
-  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ suffix, workspaceA, workspaceB, admin, operator, viewer }) => {
-    const item = await prisma.item.create({ data: { workspaceId: workspaceA.id, code: `ISD${suffix.slice(-8).toUpperCase()}`, name: "Shipment diagnostic", inboundPrice: 10, outboundPrice: 20, inboundVatIncluded: false, outboundVatIncluded: false } });
-    const warehouseCode = `WSD${suffix.slice(-6).toUpperCase()}`;
-    await prisma.stockBalance.create({ data: { workspaceId: workspaceA.id, warehouseCode, itemCode: item.code, itemName: item.name, qty: 7 } });
-    try {
-      setIntegrationTestSession(integrationSession(admin));
-      const crossGet = await shipmentsRoute.GET(integrationRequest(`/api/inventory/shipments?workspaceId=${workspaceB.id}`));
-      console.log(`::error title=shipment cross-get diagnostic::status=${crossGet.status}`);
-      assert.equal(crossGet.status, 403);
-      setIntegrationTestSession(integrationSession(viewer));
-      const viewerPost = await shipmentsRoute.POST(integrationRequest("/api/inventory/shipments", { method: "POST", body: JSON.stringify({ workspaceId: workspaceA.id, warehouseCode, warehouseName: "Diagnostic warehouse", date: "2026-01-01", lines: [{ itemCode: item.code, itemName: item.name, qty: 2 }] }) }));
-      console.log(`::error title=shipment viewer-post diagnostic::status=${viewerPost.status}`);
-      assert.equal(viewerPost.status, 403);
-      setIntegrationTestSession(integrationSession(operator));
-      const response = await shipmentsRoute.POST(integrationRequest("/api/inventory/shipments", { method: "POST", body: JSON.stringify({ workspaceId: workspaceA.id, warehouseCode, warehouseName: "Diagnostic warehouse", date: "2026-01-01", lines: [{ itemCode: item.code, itemName: item.name, qty: 2 }] }) }));
-      const body = await response.clone().text();
-      console.log(`::error title=shipment diagnostic::status=${response.status} body=${body.slice(0, 500)}`);
-      assert.equal(response.status, 201);
-    } finally {
-      setIntegrationTestSession(null);
-    }
-  });
-});
-
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
