@@ -300,6 +300,44 @@ for (const mod of ID_MODULES) {
   });
 }
 
+/** Finance has no detail GET route, so exercise its list + id PATCH/DELETE handlers explicitly. */
+test("finances runtime authorization isolates workspaces and roles", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const listRoute = await import("../app/api/finances/route");
+  const detailRoute = await import("../app/api/finances/[id]/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ suffix, workspaceA, workspaceB, admin, operator, viewer }) => {
+    const rowA = await prisma.financeRecord.create({ data: { workspaceId: workspaceA.id, client: `client-a-${suffix}`, description: `finance-a-${suffix}`, amount: 10, date: new Date("2026-01-01T00:00:00.000Z"), category: "sales" } });
+    const rowB = await prisma.financeRecord.create({ data: { workspaceId: workspaceB.id, client: `client-b-${suffix}`, description: `finance-b-${suffix}`, amount: 20, date: new Date("2026-01-01T00:00:00.000Z"), category: "sales" } });
+    try {
+      setIntegrationTestSession(integrationSession(admin));
+      const beforeB = await prisma.financeRecord.findUnique({ where: { id: rowB.id } });
+      assert.equal((await listRoute.GET(integrationRequest(`/api/finances?workspaceId=${workspaceB.id}`))).status, 403);
+      assert.equal((await detailRoute.PATCH(integrationRequest(`/api/finances/${rowB.id}`, { method: "PATCH", body: JSON.stringify({ workspaceId: workspaceB.id, description: "tampered" }) }), { params: Promise.resolve({ id: rowB.id }) })).status, 403);
+      assert.equal((await detailRoute.DELETE(integrationRequest(`/api/finances/${rowB.id}?workspaceId=${workspaceB.id}`, { method: "DELETE" }), { params: Promise.resolve({ id: rowB.id }) })).status, 403);
+      assert.equal((await detailRoute.PATCH(integrationRequest(`/api/finances/${rowB.id}`, { method: "PATCH", body: JSON.stringify({ workspaceId: workspaceA.id, description: "tampered-own" }) }), { params: Promise.resolve({ id: rowB.id }) })).status, 404);
+      assert.equal((await detailRoute.DELETE(integrationRequest(`/api/finances/${rowB.id}?workspaceId=${workspaceA.id}`, { method: "DELETE" }), { params: Promise.resolve({ id: rowB.id }) })).status, 404);
+      assert.deepEqual(await prisma.financeRecord.findUnique({ where: { id: rowB.id } }), beforeB);
+
+      setIntegrationTestSession(integrationSession(viewer));
+      assert.equal((await listRoute.GET(integrationRequest(`/api/finances?workspaceId=${workspaceA.id}`))).status, 200);
+      assert.equal((await listRoute.POST(integrationRequest("/api/finances", { method: "POST", body: JSON.stringify({ workspaceId: workspaceA.id, client: "viewer", description: "blocked", amount: 1, category: "sales" }) }))).status, 403);
+
+      setIntegrationTestSession(integrationSession(operator));
+      assert.equal((await listRoute.POST(integrationRequest("/api/finances", { method: "POST", body: JSON.stringify({ workspaceId: workspaceA.id, client: "operator", description: "allowed", amount: 1, category: "sales" }) }))).status, 201);
+      assert.equal((await detailRoute.DELETE(integrationRequest(`/api/finances/${rowA.id}?workspaceId=${workspaceA.id}`, { method: "DELETE" }), { params: Promise.resolve({ id: rowA.id }) })).status, 403);
+
+      setIntegrationTestSession(integrationSession(admin));
+      assert.equal((await detailRoute.DELETE(integrationRequest(`/api/finances/${rowA.id}?workspaceId=${workspaceA.id}`, { method: "DELETE" }), { params: Promise.resolve({ id: rowA.id }) })).status, 200);
+      assert.equal(await prisma.financeRecord.findUnique({ where: { id: rowA.id } }), null);
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
