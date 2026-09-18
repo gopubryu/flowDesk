@@ -52,7 +52,9 @@ jobs:
       - run: npx prisma migrate deploy
       - run: npm test
       - name: Run isolated-database integration suite
-        run: npm run test:integration | tee integration-output.txt
+        run: |
+          set -o pipefail
+          npm run test:integration | tee integration-output.txt
       - name: Assert integration scenarios actually executed
         run: |
           # A green run must come from executed scenarios, never from a silent skip.
