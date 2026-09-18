@@ -88,7 +88,6 @@ export async function withWorkspaceFixture(
     await body({ suffix, workspaceA, workspaceB, admin, operator, viewer });
   } catch (error) {
     primaryError = error;
-    console.error(`::error::integration fixture failure: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
     const cleanupErrors: unknown[] = [];
     try {
