@@ -40,6 +40,7 @@ jobs:
       DATABASE_URL_UNPOOLED: postgresql://flowdesk_test:flowdesk_test@127.0.0.1:54329/flowdesk_test
       TEST_DATABASE_URL: postgresql://flowdesk_test:flowdesk_test@127.0.0.1:54329/flowdesk_test
       INTEGRATION_TEST: "1"
+      CI_EXPECT_INTEGRATION: "1"
       NODE_ENV: test
     steps:
       - uses: actions/checkout@v4

@@ -9,6 +9,16 @@ if (enabled) {
   process.env.INTEGRATION_TEST = "1";
 }
 
+/**
+ * Guard against a silently skipped suite: when CI declares an integration run,
+ * the scenarios below must actually execute rather than report a green skip.
+ */
+test("integration suite runs whenever CI declares an integration environment", () => {
+  if (process.env.CI_EXPECT_INTEGRATION === "1") {
+    assert.equal(enabled, true, "CI declared an integration run but TEST_DATABASE_URL was missing");
+  }
+});
+
 /** Each entry drives the same workspace/role matrix against one master-data resource. */
 const MODULES = [
   {
