@@ -467,9 +467,13 @@ test("inventory shipments diagnostic runtime authorization", { skip: !enabled },
     await prisma.stockBalance.create({ data: { workspaceId: workspaceA.id, warehouseCode, itemCode: item.code, itemName: item.name, qty: 7 } });
     try {
       setIntegrationTestSession(integrationSession(admin));
-      assert.equal((await shipmentsRoute.GET(integrationRequest(`/api/inventory/shipments?workspaceId=${workspaceB.id}`))).status, 403);
+      const crossGet = await shipmentsRoute.GET(integrationRequest(`/api/inventory/shipments?workspaceId=${workspaceB.id}`));
+      console.log(`::error title=shipment cross-get diagnostic::status=${crossGet.status}`);
+      assert.equal(crossGet.status, 403);
       setIntegrationTestSession(integrationSession(viewer));
-      assert.equal((await shipmentsRoute.POST(integrationRequest("/api/inventory/shipments", { method: "POST", body: JSON.stringify({ workspaceId: workspaceA.id, warehouseCode, warehouseName: "Diagnostic warehouse", date: "2026-01-01", lines: [{ itemCode: item.code, itemName: item.name, qty: 2 }] }) }))).status, 403);
+      const viewerPost = await shipmentsRoute.POST(integrationRequest("/api/inventory/shipments", { method: "POST", body: JSON.stringify({ workspaceId: workspaceA.id, warehouseCode, warehouseName: "Diagnostic warehouse", date: "2026-01-01", lines: [{ itemCode: item.code, itemName: item.name, qty: 2 }] }) }));
+      console.log(`::error title=shipment viewer-post diagnostic::status=${viewerPost.status}`);
+      assert.equal(viewerPost.status, 403);
       setIntegrationTestSession(integrationSession(operator));
       const response = await shipmentsRoute.POST(integrationRequest("/api/inventory/shipments", { method: "POST", body: JSON.stringify({ workspaceId: workspaceA.id, warehouseCode, warehouseName: "Diagnostic warehouse", date: "2026-01-01", lines: [{ itemCode: item.code, itemName: item.name, qty: 2 }] }) }));
       const body = await response.clone().text();
