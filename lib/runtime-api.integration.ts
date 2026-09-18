@@ -61,6 +61,16 @@ const MODULES = [
     seed: (code: string) => ({ code, name: "seed" }),
     payload: (code: string) => ({ code, name: "payload" }),
   },
+  {
+    name: "employees",
+    delegate: "employee" as const,
+    listPath: "/api/employees",
+    detailPath: "/api/employees",
+    importList: () => import("../app/api/employees/route"),
+    importDetail: () => import("../app/api/employees/[code]/route"),
+    seed: (code: string) => ({ code, name: "seed", phone: "010-0000-0000", email: "seed@test.invalid" }),
+    payload: (code: string) => ({ code, name: "payload", phone: "010-1111-1111", email: "payload@test.invalid" }),
+  },
 ] as const;
 
 for (const mod of MODULES) {
