@@ -385,6 +385,9 @@ test("purchases runtime authorization isolates workspaces and lifecycle deletes"
       setIntegrationTestSession(integrationSession(admin));
       assert.equal((await detailRoute.DELETE(integrationRequest(`/api/purchases/${rowA.id}?workspaceId=${workspaceA.id}`, { method: "DELETE" }), { params: Promise.resolve({ id: rowA.id }) })).status, 200);
       assert.equal(await prisma.purchase.findUnique({ where: { id: rowA.id } }), null);
+    } catch (error) {
+      console.error(`::error::purchase runtime failure: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
     } finally {
       setIntegrationTestSession(null);
     }
