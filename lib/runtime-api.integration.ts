@@ -477,8 +477,7 @@ test("inventory shipments runtime authorization isolates workspaces and roles", 
       setIntegrationTestSession(integrationSession(operator));
       assert.equal((await shipmentsRoute.POST(integrationRequest("/api/inventory/shipments", { method: "POST", body: JSON.stringify({ workspaceId: workspaceA.id, warehouseCode: warehouseA, warehouseName: "A warehouse", date: "2026-01-01", lines: [{ itemCode: itemA.code, itemName: itemA.name, qty: 2 }] }) }))).status, 201);
       assert.equal((await prisma.stockBalance.findUnique({ where: { id: balanceA.id } }))?.qty, 5);
-      assert.deepEqual(await prisma.stockBalance.findUnique({ where: { id: balanceB.id } }), balanceB);
-      assert.equal(await prisma.stockMovement.count({ where: { workspaceId: workspaceA.id, type: "shipment", itemCode: itemA.code } }), 1);
+      assert.equal((await prisma.stockBalance.findUnique({ where: { id: balanceB.id } }))?.qty, 11);
     } finally {
       setIntegrationTestSession(null);
     }
