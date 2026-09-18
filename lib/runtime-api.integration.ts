@@ -461,11 +461,15 @@ test("inventory shipments diagnostic runtime authorization", { skip: !enabled },
   const { setIntegrationTestSession } = await import("./auth-guards");
   const { WorkspaceRole } = await import("@prisma/client");
   const shipmentsRoute = await import("../app/api/inventory/shipments/route");
-  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ suffix, workspaceA, admin, operator }) => {
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ suffix, workspaceA, workspaceB, admin, operator, viewer }) => {
     const item = await prisma.item.create({ data: { workspaceId: workspaceA.id, code: `ISD${suffix.slice(-8).toUpperCase()}`, name: "Shipment diagnostic", inboundPrice: 10, outboundPrice: 20, inboundVatIncluded: false, outboundVatIncluded: false } });
     const warehouseCode = `WSD${suffix.slice(-6).toUpperCase()}`;
     await prisma.stockBalance.create({ data: { workspaceId: workspaceA.id, warehouseCode, itemCode: item.code, itemName: item.name, qty: 7 } });
     try {
+      setIntegrationTestSession(integrationSession(admin));
+      assert.equal((await shipmentsRoute.GET(integrationRequest(`/api/inventory/shipments?workspaceId=${workspaceB.id}`))).status, 403);
+      setIntegrationTestSession(integrationSession(viewer));
+      assert.equal((await shipmentsRoute.POST(integrationRequest("/api/inventory/shipments", { method: "POST", body: JSON.stringify({ workspaceId: workspaceA.id, warehouseCode, warehouseName: "Diagnostic warehouse", date: "2026-01-01", lines: [{ itemCode: item.code, itemName: item.name, qty: 2 }] }) }))).status, 403);
       setIntegrationTestSession(integrationSession(operator));
       const response = await shipmentsRoute.POST(integrationRequest("/api/inventory/shipments", { method: "POST", body: JSON.stringify({ workspaceId: workspaceA.id, warehouseCode, warehouseName: "Diagnostic warehouse", date: "2026-01-01", lines: [{ itemCode: item.code, itemName: item.name, qty: 2 }] }) }));
       const body = await response.clone().text();
