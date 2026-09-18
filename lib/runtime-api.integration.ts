@@ -143,6 +143,137 @@ for (const mod of MODULES) {
   });
 }
 
+/**
+ * Id-addressed transactional resources. Unlike the code-addressed master data above,
+ * these expose a detail GET, use PATCH for updates, and carry the workspace id in the
+ * PATCH body rather than the query string.
+ */
+const ID_MODULES = [
+  {
+    name: "tasks",
+    delegate: "task" as const,
+    basePath: "/api/tasks",
+    importList: () => import("../app/api/tasks/route"),
+    importDetail: () => import("../app/api/tasks/[id]/route"),
+    seed: (label: string) => ({ title: label, status: "todo", priority: "medium", createdAt: new Date(), updatedAt: new Date() }),
+    payload: (label: string) => ({ title: label }),
+    labelOf: (row: Record<string, unknown>) => row.title as string,
+  },
+  {
+    name: "events",
+    delegate: "calendarEvent" as const,
+    basePath: "/api/events",
+    importList: () => import("../app/api/events/route"),
+    importDetail: () => import("../app/api/events/[id]/route"),
+    seed: (label: string) => ({ title: label, date: new Date(), allDay: true, type: "other", attendees: [] }),
+    payload: (label: string) => ({ title: label, date: new Date().toISOString().slice(0, 10) }),
+    labelOf: (row: Record<string, unknown>) => row.title as string,
+  },
+  {
+    name: "mails",
+    delegate: "mailMessage" as const,
+    basePath: "/api/mails",
+    importList: () => import("../app/api/mails/route"),
+    importDetail: () => import("../app/api/mails/[id]/route"),
+    seed: (label: string) => ({ folder: "inbox", from: "a@test.invalid", to: "b@test.invalid", subject: label, body: label, snippet: label, starred: false, read: false }),
+    payload: (label: string) => ({ subject: label, from: "a@test.invalid", to: "b@test.invalid", body: label }),
+    labelOf: (row: Record<string, unknown>) => row.subject as string,
+  },
+] as const;
+
+for (const mod of ID_MODULES) {
+  test(`${mod.name} runtime authorization isolates workspaces and roles`, { skip: !enabled }, async () => {
+    const { prisma } = await import("./prisma");
+    const { setIntegrationTestSession } = await import("./auth-guards");
+    const { WorkspaceRole } = await import("@prisma/client");
+    const listRoute = await mod.importList();
+    const detailRoute = await mod.importDetail();
+
+    await withWorkspaceFixture(prisma, WorkspaceRole, async ({ suffix, workspaceA, workspaceB, admin, operator, viewer }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const table = (prisma as any)[mod.delegate];
+      const labelA = uniqueCode("TA", suffix);
+      const labelB = uniqueCode("TB", suffix);
+      const rowA = await table.create({ data: { ...mod.seed(labelA), workspaceId: workspaceA.id } });
+      const rowB = await table.create({ data: { ...mod.seed(labelB), workspaceId: workspaceB.id } });
+
+      try {
+        // --- cross-workspace access is refused and leaves the other tenant untouched
+        setIntegrationTestSession(integrationSession(admin));
+        const beforeB = await table.findUnique({ where: { id: rowB.id } });
+
+        const crossList = await listRoute.GET(integrationRequest(`${mod.basePath}?workspaceId=${workspaceB.id}`));
+        assert.equal(crossList.status, 403, "cross-workspace list GET must be refused");
+
+        const crossDetail = await detailRoute.GET(
+          integrationRequest(`${mod.basePath}/${rowB.id}?workspaceId=${workspaceB.id}`),
+          { params: Promise.resolve({ id: rowB.id }) },
+        );
+        assert.equal(crossDetail.status, 403, "cross-workspace detail GET must be refused");
+
+        const crossPatch = await detailRoute.PATCH(
+          integrationRequest(`${mod.basePath}/${rowB.id}`, { method: "PATCH", body: JSON.stringify({ ...mod.payload("tampered"), workspaceId: workspaceB.id }) }),
+          { params: Promise.resolve({ id: rowB.id }) },
+        );
+        assert.equal(crossPatch.status, 403, "cross-workspace PATCH must be refused");
+
+        const crossDelete = await detailRoute.DELETE(
+          integrationRequest(`${mod.basePath}/${rowB.id}?workspaceId=${workspaceB.id}`, { method: "DELETE" }),
+          { params: Promise.resolve({ id: rowB.id }) },
+        );
+        assert.equal(crossDelete.status, 403, "cross-workspace DELETE must be refused");
+        assert.deepEqual(await table.findUnique({ where: { id: rowB.id } }), beforeB, "refused requests must not mutate the other workspace");
+
+        // --- a foreign id presented under the caller's own workspace must not resolve
+        const foreignIdOwnWorkspace = await detailRoute.GET(
+          integrationRequest(`${mod.basePath}/${rowB.id}?workspaceId=${workspaceA.id}`),
+          { params: Promise.resolve({ id: rowB.id }) },
+        );
+        assert.equal(foreignIdOwnWorkspace.status, 404, "another workspace's id must not resolve under the caller's workspace");
+
+        // --- own-workspace reads never leak the other tenant's rows
+        const ownList = await listRoute.GET(integrationRequest(`${mod.basePath}?workspaceId=${workspaceA.id}`));
+        assert.equal(ownList.status, 200);
+        const listed = (await ownList.json()) as Array<Record<string, unknown>>;
+        assert.ok(listed.some((row) => mod.labelOf(row) === labelA), "own workspace row must be listed");
+        assert.ok(!listed.some((row) => mod.labelOf(row) === labelB), "other workspace row must not leak into the list");
+
+        // --- VIEWER is read-only
+        setIntegrationTestSession(integrationSession(viewer));
+        const viewerRead = await listRoute.GET(integrationRequest(`${mod.basePath}?workspaceId=${workspaceA.id}`));
+        assert.equal(viewerRead.status, 200, "VIEWER may read");
+        const viewerWrite = await listRoute.POST(
+          integrationRequest(mod.basePath, { method: "POST", body: JSON.stringify({ ...mod.payload(uniqueCode("TV", suffix)), workspaceId: workspaceA.id }) }),
+        );
+        assert.equal(viewerWrite.status, 403, "VIEWER must not create");
+
+        // --- OPERATOR may write but not delete
+        setIntegrationTestSession(integrationSession(operator));
+        const operatorWrite = await listRoute.POST(
+          integrationRequest(mod.basePath, { method: "POST", body: JSON.stringify({ ...mod.payload(uniqueCode("TO", suffix)), workspaceId: workspaceA.id }) }),
+        );
+        assert.equal(operatorWrite.status, 201, "OPERATOR may create");
+        const operatorDelete = await detailRoute.DELETE(
+          integrationRequest(`${mod.basePath}/${rowA.id}?workspaceId=${workspaceA.id}`, { method: "DELETE" }),
+          { params: Promise.resolve({ id: rowA.id }) },
+        );
+        assert.equal(operatorDelete.status, 403, "OPERATOR must not delete");
+
+        // --- ADMIN may delete
+        setIntegrationTestSession(integrationSession(admin));
+        const adminDelete = await detailRoute.DELETE(
+          integrationRequest(`${mod.basePath}/${rowA.id}?workspaceId=${workspaceA.id}`, { method: "DELETE" }),
+          { params: Promise.resolve({ id: rowA.id }) },
+        );
+        assert.equal(adminDelete.status, 200, "ADMIN may delete");
+        assert.equal(await table.findUnique({ where: { id: rowA.id } }), null, "ADMIN delete must remove the row");
+      } finally {
+        setIntegrationTestSession(null);
+      }
+    });
+  });
+}
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
