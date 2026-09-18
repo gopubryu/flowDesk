@@ -368,6 +368,35 @@ test("finances runtime authorization isolates workspaces and roles", { skip: !en
   });
 });
 
+test("inventory balances runtime authorization isolates workspaces and roles", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const balancesRoute = await import("../app/api/inventory/balances/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ suffix, workspaceA, workspaceB, admin, operator, viewer }) => {
+    const balanceA = await prisma.stockBalance.create({ data: { workspaceId: workspaceA.id, warehouseCode: `WHA${suffix.slice(-6).toUpperCase()}`, warehouseName: "A warehouse", itemCode: `IA${suffix.slice(-8).toUpperCase()}`, itemName: "A item", qty: 7 } });
+    const balanceB = await prisma.stockBalance.create({ data: { workspaceId: workspaceB.id, warehouseCode: `WHB${suffix.slice(-6).toUpperCase()}`, warehouseName: "B warehouse", itemCode: `IB${suffix.slice(-8).toUpperCase()}`, itemName: "B item", qty: 11 } });
+    try {
+      setIntegrationTestSession(integrationSession(admin));
+      assert.equal((await balancesRoute.GET(integrationRequest(`/api/inventory/balances?workspaceId=${workspaceB.id}`))).status, 403);
+      const own = await balancesRoute.GET(integrationRequest(`/api/inventory/balances?workspaceId=${workspaceA.id}`));
+      assert.equal(own.status, 200);
+      const ownRows = (await own.json()) as Array<{ itemCode: string }>;
+      assert.ok(ownRows.some((row) => row.itemCode === balanceA.itemCode));
+      assert.ok(!ownRows.some((row) => row.itemCode === balanceB.itemCode));
+
+      setIntegrationTestSession(integrationSession(viewer));
+      assert.equal((await balancesRoute.GET(integrationRequest(`/api/inventory/balances?workspaceId=${workspaceA.id}`))).status, 200);
+      setIntegrationTestSession(integrationSession(operator));
+      assert.equal((await balancesRoute.GET(integrationRequest(`/api/inventory/balances?workspaceId=${workspaceA.id}`))).status, 200);
+      assert.deepEqual(await prisma.stockBalance.findUnique({ where: { id: balanceB.id } }), balanceB);
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
