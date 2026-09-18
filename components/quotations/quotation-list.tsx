@@ -9,12 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn, formatKRW } from "@/lib/utils";
 import { convertQuotation, defaultQuotationDateRange, deleteQuotation, fetchQuotations, QUOTATION_STATUS_LABEL, type Quotation, type QuotationStatus } from "@/lib/quotations";
+import { useWorkspaceRole } from "@/lib/use-workspace-role";
 
 type StatusTone = "default" | "secondary" | "success" | "warning" | "danger";
 const STATUS_TONE: Record<QuotationStatus, StatusTone> = { draft: "secondary", sent: "default", accepted: "success", rejected: "danger", expired: "warning" };
 
 export function QuotationList() {
   const defaults = defaultQuotationDateRange();
+  const { canWrite: allowWrite, canDelete: allowDelete } = useWorkspaceRole();
   const [rows, setRows] = useState<Quotation[]>([]);
   const [from, setFrom] = useState(defaults.from);
   const [to, setTo] = useState(defaults.to);
@@ -153,14 +155,14 @@ export function QuotationList() {
                               <Pencil className="h-3 w-3" />상세
                             </Button>
                           </Link>
-                          <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[11px]" disabled={!(["draft", "sent"] as string[]).includes(row.status)} onClick={() => void remove(row.id)}>
+                          <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[11px]" disabled={!allowDelete || !(["draft", "sent"] as string[]).includes(row.status)} onClick={() => void remove(row.id)}>
                             삭제
                           </Button>
                           <Button
                             type="button"
                             size="sm"
                             className="h-7 px-2 text-[11px]"
-                            disabled={row.status !== "accepted" || Boolean(row.convertedSalesPlanId)}
+                            disabled={!allowWrite || row.status !== "accepted" || Boolean(row.convertedSalesPlanId)}
                             title={row.status !== "accepted" ? "수락 견적만 전환할 수 있습니다." : row.convertedSalesPlanId ? "이미 판매계획으로 전환되었습니다." : undefined}
                             onClick={() => void convert(row.id)}
                           >
@@ -176,8 +178,8 @@ export function QuotationList() {
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-slate-50/80 px-3 py-2.5">
             <p className="text-[11px] text-muted-foreground">{rows.length}건</p>
-            <Link href="/quotations/new">
-              <Button type="button" size="sm" className={cn("h-8 gap-1.5")}>
+            <Link href="/quotations/new" aria-disabled={!allowWrite} tabIndex={allowWrite ? undefined : -1} className={cn(!allowWrite && "pointer-events-none")}>
+              <Button type="button" size="sm" disabled={!allowWrite} className={cn("h-8 gap-1.5")}>
                 <FilePlus2 className="h-3.5 w-3.5" />신규 견적
               </Button>
             </Link>

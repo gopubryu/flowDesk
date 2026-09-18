@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { PurchaseForm } from "@/components/purchases/purchase-form";
+import { useWorkspaceRole } from "@/lib/use-workspace-role";
 
 type TabKey = "all" | PurchaseStatus;
 type DomesticFilter = "all" | "domestic" | "foreign";
@@ -59,6 +60,7 @@ const labelCls =
 
 export default function PurchasesPage() {
   const { alert: appAlert, confirm: appConfirm, dialog: appDialog } = useAppDialog();
+  const { canWrite: allowWrite, canDelete: allowDelete } = useWorkspaceRole();
   const [rows, setRows] = useState<Purchase[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
@@ -590,6 +592,7 @@ export default function PurchasesPage() {
                 type="button"
                 size="sm"
                 className="h-8 gap-1.5"
+                disabled={!allowWrite}
                 onClick={() => setNewOpen(true)}
               >
                 <FilePlus2 className="h-3.5 w-3.5" />
@@ -601,7 +604,7 @@ export default function PurchasesPage() {
                 variant="outline"
                 className="h-8 gap-1.5"
                 onClick={() => void openStatusChange()}
-                disabled={actionBusy}
+                disabled={actionBusy || !allowWrite}
               >
                 <RefreshCw className="h-3.5 w-3.5" />
                 진행상태변경
@@ -611,6 +614,7 @@ export default function PurchasesPage() {
                 size="sm"
                 variant="outline"
                 className="h-8 gap-1.5"
+                disabled={!allowDelete}
                 onClick={() => void deleteSelected()}
               >
                 <Trash2 className="h-3.5 w-3.5" />

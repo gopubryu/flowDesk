@@ -20,6 +20,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Plus, Pencil, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { useWorkspaceRole } from "@/lib/use-workspace-role";
 import type { Task, TaskPriority, TaskStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -53,11 +54,15 @@ function TaskCard({
   onEdit,
   onDelete,
   dragging,
+  allowWrite,
+  allowDelete,
 }: {
   task: Task;
   onEdit: (t: Task) => void;
   onDelete: (id: string) => void;
   dragging?: boolean;
+  allowWrite: boolean;
+  allowDelete: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: task.id, data: { status: task.status } });
@@ -113,7 +118,7 @@ function TaskCard({
           </div>
         </div>
         <div className="flex flex-col gap-1">
-          <Button variant="ghost" size="icon" className="h-7 w-7" type="button" onClick={() => onEdit(task)}>
+          <Button variant="ghost" size="icon" className="h-7 w-7" type="button" disabled={!allowWrite} onClick={() => onEdit(task)}>
             <Pencil className="h-3.5 w-3.5" />
           </Button>
           <Button
@@ -121,6 +126,7 @@ function TaskCard({
             size="icon"
             className="h-7 w-7 text-destructive"
             type="button"
+            disabled={!allowDelete}
             onClick={() => onDelete(task.id)}
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -136,11 +142,15 @@ function Column({
   tasks,
   onEdit,
   onDelete,
+  allowWrite,
+  allowDelete,
 }: {
   column: (typeof COLUMNS)[number];
   tasks: Task[];
   onEdit: (t: Task) => void;
   onDelete: (id: string) => void;
+  allowWrite: boolean;
+  allowDelete: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
 
@@ -155,7 +165,7 @@ function Column({
       <CardContent ref={setNodeRef} className="flex-1 space-y-2 min-h-[180px]">
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} onEdit={onEdit} onDelete={onDelete} />
+            <TaskCard key={task.id} task={task} onEdit={onEdit} onDelete={onDelete} allowWrite={allowWrite} allowDelete={allowDelete} />
           ))}
         </SortableContext>
       </CardContent>
@@ -174,6 +184,7 @@ const emptyForm = {
 
 export default function TasksPage() {
   const { tasks, addTask, updateTask, deleteTask, moveTask } = useStore();
+  const { canWrite: allowWrite, canDelete: allowDelete } = useWorkspaceRole();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
@@ -257,7 +268,7 @@ export default function TasksPage() {
         <p className="text-sm text-muted-foreground">
           카드를 드래그해 컬럼 간 이동 · 클릭으로 수정할 수 있습니다.
         </p>
-        <Button type="button" onClick={openCreate}>
+        <Button type="button" disabled={!allowWrite} onClick={openCreate}>
           <Plus className="h-4 w-4" /> 할 일 추가
         </Button>
       </div>
@@ -276,6 +287,8 @@ export default function TasksPage() {
               tasks={byStatus[col.id]}
               onEdit={openEdit}
               onDelete={deleteTask}
+              allowWrite={allowWrite}
+              allowDelete={allowDelete}
             />
           ))}
         </div>

@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { Plus, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { useWorkspaceRole } from "@/lib/use-workspace-role";
 import type { FinanceRecord, PaymentStatus } from "@/lib/types";
 import { formatKRW } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,7 @@ const emptyForm = {
 
 export default function FinancePage() {
   const { finances, addFinance, deleteFinance, updateFinance } = useStore();
+  const { canWrite: allowWrite, canDelete: allowDelete } = useWorkspaceRole();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
 
@@ -116,6 +118,7 @@ export default function FinancePage() {
         </p>
         <Button
           type="button"
+          disabled={!allowWrite}
           onClick={() => {
             setForm(emptyForm);
             setOpen(true);
@@ -228,6 +231,7 @@ export default function FinancePage() {
                       size="icon"
                       className="h-8 w-8 text-destructive"
                       type="button"
+                      disabled={!allowDelete}
                       onClick={() => deleteFinance(f.id)}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
