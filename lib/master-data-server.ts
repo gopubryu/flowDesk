@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { MasterDataValidationError } from "@/lib/master-data";
-import { BadRequestError, ForbiddenError, UnauthorizedError } from "@/lib/workspace-auth";
+import { classifyAuthError } from "@/lib/auth-error-classifier";
 
 export function publicRow<T extends Record<string, unknown>>(row: T) {
   const hidden = new Set(["id", "workspaceId", "createdAt", "updatedAt"]);
@@ -9,9 +9,10 @@ export function publicRow<T extends Record<string, unknown>>(row: T) {
 }
 
 export function authError(error: unknown) {
-  if (error instanceof UnauthorizedError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (error instanceof ForbiddenError) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  if (error instanceof BadRequestError) return NextResponse.json({ error: error.message }, { status: 400 });
+  const classified = classifyAuthError(error);
+  if (classified?.kind === "unauthorized") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (classified?.kind === "forbidden") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (classified?.kind === "bad_request") return NextResponse.json({ error: classified.message }, { status: 400 });
   return null;
 }
 
