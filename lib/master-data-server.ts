@@ -8,17 +8,10 @@ export function publicRow<T extends Record<string, unknown>>(row: T) {
   return Object.fromEntries(Object.entries(row).filter(([key]) => !hidden.has(key)).map(([key, value]) => [key, value ?? undefined]));
 }
 
-function errorStatus(error: unknown) {
-  if (typeof error !== "object" || error === null || !("status" in error)) return undefined;
-  const status = (error as { status?: unknown }).status;
-  return typeof status === "number" ? status : undefined;
-}
-
 export function authError(error: unknown) {
-  const status = errorStatus(error);
-  if (error instanceof UnauthorizedError || status === 401) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (error instanceof ForbiddenError || status === 403) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  if (error instanceof BadRequestError || status === 400) return NextResponse.json({ error: error instanceof BadRequestError ? error.message : "Bad request" }, { status: 400 });
+  if (error instanceof UnauthorizedError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (error instanceof ForbiddenError) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (error instanceof BadRequestError) return NextResponse.json({ error: error.message }, { status: 400 });
   return null;
 }
 
