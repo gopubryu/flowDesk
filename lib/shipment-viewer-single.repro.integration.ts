@@ -18,9 +18,9 @@ test("single-purpose shipment viewer auth diagnostic", async () => {
       const response = await shipmentsRoute.POST(integrationRequest("/api/inventory/shipments", { method: "POST", body: JSON.stringify(payload) }));
       const body = await response.clone().text();
       const after = await getServerSession();
-      console.log(JSON.stringify({ userIdBefore: before?.user.id, userIdExpected: viewer.user.id, userIdAfter: after?.user.id, payload, status: response.status, body }));
-      assert.equal(before?.user.id, viewer.user.id);
-      assert.equal(after?.user.id, viewer.user.id);
+      console.log(JSON.stringify({ userIdBefore: before?.user.id, userIdExpected: viewer.id, userIdAfter: after?.user.id, payload, status: response.status, body }));
+      assert.equal(before?.user.id, viewer.id);
+      assert.equal(after?.user.id, viewer.id);
       assert.equal(response.status, 403, body);
     } finally {
       setIntegrationTestSession(null);
