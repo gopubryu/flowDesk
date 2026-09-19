@@ -456,6 +456,22 @@ test("inventory receipts runtime authorization isolates workspaces and roles", {
   });
 });
 
+test("inventory shipment cross-workspace GET diagnostic", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const shipmentsRoute = await import("../app/api/inventory/shipments/route");
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ workspaceA, workspaceB, admin }) => {
+    try {
+      setIntegrationTestSession(integrationSession(admin));
+      const response = await shipmentsRoute.GET(integrationRequest(`/api/inventory/shipments?workspaceId=${workspaceB.id}`));
+      assert.equal(response.status, 403);
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
