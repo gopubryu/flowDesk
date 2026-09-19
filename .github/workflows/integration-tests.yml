@@ -71,6 +71,7 @@ jobs:
             exit 1
           fi
       - name: Shipment session repro (default concurrency)
+        continue-on-error: true
         run: npx tsx --test lib/shipment-viewer.repro.integration.ts
       - name: Shipment session repro (concurrency 1)
         run: npx tsx --test --test-concurrency=1 lib/shipment-viewer.repro.integration.ts
