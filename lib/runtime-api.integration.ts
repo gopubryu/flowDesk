@@ -456,6 +456,22 @@ test("inventory receipts runtime authorization isolates workspaces and roles", {
   });
 });
 
+test("inventory shipment viewer authorization minimal diagnostic", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const shipmentsRoute = await import("../app/api/inventory/shipments/route");
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ workspaceA, viewer }) => {
+    try {
+      setIntegrationTestSession(integrationSession(viewer));
+      const response = await shipmentsRoute.POST(integrationRequest("/api/inventory/shipments", { method: "POST", body: JSON.stringify({ workspaceId: workspaceA.id, warehouseCode: "PROBE", date: "2026-01-01", lines: [] }) }));
+      assert.equal(response.status, 403, await response.clone().text());
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
