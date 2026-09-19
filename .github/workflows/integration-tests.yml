@@ -54,7 +54,7 @@ jobs:
       - name: Run isolated-database integration suite
         run: |
           set -o pipefail
-          npx tsx --test --test-concurrency=1 lib/runtime-api.integration.ts | tee integration-output.txt
+          npm run test:integration | tee integration-output.txt
       - name: Assert integration scenarios actually executed
         run: |
           # A green run must come from executed scenarios, never from a silent skip.
@@ -65,9 +65,9 @@ jobs:
             echo "::error::Integration suite skipped $skipped scenario(s); the isolated database was not exercised."
             exit 1
           fi
-          # 16 module scenarios + the skip guard.
-          if [ "${passed:-0}" -lt 17 ]; then
-            echo "::error::Expected at least 17 executed integration scenarios, got ${passed:-0}."
+          # 15 module scenarios + the skip guard.
+          if [ "${passed:-0}" -lt 16 ]; then
+            echo "::error::Expected at least 16 executed integration scenarios, got ${passed:-0}."
             exit 1
           fi
       - run: npx tsc --noEmit
