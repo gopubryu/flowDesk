@@ -486,6 +486,46 @@ test("inventory shipments runtime authorization isolates workspaces and roles", 
   });
 });
 
+test("purchase orders runtime authorization isolates workspaces and roles", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const listRoute = await import("../app/api/purchases/route");
+  const detailRoute = await import("../app/api/purchases/[id]/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ suffix, workspaceA, workspaceB, admin, operator, viewer }) => {
+    const codeA = `PIA${suffix.slice(-8).toUpperCase()}`;
+    const codeB = `PIB${suffix.slice(-8).toUpperCase()}`;
+    await prisma.item.create({ data: { workspaceId: workspaceA.id, code: codeA, name: "Purchase item A", inboundPrice: 10, outboundPrice: 20, inboundVatIncluded: false, outboundVatIncluded: false } });
+    await prisma.item.create({ data: { workspaceId: workspaceB.id, code: codeB, name: "Purchase item B", inboundPrice: 10, outboundPrice: 20, inboundVatIncluded: false, outboundVatIncluded: false } });
+    const purchaseB = await prisma.purchase.create({ data: { workspaceId: workspaceB.id, purchaseDate: new Date("2026-01-01"), vendorName: "Vendor B", item: "Purchase item B", itemCode: codeB, quantity: 3, amount: 30, lines: { create: [{ itemCode: codeB, itemName: "Purchase item B", qty: 3, unitPrice: 10, supply: 30, vat: 3, total: 33, sortOrder: 0 }] } }, include: { lines: true } });
+    const payload = (itemCode: string, itemName: string) => ({ purchaseDate: "2026-01-02", vendorName: "Vendor A", item: itemName, itemCode, quantity: 2, amount: 20, lines: [{ itemCode, itemName, qty: 2, unitPrice: 10, supply: 20, vat: 2, total: 22, sortOrder: 0 }] });
+    try {
+      setIntegrationTestSession(integrationSession(admin));
+      assert.equal((await listRoute.GET(integrationRequest(`/api/purchases?workspaceId=${workspaceB.id}`))).status, 403);
+      assert.equal((await detailRoute.GET(integrationRequest(`/api/purchases/${purchaseB.id}?workspaceId=${workspaceA.id}`), { params: Promise.resolve({ id: purchaseB.id }) })).status, 404);
+      assert.equal((await detailRoute.DELETE(integrationRequest(`/api/purchases/${purchaseB.id}?workspaceId=${workspaceB.id}`, { method: "DELETE" }), { params: Promise.resolve({ id: purchaseB.id }) })).status, 403);
+
+      setIntegrationTestSession(integrationSession(viewer));
+      assert.equal((await listRoute.POST(integrationRequest("/api/purchases", { method: "POST", body: JSON.stringify({ ...payload(codeA, "Purchase item A"), workspaceId: workspaceA.id }) }))).status, 403);
+
+      setIntegrationTestSession(integrationSession(operator));
+      const created = await listRoute.POST(integrationRequest("/api/purchases", { method: "POST", body: JSON.stringify({ ...payload(codeA, "Purchase item A"), workspaceId: workspaceA.id }) }));
+      assert.equal(created.status, 201, await created.clone().text());
+      const createdId = ((await created.json()) as { id: string }).id;
+      assert.equal((await detailRoute.DELETE(integrationRequest(`/api/purchases/${createdId}?workspaceId=${workspaceA.id}`, { method: "DELETE" }), { params: Promise.resolve({ id: createdId }) })).status, 403);
+
+      setIntegrationTestSession(integrationSession(admin));
+      const deleted = await detailRoute.DELETE(integrationRequest(`/api/purchases/${createdId}?workspaceId=${workspaceA.id}`, { method: "DELETE" }), { params: Promise.resolve({ id: createdId }) });
+      assert.equal(deleted.status, 200, await deleted.clone().text());
+      assert.equal(await prisma.purchase.count({ where: { id: createdId } }), 0);
+      assert.equal((await prisma.purchase.findUnique({ where: { id: purchaseB.id }, include: { lines: true } }))?.lines.length, 1);
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");

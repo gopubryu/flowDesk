@@ -241,6 +241,7 @@ export async function DELETE(req: Request, ctx: Ctx) {
     });
     return NextResponse.json({ ok: true });
   } catch (e) {
+    const auth = authError(e); if (auth) return auth;
     console.error("DELETE /api/purchases/[id]", e);
     const message = e instanceof Error ? e.message : "Failed to delete purchase";
     if (message === "Not found") return NextResponse.json({ error: message }, { status: 404 });
