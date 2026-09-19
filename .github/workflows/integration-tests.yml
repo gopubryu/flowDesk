@@ -70,11 +70,5 @@ jobs:
             echo "::error::Expected at least 16 executed integration scenarios, got ${passed:-0}."
             exit 1
           fi
-      - name: Single shipment diagnostic (default)
-        continue-on-error: true
-        run: npx tsx --test lib/shipment-viewer-single.repro.integration.ts
-      - name: Single shipment diagnostic (concurrency 1)
-        continue-on-error: true
-        run: npx tsx --test --test-concurrency=1 lib/shipment-viewer-single.repro.integration.ts
       - run: npx tsc --noEmit
       - run: git diff --check
