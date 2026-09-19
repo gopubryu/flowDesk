@@ -315,6 +315,7 @@ export async function POST(req: Request) {
       { status: 201 }
     );
   } catch (e) {
+    const auth = authError(e); if (auth) return auth;
     const msg = e instanceof Error ? e.message : "출하 저장에 실패했어요.";
     console.error("POST /api/inventory/shipments", e);
     if (msg.startsWith("Shipment exceeds") || msg.startsWith("Linked sales plan")) {
