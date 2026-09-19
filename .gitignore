@@ -14,3 +14,6 @@ node_modules
 !.env.example
 
 .vercel
+
+# Local developer tool settings
+Opencode.json
