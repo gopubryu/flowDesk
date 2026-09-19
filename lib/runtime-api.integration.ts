@@ -526,6 +526,45 @@ test("purchase orders runtime authorization isolates workspaces and roles", { sk
   });
 });
 
+test("purchase bulk runtime authorization isolates workspaces and roles", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const bulkRoute = await import("../app/api/purchases/bulk/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ workspaceA, workspaceB, admin, operator, viewer }) => {
+    const seed = (workspaceId: string, vendor: string) => prisma.purchase.create({ data: { workspaceId, purchaseDate: new Date("2026-01-01"), vendorName: vendor, item: "Bulk item", quantity: 1, amount: 10, status: "unconfirmed" } });
+    const rowA = await seed(workspaceA.id, "Vendor A");
+    const rowB = await seed(workspaceB.id, "Vendor B");
+    try {
+      setIntegrationTestSession(integrationSession(admin));
+      const crossPatch = await bulkRoute.PATCH(integrationRequest("/api/purchases/bulk", { method: "PATCH", body: JSON.stringify({ workspaceId: workspaceB.id, ids: [rowB.id], status: "confirmed" }) }));
+      assert.equal(crossPatch.status, 403, await crossPatch.clone().text());
+      const foreignPatch = await bulkRoute.PATCH(integrationRequest("/api/purchases/bulk", { method: "PATCH", body: JSON.stringify({ workspaceId: workspaceA.id, ids: [rowB.id], status: "confirmed" }) }));
+      assert.equal(foreignPatch.status, 409, await foreignPatch.clone().text());
+
+      setIntegrationTestSession(integrationSession(viewer));
+      const viewerPatch = await bulkRoute.PATCH(integrationRequest("/api/purchases/bulk", { method: "PATCH", body: JSON.stringify({ workspaceId: workspaceA.id, ids: [rowA.id], status: "confirmed" }) }));
+      assert.equal(viewerPatch.status, 403, await viewerPatch.clone().text());
+
+      setIntegrationTestSession(integrationSession(operator));
+      const operatorPatch = await bulkRoute.PATCH(integrationRequest("/api/purchases/bulk", { method: "PATCH", body: JSON.stringify({ workspaceId: workspaceA.id, ids: [rowA.id], status: "confirmed" }) }));
+      assert.equal(operatorPatch.status, 200, await operatorPatch.clone().text());
+      assert.equal((await prisma.purchase.findUnique({ where: { id: rowA.id } }))?.status, "confirmed");
+      const operatorDelete = await bulkRoute.DELETE(integrationRequest("/api/purchases/bulk", { method: "DELETE", body: JSON.stringify({ workspaceId: workspaceA.id, ids: [rowA.id] }) }));
+      assert.equal(operatorDelete.status, 403, await operatorDelete.clone().text());
+
+      setIntegrationTestSession(integrationSession(admin));
+      const adminDelete = await bulkRoute.DELETE(integrationRequest("/api/purchases/bulk", { method: "DELETE", body: JSON.stringify({ workspaceId: workspaceA.id, ids: [rowA.id] }) }));
+      assert.equal(adminDelete.status, 200, await adminDelete.clone().text());
+      assert.equal(await prisma.purchase.count({ where: { id: rowA.id } }), 0);
+      assert.equal((await prisma.purchase.findUnique({ where: { id: rowB.id } }))?.status, "unconfirmed");
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
