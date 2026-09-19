@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { MasterDataValidationError } from "@/lib/master-data";
+import { BadRequestError } from "@/lib/workspace-auth";
 import { classifyAuthError } from "@/lib/auth-error-classifier";
 
 export function publicRow<T extends Record<string, unknown>>(row: T) {
