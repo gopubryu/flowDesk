@@ -42,6 +42,7 @@ jobs:
       INTEGRATION_TEST: "1"
       CI_EXPECT_INTEGRATION: "1"
       NODE_ENV: test
+      INTEGRATION_AUTH_DIAGNOSTIC: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -65,9 +66,9 @@ jobs:
             echo "::error::Integration suite skipped $skipped scenario(s); the isolated database was not exercised."
             exit 1
           fi
-          # 15 module scenarios + the skip guard.
-          if [ "${passed:-0}" -lt 16 ]; then
-            echo "::error::Expected at least 16 executed integration scenarios, got ${passed:-0}."
+          # 16 module scenarios + the skip guard.
+          if [ "${passed:-0}" -lt 17 ]; then
+            echo "::error::Expected at least 17 executed integration scenarios, got ${passed:-0}."
             exit 1
           fi
       - run: npx tsc --noEmit
