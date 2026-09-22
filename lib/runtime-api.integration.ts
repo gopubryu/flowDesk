@@ -565,6 +565,42 @@ test("purchase bulk runtime authorization isolates workspaces and roles", { skip
   });
 });
 
+test("inventory movements runtime authorization isolates workspaces and roles", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const movementRoute = await import("../app/api/inventory/movements/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ suffix, workspaceA, workspaceB, viewer, admin }) => {
+    const itemA = uniqueCode("IMA", suffix);
+    const itemB = uniqueCode("IMB", suffix);
+    const movementA = await prisma.stockMovement.create({
+      data: { workspaceId: workspaceA.id, date: new Date("2026-01-02T00:00:00.000Z"), type: "receipt", slipNo: `SM-A-${suffix}`, warehouseCode: `WA-${suffix}`, warehouseName: "Warehouse A", itemCode: itemA, itemName: "Item A", qty: 3, relatedType: "purchase", relatedId: `purchase-a-${suffix}` },
+    });
+    const movementB = await prisma.stockMovement.create({
+      data: { workspaceId: workspaceB.id, date: new Date("2026-01-02T00:00:00.000Z"), type: "shipment", slipNo: `SM-B-${suffix}`, warehouseCode: `WB-${suffix}`, warehouseName: "Warehouse B", itemCode: itemB, itemName: "Item B", qty: -2, relatedType: "salesPlan", relatedId: `sales-b-${suffix}` },
+    });
+    try {
+      setIntegrationTestSession(integrationSession(admin));
+      const cross = await movementRoute.GET(integrationRequest(`/api/inventory/movements?workspaceId=${workspaceB.id}`));
+      assert.equal(cross.status, 403, await cross.clone().text());
+
+      const own = await movementRoute.GET(integrationRequest(`/api/inventory/movements?workspaceId=${workspaceA.id}&itemCode=${encodeURIComponent(itemA)}`));
+      assert.equal(own.status, 200, await own.clone().text());
+      const ownRows = (await own.json()) as Array<{ id: string; workspaceId?: string; itemCode: string }>;
+      assert.ok(ownRows.some((row) => row.id === movementA.id && row.itemCode === itemA));
+      assert.ok(!ownRows.some((row) => row.id === movementB.id));
+
+      setIntegrationTestSession(integrationSession(viewer));
+      const viewerRead = await movementRoute.GET(integrationRequest(`/api/inventory/movements?workspaceId=${workspaceA.id}`));
+      assert.equal(viewerRead.status, 200, await viewerRead.clone().text());
+      assert.ok((await viewerRead.json()).every((row: { id: string }) => row.id !== movementB.id));
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
