@@ -664,6 +664,34 @@ test("inventory status runtime authorization isolates workspaces and roles", { s
   });
 });
 
+test("inventory next-slip runtime authorization isolates workspaces and roles", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const nextSlipRoute = await import("../app/api/inventory/next-slip/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ suffix, workspaceA, workspaceB, viewer, admin }) => {
+    await prisma.stockMovement.create({ data: { workspaceId: workspaceA.id, date: new Date("2026-01-01T00:00:00.000Z"), type: "receipt", slipNo: "RCV-260101-03", warehouseCode: `WA-${suffix}`, itemCode: `INA-${suffix}`, qty: 1 } });
+    await prisma.stockMovement.create({ data: { workspaceId: workspaceB.id, date: new Date("2026-01-01T00:00:00.000Z"), type: "receipt", slipNo: "RCV-260101-09", warehouseCode: `WB-${suffix}`, itemCode: `INB-${suffix}`, qty: 1 } });
+    try {
+      setIntegrationTestSession(integrationSession(admin));
+      const cross = await nextSlipRoute.GET(integrationRequest(`/api/inventory/next-slip?workspaceId=${workspaceB.id}&type=receipt&date=2026-01-01`));
+      assert.equal(cross.status, 403, await cross.clone().text());
+
+      const own = await nextSlipRoute.GET(integrationRequest(`/api/inventory/next-slip?workspaceId=${workspaceA.id}&type=receipt&date=2026-01-01`));
+      assert.equal(own.status, 200, await own.clone().text());
+      assert.deepEqual(await own.json(), { slipNo: "RCV-260101-04" });
+
+      setIntegrationTestSession(integrationSession(viewer));
+      const viewerRead = await nextSlipRoute.GET(integrationRequest(`/api/inventory/next-slip?workspaceId=${workspaceA.id}&type=receipt&date=2026-01-01`));
+      assert.equal(viewerRead.status, 200, await viewerRead.clone().text());
+      assert.deepEqual(await viewerRead.json(), { slipNo: "RCV-260101-04" });
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
