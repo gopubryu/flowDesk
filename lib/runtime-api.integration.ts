@@ -631,6 +631,39 @@ test("inventory related quantities runtime authorization isolates workspaces and
   });
 });
 
+test("inventory status runtime authorization isolates workspaces and roles", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const statusRoute = await import("../app/api/inventory/status/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ suffix, workspaceA, workspaceB, viewer, admin }) => {
+    const itemA = uniqueCode("ISA", suffix);
+    const itemB = uniqueCode("ISB", suffix);
+    const balanceA = await prisma.stockBalance.create({ data: { workspaceId: workspaceA.id, warehouseCode: `WA-${suffix}`, warehouseName: "Warehouse A", itemCode: itemA, itemName: "Item A", qty: 7 } });
+    const balanceB = await prisma.stockBalance.create({ data: { workspaceId: workspaceB.id, warehouseCode: `WB-${suffix}`, warehouseName: "Warehouse B", itemCode: itemB, itemName: "Item B", qty: 11 } });
+    try {
+      setIntegrationTestSession(integrationSession(admin));
+      const cross = await statusRoute.GET(integrationRequest(`/api/inventory/status?workspaceId=${workspaceB.id}`));
+      assert.equal(cross.status, 403, await cross.clone().text());
+
+      const own = await statusRoute.GET(integrationRequest(`/api/inventory/status?workspaceId=${workspaceA.id}`));
+      assert.equal(own.status, 200, await own.clone().text());
+      const ownBody = await own.json() as { balances: Array<{ itemCode: string; qty: number }> };
+      assert.deepEqual(ownBody.balances.filter((row) => row.itemCode === itemA), [{ warehouseCode: balanceA.warehouseCode, warehouseName: balanceA.warehouseName, itemCode: itemA, itemName: "Item A", qty: 7 }]);
+      assert.ok(!ownBody.balances.some((row) => row.itemCode === itemB), "workspace B balance must not leak");
+      assert.ok(await prisma.stockBalance.findUnique({ where: { id: balanceB.id } }), "foreign fixture remains intact");
+
+      setIntegrationTestSession(integrationSession(viewer));
+      const viewerRead = await statusRoute.GET(integrationRequest(`/api/inventory/status?workspaceId=${workspaceA.id}`));
+      assert.equal(viewerRead.status, 200, await viewerRead.clone().text());
+      assert.ok((await viewerRead.json() as { balances: Array<{ itemCode: string }> }).balances.every((row) => row.itemCode !== itemB));
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
