@@ -601,6 +601,36 @@ test("inventory movements runtime authorization isolates workspaces and roles", 
   });
 });
 
+test("inventory related quantities runtime authorization isolates workspaces and roles", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const relatedQtyRoute = await import("../app/api/inventory/related-qty/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ suffix, workspaceA, workspaceB, viewer, admin }) => {
+    const relatedA = `purchase-a-${suffix}`;
+    const relatedB = `purchase-b-${suffix}`;
+    await prisma.stockMovement.create({ data: { workspaceId: workspaceA.id, date: new Date("2026-01-02T00:00:00.000Z"), type: "receipt", slipNo: `RQ-A-${suffix}`, warehouseCode: `WA-${suffix}`, itemCode: `IMA-${suffix}`, itemName: "Item A", qty: 4, relatedType: "purchase", relatedId: relatedA } });
+    await prisma.stockMovement.create({ data: { workspaceId: workspaceB.id, date: new Date("2026-01-02T00:00:00.000Z"), type: "receipt", slipNo: `RQ-B-${suffix}`, warehouseCode: `WB-${suffix}`, itemCode: `IMB-${suffix}`, itemName: "Item B", qty: 9, relatedType: "purchase", relatedId: relatedB } });
+    try {
+      setIntegrationTestSession(integrationSession(admin));
+      const cross = await relatedQtyRoute.GET(integrationRequest(`/api/inventory/related-qty?workspaceId=${workspaceB.id}&relatedType=purchase&relatedIds=${relatedB}`));
+      assert.equal(cross.status, 403, await cross.clone().text());
+
+      const own = await relatedQtyRoute.GET(integrationRequest(`/api/inventory/related-qty?workspaceId=${workspaceA.id}&relatedType=purchase&relatedIds=${relatedA},${relatedB}`));
+      assert.equal(own.status, 200, await own.clone().text());
+      assert.deepEqual(await own.json(), { [relatedA]: 4, [relatedB]: 0 });
+
+      setIntegrationTestSession(integrationSession(viewer));
+      const viewerRead = await relatedQtyRoute.GET(integrationRequest(`/api/inventory/related-qty?workspaceId=${workspaceA.id}&relatedType=purchase&relatedIds=${relatedA}`));
+      assert.equal(viewerRead.status, 200, await viewerRead.clone().text());
+      assert.deepEqual(await viewerRead.json(), { [relatedA]: 4 });
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
