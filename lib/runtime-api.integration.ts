@@ -692,6 +692,52 @@ test("inventory next-slip runtime authorization isolates workspaces and roles", 
   });
 });
 
+test("quotation conversion runtime authorization isolates workspaces and roles", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const conversionRoute = await import("../app/api/quotations/[id]/convert-to-sales-plan/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ suffix, workspaceA, workspaceB, viewer, operator, admin }) => {
+    const createQuotation = (workspaceId: string, slipNo: string, item: string) => prisma.quotation.create({
+      data: {
+        workspaceId, quoteDate: new Date("2026-01-01T00:00:00.000Z"), slipNo, vendorName: `Vendor-${item}`, item, itemCode: `ITEM-${item}`, quantity: 2, amount: 20, vat: 0, total: 20, status: "accepted",
+        lines: { create: [{ itemCode: `ITEM-${item}`, itemName: item, qty: 2, unitPrice: 10, supply: 20, vat: 0, total: 20, sortOrder: 0 }] },
+      },
+    });
+    const quoteA = await createQuotation(workspaceA.id, `QT-A-${suffix}`, `Item-A-${suffix}`);
+    const quoteB = await createQuotation(workspaceB.id, `QT-B-${suffix}`, `Item-B-${suffix}`);
+    const beforeB = await prisma.quotation.findUnique({ where: { id: quoteB.id }, include: { lines: true } });
+    try {
+      setIntegrationTestSession(integrationSession(admin));
+      const cross = await conversionRoute.POST(integrationRequest(`/api/quotations/${quoteB.id}/convert-to-sales-plan?workspaceId=${workspaceB.id}`, { method: "POST" }), { params: Promise.resolve({ id: quoteB.id }) });
+      assert.equal(cross.status, 403, await cross.clone().text());
+      const foreignOwn = await conversionRoute.POST(integrationRequest(`/api/quotations/${quoteB.id}/convert-to-sales-plan?workspaceId=${workspaceA.id}`, { method: "POST" }), { params: Promise.resolve({ id: quoteB.id }) });
+      assert.equal(foreignOwn.status, 404, await foreignOwn.clone().text());
+
+      setIntegrationTestSession(integrationSession(viewer));
+      const viewerConvert = await conversionRoute.POST(integrationRequest(`/api/quotations/${quoteA.id}/convert-to-sales-plan?workspaceId=${workspaceA.id}`, { method: "POST" }), { params: Promise.resolve({ id: quoteA.id }) });
+      assert.equal(viewerConvert.status, 403, await viewerConvert.clone().text());
+
+      setIntegrationTestSession(integrationSession(operator));
+      const converted = await conversionRoute.POST(integrationRequest(`/api/quotations/${quoteA.id}/convert-to-sales-plan?workspaceId=${workspaceA.id}`, { method: "POST" }), { params: Promise.resolve({ id: quoteA.id }) });
+      assert.equal(converted.status, 201, await converted.clone().text());
+      const convertedBody = await converted.json() as { id: string; sourceQuotationId: string };
+      assert.equal(convertedBody.sourceQuotationId, quoteA.id);
+      const salesPlan = await prisma.salesPlan.findUnique({ where: { id: convertedBody.id }, include: { lines: true } });
+      assert.equal(salesPlan?.workspaceId, workspaceA.id);
+      assert.equal(salesPlan?.sourceQuotationId, quoteA.id);
+      assert.equal(salesPlan?.lines.length, 1);
+
+      const duplicate = await conversionRoute.POST(integrationRequest(`/api/quotations/${quoteA.id}/convert-to-sales-plan?workspaceId=${workspaceA.id}`, { method: "POST" }), { params: Promise.resolve({ id: quoteA.id }) });
+      assert.equal(duplicate.status, 409, await duplicate.clone().text());
+      assert.deepEqual(await prisma.quotation.findUnique({ where: { id: quoteB.id }, include: { lines: true } }), beforeB);
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
