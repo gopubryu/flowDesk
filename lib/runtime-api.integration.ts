@@ -738,6 +738,41 @@ test("quotation conversion runtime authorization isolates workspaces and roles",
   });
 });
 
+test("workspace session runtime authorization lists memberships and blocks repeat onboarding", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const workspacesRoute = await import("../app/api/auth/workspaces/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ workspaceA, admin, viewer }) => {
+    try {
+      setIntegrationTestSession(integrationSession(admin));
+      const adminList = await workspacesRoute.GET();
+      assert.equal(adminList.status, 200, await adminList.clone().text());
+      const adminBody = await adminList.json() as { memberships: Array<{ workspace: { id: string; name: string }; role: string }> };
+      assert.equal(adminBody.memberships.length, 1);
+      assert.equal(adminBody.memberships[0]?.workspace.id, workspaceA.id);
+      assert.equal(adminBody.memberships[0]?.role, "ADMIN");
+      const repeat = await workspacesRoute.POST(integrationRequest("/api/auth/workspaces", { method: "POST", body: JSON.stringify({ name: "repeat" }) }));
+      assert.equal(repeat.status, 409, await repeat.clone().text());
+
+      setIntegrationTestSession(integrationSession(viewer));
+      const viewerList = await workspacesRoute.GET();
+      assert.equal(viewerList.status, 200, await viewerList.clone().text());
+      const viewerBody = await viewerList.json() as { memberships: Array<{ workspace: { id: string; name: string }; role: string }> };
+      assert.equal(viewerBody.memberships.length, 1);
+      assert.equal(viewerBody.memberships[0]?.workspace.id, workspaceA.id);
+      assert.equal(viewerBody.memberships[0]?.role, "VIEWER");
+
+      setIntegrationTestSession(null);
+      const unauthorized = await workspacesRoute.GET();
+      assert.equal(unauthorized.status, 401, await unauthorized.clone().text());
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
