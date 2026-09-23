@@ -65,9 +65,9 @@ jobs:
             echo "::error::Integration suite skipped $skipped scenario(s); the isolated database was not exercised."
             exit 1
           fi
-          # 35 module scenarios + the skip guard.
-          if [ "${passed:-0}" -lt 36 ]; then
-            echo "::error::Expected at least 36 executed integration scenarios, got ${passed:-0}."
+          # 36 module scenarios + the skip guard.
+          if [ "${passed:-0}" -lt 37 ]; then
+            echo "::error::Expected at least 37 executed integration scenarios, got ${passed:-0}."
             exit 1
           fi
       - run: npx tsc --noEmit

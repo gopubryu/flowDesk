@@ -1089,6 +1089,38 @@ test("purchase request attachment update remains workspace scoped", { skip: !ena
   });
 });
 
+test("sales plan status update and delete roles remain isolated", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const detailRoute = await import("../app/api/sales-plans/[id]/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ workspaceA, operator, admin, suffix }) => {
+    const row = await prisma.salesPlan.create({ data: { workspaceId: workspaceA.id, planDate: new Date("2026-01-01T00:00:00.000Z"), slipNo: `SP-U-${suffix}`, vendorName: "A", item: "A", quantity: 1, unitPrice: 10, amount: 10, vat: 0, total: 10, status: "confirmed", closed: false } });
+    const ctx = { params: Promise.resolve({ id: row.id }) };
+    try {
+      setIntegrationTestSession(integrationSession(operator));
+      const updated = await detailRoute.PATCH(integrationRequest(`/api/sales-plans/${row.id}`, { method: "PATCH", body: JSON.stringify({ workspaceId: workspaceA.id, status: "completed", closed: true }) }), ctx);
+      assert.equal(updated.status, 200, await updated.clone().text());
+      const body = await updated.json() as { status: string; closed: boolean };
+      assert.equal(body.status, "completed");
+      assert.equal(body.closed, true);
+      const readBack = await prisma.salesPlan.findUnique({ where: { id: row.id } });
+      assert.equal(readBack?.status, "completed");
+      assert.equal(readBack?.closed, true);
+
+      const operatorDelete = await detailRoute.DELETE(integrationRequest(`/api/sales-plans/${row.id}?workspaceId=${workspaceA.id}`, { method: "DELETE" }), ctx);
+      assert.equal(operatorDelete.status, 403, await operatorDelete.clone().text());
+      setIntegrationTestSession(integrationSession(admin));
+      const adminDelete = await detailRoute.DELETE(integrationRequest(`/api/sales-plans/${row.id}?workspaceId=${workspaceA.id}`, { method: "DELETE" }), ctx);
+      assert.equal(adminDelete.status, 200, await adminDelete.clone().text());
+      assert.equal(await prisma.salesPlan.findUnique({ where: { id: row.id } }), null);
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
