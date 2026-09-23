@@ -912,6 +912,33 @@ test("workspace invitation acceptance runtime enforces matching email and one-ti
   });
 });
 
+test("workspace invitation acceptance rejects email mismatch and expired tokens", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const { createInvitationToken, hashInvitationToken } = await import("./invitation");
+  const acceptRoute = await import("../app/api/auth/invitations/accept/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ workspaceB, admin, viewer }) => {
+    await prisma.workspaceMember.create({ data: { workspaceId: workspaceB.id, userId: admin.id, role: WorkspaceRole.ADMIN } });
+    const mismatchToken = createInvitationToken();
+    const expiredToken = createInvitationToken();
+    await prisma.invitation.createMany({ data: [
+      { workspaceId: workspaceB.id, inviterId: admin.id, email: `other-${viewer.id}@test.invalid`, role: WorkspaceRole.OPERATOR, tokenHash: hashInvitationToken(mismatchToken), expiresAt: new Date(Date.now() + 60_000) },
+      { workspaceId: workspaceB.id, inviterId: admin.id, email: viewer.email, role: WorkspaceRole.OPERATOR, tokenHash: hashInvitationToken(expiredToken), expiresAt: new Date(Date.now() - 60_000) },
+    ] });
+    try {
+      setIntegrationTestSession(integrationSession(viewer));
+      const mismatch = await acceptRoute.POST(integrationRequest("/api/auth/invitations/accept", { method: "POST", body: JSON.stringify({ token: mismatchToken }) }));
+      assert.equal(mismatch.status, 403, await mismatch.clone().text());
+      const expired = await acceptRoute.POST(integrationRequest("/api/auth/invitations/accept", { method: "POST", body: JSON.stringify({ token: expiredToken }) }));
+      assert.equal(expired.status, 404, await expired.clone().text());
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
