@@ -7,6 +7,8 @@ on:
       - feat/auth-workspace
   pull_request:
     paths:
+      # Keep the protected-branch check active for workflow validation PRs.
+
       - "app/api/**"
       - "lib/**"
       - "prisma/**"
