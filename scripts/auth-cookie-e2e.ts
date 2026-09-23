@@ -25,32 +25,39 @@ async function json(response: Response): Promise<Record<string, unknown>> {
   return await response.json() as Record<string, unknown>;
 }
 
-const health = await fetch(`${base}/api/auth/me`);
-assert.equal(health.status, 401, `anonymous probe: ${await health.text()}`);
+async function main() {
+  const health = await fetch(`${base}/api/auth/me`);
+  assert.equal(health.status, 401, `anonymous probe: ${await health.text()}`);
 
-const signUp = await request("/api/auth/sign-up/email", {
-  method: "POST",
-  body: JSON.stringify({ name: "Auth E2E", email, password, callbackURL: "/" }),
+  const signUp = await request("/api/auth/sign-up/email", {
+    method: "POST",
+    body: JSON.stringify({ name: "Auth E2E", email, password, callbackURL: "/" }),
+  });
+  assert.ok(signUp.status === 200 || signUp.status === 201, `sign-up: ${await signUp.text()}`);
+  assert.ok(cookie, "sign-up must issue a session cookie");
+
+  const me = await request("/api/auth/me");
+  assert.equal(me.status, 200, `authenticated me: ${await me.text()}`);
+  const meBody = await json(me);
+  assert.equal(meBody.user && typeof meBody.user === "object" ? (meBody.user as { email?: string }).email : undefined, email);
+
+  const loggedOut = await request("/api/auth/sign-out", { method: "POST", body: JSON.stringify({}) });
+  assert.ok(loggedOut.status === 200 || loggedOut.status === 204, `sign-out: ${await loggedOut.text()}`);
+  const afterLogout = await request("/api/auth/me");
+  assert.equal(afterLogout.status, 401, `me after logout: ${await afterLogout.text()}`);
+
+  const wrongLogin = await request("/api/auth/sign-in/email", {
+    method: "POST",
+    body: JSON.stringify({ email, password: "Wrong-Password-123!", callbackURL: "/" }),
+  });
+  assert.ok(wrongLogin.status >= 400 && wrongLogin.status < 500, `wrong password should fail: ${await wrongLogin.text()}`);
+  const wrongMe = await request("/api/auth/me");
+  assert.equal(wrongMe.status, 401, `wrong password must not create session: ${await wrongMe.text()}`);
+
+  console.log(`auth cookie E2E passed for ephemeral user suffix ${suffix}`);
+}
+
+main().catch((error: unknown) => {
+  console.error(error instanceof Error ? error.message : "auth cookie E2E failed");
+  process.exitCode = 1;
 });
-assert.ok(signUp.status === 200 || signUp.status === 201, `sign-up: ${await signUp.text()}`);
-assert.ok(cookie, "sign-up must issue a session cookie");
-
-const me = await request("/api/auth/me");
-assert.equal(me.status, 200, `authenticated me: ${await me.text()}`);
-const meBody = await json(me);
-assert.equal(meBody.user && typeof meBody.user === "object" ? (meBody.user as { email?: string }).email : undefined, email);
-
-const loggedOut = await request("/api/auth/sign-out", { method: "POST", body: JSON.stringify({}) });
-assert.ok(loggedOut.status === 200 || loggedOut.status === 204, `sign-out: ${await loggedOut.text()}`);
-const afterLogout = await request("/api/auth/me");
-assert.equal(afterLogout.status, 401, `me after logout: ${await afterLogout.text()}`);
-
-const wrongLogin = await request("/api/auth/sign-in/email", {
-  method: "POST",
-  body: JSON.stringify({ email, password: "Wrong-Password-123!", callbackURL: "/" }),
-});
-assert.ok(wrongLogin.status >= 400 && wrongLogin.status < 500, `wrong password should fail: ${await wrongLogin.text()}`);
-const wrongMe = await request("/api/auth/me");
-assert.equal(wrongMe.status, 401, `wrong password must not create session: ${await wrongMe.text()}`);
-
-console.log(`auth cookie E2E passed for ephemeral user suffix ${suffix}`);
