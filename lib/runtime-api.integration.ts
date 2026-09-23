@@ -1179,6 +1179,39 @@ test("quotation status update and delete roles remain isolated", { skip: !enable
   });
 });
 
+test("quotation line update remains workspace scoped", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const detailRoute = await import("../app/api/quotations/[id]/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ workspaceA, workspaceB, operator, viewer, admin, suffix }) => {
+    const make = (workspaceId: string, slipNo: string, item: string) => prisma.quotation.create({ data: { workspaceId, quoteDate: new Date("2026-01-01T00:00:00.000Z"), slipNo, vendorName: item, item, quantity: 1, amount: 10, vat: 0, total: 10, status: "draft", lines: { create: [{ itemName: item, qty: 1, unitPrice: 10, supply: 10, vat: 0, total: 10 }] } } });
+    const rowA = await make(workspaceA.id, `QT-LA-${suffix}`, "A");
+    const rowB = await make(workspaceB.id, `QT-LB-${suffix}`, "B");
+    const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
+    try {
+      setIntegrationTestSession(integrationSession(operator));
+      const updated = await detailRoute.PATCH(integrationRequest(`/api/quotations/${rowA.id}`, { method: "PATCH", body: JSON.stringify({ workspaceId: workspaceA.id, lines: [{ itemName: "A updated", qty: 2, unitPrice: 12, supply: 24, vat: 0, total: 24 }] }) }), ctx(rowA.id));
+      assert.equal(updated.status, 200, await updated.clone().text());
+      const body = await updated.json() as { lines?: Array<{ itemName: string; qty: number }> };
+      assert.equal(body.lines?.[0]?.itemName, "A updated");
+      assert.equal(body.lines?.[0]?.qty, 2);
+      const readBack = await prisma.quotation.findUnique({ where: { id: rowA.id }, include: { lines: true } });
+      assert.equal(readBack?.lines[0]?.itemName, "A updated");
+      assert.equal(readBack?.lines[0]?.qty, 2);
+
+      setIntegrationTestSession(integrationSession(viewer));
+      const viewerPatch = await detailRoute.PATCH(integrationRequest(`/api/quotations/${rowA.id}`, { method: "PATCH", body: JSON.stringify({ workspaceId: workspaceA.id, lines: [{ itemName: "blocked", qty: 1, unitPrice: 1, supply: 1, vat: 0, total: 1 }] }) }), ctx(rowA.id));
+      assert.equal(viewerPatch.status, 403, await viewerPatch.clone().text());
+      setIntegrationTestSession(integrationSession(admin));
+      const foreignOwn = await detailRoute.PATCH(integrationRequest(`/api/quotations/${rowB.id}`, { method: "PATCH", body: JSON.stringify({ workspaceId: workspaceA.id, lines: [{ itemName: "tampered", qty: 1, unitPrice: 1, supply: 1, vat: 0, total: 1 }] }) }), ctx(rowB.id));
+      assert.equal(foreignOwn.status, 404, await foreignOwn.clone().text());
+      assert.equal((await prisma.quotation.findUnique({ where: { id: rowB.id } }))?.item, "B");
+    } finally { setIntegrationTestSession(null); }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
