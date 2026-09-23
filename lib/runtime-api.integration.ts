@@ -1054,6 +1054,41 @@ test("purchase request attachment limits preserve authorization boundaries", { s
   });
 });
 
+test("purchase request attachment update remains workspace scoped", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const detailRoute = await import("../app/api/purchase-requests/[id]/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ workspaceA, workspaceB, admin, operator, viewer, suffix }) => {
+    const rowA = await prisma.purchaseRequest.create({ data: { workspaceId: workspaceA.id, requestDate: new Date("2026-01-01T00:00:00.000Z"), slipNo: `PR-A-${suffix}`, vendorName: "A", item: "A", quantity: 1, amount: 10, status: "unconfirmed" } });
+    const rowB = await prisma.purchaseRequest.create({ data: { workspaceId: workspaceB.id, requestDate: new Date("2026-01-01T00:00:00.000Z"), slipNo: `PR-B-${suffix}`, vendorName: "B", item: "B", quantity: 1, amount: 10, status: "unconfirmed" } });
+    try {
+      const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
+      setIntegrationTestSession(integrationSession(operator));
+      const updated = await detailRoute.PATCH(integrationRequest(`/api/purchase-requests/${rowA.id}`, { method: "PATCH", body: JSON.stringify({ workspaceId: workspaceA.id, item: "A updated", attachments: [{ fileName: "quote.pdf", mimeType: "application/pdf", size: 2, dataUrl: "data:application/pdf;base64,AA==" }] }) }), ctx(rowA.id));
+      assert.equal(updated.status, 200, await updated.clone().text());
+      const body = await updated.json() as { item: string; attachments?: Array<{ fileName: string }> };
+      assert.equal(body.item, "A updated");
+      assert.equal(body.attachments?.[0]?.fileName, "quote.pdf");
+      assert.equal((await prisma.purchaseRequest.findUnique({ where: { id: rowA.id } }))?.workspaceId, workspaceA.id);
+
+      setIntegrationTestSession(integrationSession(viewer));
+      const viewerPatch = await detailRoute.PATCH(integrationRequest(`/api/purchase-requests/${rowA.id}`, { method: "PATCH", body: JSON.stringify({ workspaceId: workspaceA.id, item: "blocked" }) }), ctx(rowA.id));
+      assert.equal(viewerPatch.status, 403, await viewerPatch.clone().text());
+
+      setIntegrationTestSession(integrationSession(admin));
+      const cross = await detailRoute.PATCH(integrationRequest(`/api/purchase-requests/${rowB.id}`, { method: "PATCH", body: JSON.stringify({ workspaceId: workspaceB.id, item: "tampered" }) }), ctx(rowB.id));
+      assert.equal(cross.status, 403, await cross.clone().text());
+      const foreignOwn = await detailRoute.PATCH(integrationRequest(`/api/purchase-requests/${rowB.id}`, { method: "PATCH", body: JSON.stringify({ workspaceId: workspaceA.id, item: "tampered" }) }), ctx(rowB.id));
+      assert.equal(foreignOwn.status, 404, await foreignOwn.clone().text());
+      assert.equal((await prisma.purchaseRequest.findUnique({ where: { id: rowB.id } }))?.item, "B");
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
