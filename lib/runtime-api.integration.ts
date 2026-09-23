@@ -994,6 +994,43 @@ test("workspace invitation acceptance rejects anonymous and malformed requests",
   });
 });
 
+test("sales plans line lifecycle runtime preserves workspace isolation", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const listRoute = await import("../app/api/sales-plans/route");
+  const detailRoute = await import("../app/api/sales-plans/[id]/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ workspaceA, workspaceB, admin, operator, viewer, suffix }) => {
+    const foreign = await prisma.salesPlan.create({ data: { workspaceId: workspaceB.id, planDate: new Date("2026-01-01T00:00:00.000Z"), slipNo: `SP-B-${suffix}`, vendorName: "B", item: "B", quantity: 1, unitPrice: 10, amount: 10, vat: 0, total: 10, status: "confirmed", closed: false } });
+    try {
+      setIntegrationTestSession(integrationSession(operator));
+      const created = await listRoute.POST(integrationRequest("/api/sales-plans", { method: "POST", body: JSON.stringify({ workspaceId: workspaceA.id, planDate: "2026-01-02", vendorName: "A", lines: [{ itemName: "Line A", itemCode: `ITEM-${suffix}`, qty: 2, unitPrice: 15, supply: 30, vat: 3, total: 33 }] }) }));
+      assert.equal(created.status, 201, await created.clone().text());
+      const createdBody = await created.json() as { id: string; lines?: Array<{ itemName: string; qty: number }> };
+      assert.equal(createdBody.lines?.length, 1);
+      assert.equal(createdBody.lines?.[0]?.itemName, "Line A");
+      const readBack = await prisma.salesPlan.findUnique({ where: { id: createdBody.id }, include: { lines: true } });
+      assert.equal(readBack?.workspaceId, workspaceA.id);
+      assert.equal(readBack?.lines.length, 1);
+      assert.equal(readBack?.lines[0]?.qty, 2);
+
+      setIntegrationTestSession(integrationSession(viewer));
+      const viewerWrite = await listRoute.POST(integrationRequest("/api/sales-plans", { method: "POST", body: JSON.stringify({ workspaceId: workspaceA.id, item: "blocked" }) }));
+      assert.equal(viewerWrite.status, 403, await viewerWrite.clone().text());
+
+      setIntegrationTestSession(integrationSession(admin));
+      const cross = await detailRoute.GET(integrationRequest(`/api/sales-plans/${foreign.id}?workspaceId=${workspaceB.id}`), { params: Promise.resolve({ id: foreign.id }) });
+      assert.equal(cross.status, 403, await cross.clone().text());
+      const foreignOwn = await detailRoute.GET(integrationRequest(`/api/sales-plans/${foreign.id}?workspaceId=${workspaceA.id}`), { params: Promise.resolve({ id: foreign.id }) });
+      assert.equal(foreignOwn.status, 404, await foreignOwn.clone().text());
+      assert.equal((await prisma.salesPlan.findUnique({ where: { id: foreign.id } }))?.workspaceId, workspaceB.id);
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
