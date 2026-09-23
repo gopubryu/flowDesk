@@ -1,10 +1,20 @@
+import { createHash, randomBytes } from "node:crypto";
 import assert from "node:assert/strict";
+import { prisma } from "../lib/prisma";
 
 const base = process.env.AUTH_E2E_BASE_URL ?? "http://127.0.0.1:3100";
 const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const email = `auth-e2e-${suffix}@example.test`;
 const password = "AuthE2e-Test-Password-123!";
+const inviteeEmail = `invitee-${suffix}@example.test`;
 let cookie = "";
+
+function invitationToken() {
+  return randomBytes(32).toString("base64url");
+}
+function tokenHash(token: string) {
+  return createHash("sha256").update(token, "utf8").digest("hex");
+}
 
 function headerCookie(headers: Headers): string {
   const value = headers.get("set-cookie") ?? "";
@@ -39,7 +49,9 @@ async function main() {
   const me = await request("/api/auth/me");
   assert.equal(me.status, 200, `authenticated me: ${await me.clone().text()}`);
   const meBody = await json(me);
-  assert.equal(meBody.user && typeof meBody.user === "object" ? (meBody.user as { email?: string }).email : undefined, email);
+  const authUser = meBody.user as { id?: string; email?: string };
+  assert.equal(authUser.email, email);
+  assert.ok(authUser.id);
 
   const beforeWorkspaces = await request("/api/auth/workspaces");
   assert.equal(beforeWorkspaces.status, 200, `initial workspaces: ${await beforeWorkspaces.clone().text()}`);
@@ -57,6 +69,29 @@ async function main() {
   assert.equal(membership?.role, "ADMIN");
   assert.equal(membership?.workspace?.id, createdWorkspaceData.id);
   assert.equal(membership?.workspace?.name, `Auth E2E Workspace ${suffix}`);
+
+  const validToken = invitationToken();
+  await prisma.invitation.create({ data: { workspaceId: createdWorkspaceData.id!, inviterId: authUser.id!, email: inviteeEmail, role: "OPERATOR", tokenHash: tokenHash(validToken), expiresAt: new Date(Date.now() + 60 * 60 * 1000) } });
+  const mismatchToken = invitationToken();
+  await prisma.invitation.create({ data: { workspaceId: createdWorkspaceData.id!, inviterId: authUser.id!, email: `other-${suffix}@example.test`, role: "VIEWER", tokenHash: tokenHash(mismatchToken), expiresAt: new Date(Date.now() + 60 * 60 * 1000) } });
+  const expiredToken = invitationToken();
+  await prisma.invitation.create({ data: { workspaceId: createdWorkspaceData.id!, inviterId: authUser.id!, email: inviteeEmail, role: "VIEWER", tokenHash: tokenHash(expiredToken), expiresAt: new Date(Date.now() - 60 * 1000) } });
+
+  const loggedOutAdmin = await request("/api/auth/sign-out", { method: "POST", body: JSON.stringify({}) });
+  assert.ok(loggedOutAdmin.status === 200 || loggedOutAdmin.status === 204, `admin sign-out: ${await loggedOutAdmin.clone().text()}`);
+  cookie = "";
+  const inviteeSignUp = await request("/api/auth/sign-up/email", { method: "POST", body: JSON.stringify({ name: "Invitee E2E", email: inviteeEmail, password, callbackURL: "/" }) });
+  assert.ok(inviteeSignUp.status === 200 || inviteeSignUp.status === 201, `invitee sign-up: ${await inviteeSignUp.clone().text()}`);
+  const accepted = await request("/api/auth/invitations/accept", { method: "POST", body: JSON.stringify({ token: validToken }) });
+  assert.equal(accepted.status, 200, `invitation accept: ${await accepted.clone().text()}`);
+  const acceptedBody = await json(accepted);
+  assert.equal((acceptedBody.workspace as { id?: string }).id, createdWorkspaceData.id);
+  assert.equal(acceptedBody.role, "OPERATOR");
+  const mismatch = await request("/api/auth/invitations/accept", { method: "POST", body: JSON.stringify({ token: mismatchToken }) });
+  assert.equal(mismatch.status, 403, `email mismatch: ${await mismatch.clone().text()}`);
+  const expired = await request("/api/auth/invitations/accept", { method: "POST", body: JSON.stringify({ token: expiredToken }) });
+  assert.equal(expired.status, 404, `expired invitation: ${await expired.clone().text()}`);
+
   const duplicateWorkspace = await request("/api/auth/workspaces", { method: "POST", body: JSON.stringify({ name: `Duplicate ${suffix}` }) });
   assert.equal(duplicateWorkspace.status, 409, `duplicate onboarding: ${await duplicateWorkspace.clone().text()}`);
 
