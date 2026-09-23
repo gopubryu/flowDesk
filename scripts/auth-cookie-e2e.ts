@@ -41,6 +41,20 @@ async function main() {
   const meBody = await json(me);
   assert.equal(meBody.user && typeof meBody.user === "object" ? (meBody.user as { email?: string }).email : undefined, email);
 
+  const beforeWorkspaces = await request("/api/auth/workspaces");
+  assert.equal(beforeWorkspaces.status, 200, `initial workspaces: ${await beforeWorkspaces.clone().text()}`);
+  const createdWorkspace = await request("/api/auth/workspaces", { method: "POST", body: JSON.stringify({ name: `Auth E2E Workspace ${suffix}` }) });
+  assert.equal(createdWorkspace.status, 201, `workspace onboarding: ${await createdWorkspace.clone().text()}`);
+  const workspaceBody = await json(createdWorkspace);
+  assert.ok(workspaceBody.workspace && typeof workspaceBody.workspace === "object");
+  const afterWorkspaces = await request("/api/auth/workspaces");
+  assert.equal(afterWorkspaces.status, 200, `workspace read-back: ${await afterWorkspaces.clone().text()}`);
+  const memberships = await json(afterWorkspaces);
+  assert.equal(Array.isArray(memberships.memberships), true);
+  assert.equal((memberships.memberships as Array<{ role?: string }>)[0]?.role, "ADMIN");
+  const duplicateWorkspace = await request("/api/auth/workspaces", { method: "POST", body: JSON.stringify({ name: `Duplicate ${suffix}` }) });
+  assert.equal(duplicateWorkspace.status, 409, `duplicate onboarding: ${await duplicateWorkspace.clone().text()}`);
+
   const loggedOut = await request("/api/auth/sign-out", { method: "POST", body: JSON.stringify({}) });
   assert.ok(loggedOut.status === 200 || loggedOut.status === 204, `sign-out: ${await loggedOut.clone().text()}`);
   const afterLogout = await request("/api/auth/me");
