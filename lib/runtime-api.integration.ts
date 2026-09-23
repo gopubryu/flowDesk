@@ -824,6 +824,33 @@ test("auth session probe runtime maps authenticated and anonymous sessions", { s
   });
 });
 
+test("workspace onboarding runtime creates the first workspace for a new user", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const workspacesRoute = await import("../app/api/auth/workspaces/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ suffix }) => {
+    const user = await prisma.user.create({ data: { id: `it-onboard-${suffix}`, name: "Onboarding User", email: `onboard-${suffix}@test.invalid`, emailVerified: true, createdAt: new Date(), updatedAt: new Date() } });
+    let createdWorkspaceId: string | undefined;
+    try {
+      setIntegrationTestSession(integrationSession(user));
+      const created = await workspacesRoute.POST(integrationRequest("/api/auth/workspaces", { method: "POST", body: JSON.stringify({ name: `first-${suffix}` }) }));
+      assert.equal(created.status, 201, await created.clone().text());
+      const body = await created.json() as { workspace: { id: string; name: string } };
+      createdWorkspaceId = body.workspace.id;
+      assert.equal(body.workspace.name, `first-${suffix}`);
+      const membership = await prisma.workspaceMember.findUnique({ where: { workspaceId_userId: { workspaceId: body.workspace.id, userId: user.id } } });
+      assert.equal(membership?.role, "ADMIN");
+      assert.equal(membership?.isActive, true);
+    } finally {
+      setIntegrationTestSession(null);
+      if (createdWorkspaceId) await prisma.workspace.delete({ where: { id: createdWorkspaceId } });
+      await prisma.user.delete({ where: { id: user.id } });
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
