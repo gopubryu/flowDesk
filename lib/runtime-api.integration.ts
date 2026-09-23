@@ -881,6 +881,37 @@ test("workspace invitation listing runtime enforces admin workspace scope", { sk
   });
 });
 
+test("workspace invitation acceptance runtime enforces matching email and one-time use", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const { createInvitationToken, hashInvitationToken } = await import("./invitation");
+  const acceptRoute = await import("../app/api/auth/invitations/accept/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ workspaceB, admin, viewer }) => {
+    await prisma.workspaceMember.create({ data: { workspaceId: workspaceB.id, userId: admin.id, role: WorkspaceRole.ADMIN } });
+    const token = createInvitationToken();
+    const invitation = await prisma.invitation.create({ data: { workspaceId: workspaceB.id, inviterId: admin.id, email: viewer.email, role: WorkspaceRole.OPERATOR, tokenHash: hashInvitationToken(token), expiresAt: new Date(Date.now() + 60_000) } });
+    try {
+      setIntegrationTestSession(integrationSession(viewer));
+      const accepted = await acceptRoute.POST(integrationRequest("/api/auth/invitations/accept", { method: "POST", body: JSON.stringify({ token }) }));
+      assert.equal(accepted.status, 200, await accepted.clone().text());
+      const body = await accepted.json() as { workspace: { id: string }; role: string };
+      assert.equal(body.workspace.id, workspaceB.id);
+      assert.equal(body.role, "OPERATOR");
+      const membership = await prisma.workspaceMember.findUnique({ where: { workspaceId_userId: { workspaceId: workspaceB.id, userId: viewer.id } } });
+      assert.equal(membership?.role, "OPERATOR");
+      assert.equal(membership?.isActive, true);
+      assert.ok((await prisma.invitation.findUnique({ where: { id: invitation.id } }))?.acceptedAt);
+
+      const duplicate = await acceptRoute.POST(integrationRequest("/api/auth/invitations/accept", { method: "POST", body: JSON.stringify({ token }) }));
+      assert.equal(duplicate.status, 404, await duplicate.clone().text());
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
