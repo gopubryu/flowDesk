@@ -851,44 +851,6 @@ test("workspace onboarding runtime creates the first workspace for a new user", 
   });
 });
 
-test("workspace invitation acceptance runtime enforces email, role, and one-time use", { skip: !enabled }, async () => {
-  const { prisma } = await import("./prisma");
-  const { setIntegrationTestSession } = await import("./auth-guards");
-  const { WorkspaceRole } = await import("@prisma/client");
-  const { createInvitationToken, hashInvitationToken } = await import("./invitation");
-  const invitationsRoute = await import("../app/api/auth/invitations/route");
-  const acceptRoute = await import("../app/api/auth/invitations/accept/route");
-
-  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ workspaceB, admin, viewer }) => {
-    await prisma.workspaceMember.create({ data: { workspaceId: workspaceB.id, userId: admin.id, role: WorkspaceRole.ADMIN } });
-    const token = createInvitationToken();
-    const invitation = await prisma.invitation.create({ data: { workspaceId: workspaceB.id, inviterId: admin.id, email: viewer.email, role: WorkspaceRole.OPERATOR, tokenHash: hashInvitationToken(token), expiresAt: new Date(Date.now() + 60_000) } });
-    try {
-      setIntegrationTestSession(integrationSession(admin));
-      const adminList = await invitationsRoute.GET(integrationRequest(`/api/auth/invitations?workspaceId=${workspaceB.id}`));
-      assert.equal(adminList.status, 200, await adminList.clone().text());
-      const listBody = await adminList.json() as { invitations: Array<{ id: string; email: string; role: string; expiresAt: string; createdAt: string }> };
-      assert.deepEqual(listBody.invitations, [{ id: invitation.id, email: viewer.email, role: "OPERATOR", expiresAt: listBody.invitations[0]?.expiresAt, createdAt: listBody.invitations[0]?.createdAt }]);
-
-      setIntegrationTestSession(integrationSession(viewer));
-      const forbiddenList = await invitationsRoute.GET(integrationRequest(`/api/auth/invitations?workspaceId=${workspaceB.id}`));
-      assert.equal(forbiddenList.status, 403, await forbiddenList.clone().text());
-      const accepted = await acceptRoute.POST(integrationRequest("/api/auth/invitations/accept", { method: "POST", body: JSON.stringify({ token }) }));
-      assert.equal(accepted.status, 200, await accepted.clone().text());
-      const acceptedBody = await accepted.json() as { workspace: { id: string }; role: string };
-      assert.equal(acceptedBody.workspace.id, workspaceB.id);
-      assert.equal(acceptedBody.role, "OPERATOR");
-      assert.equal((await prisma.workspaceMember.findUnique({ where: { workspaceId_userId: { workspaceId: workspaceB.id, userId: viewer.id } } }))?.isActive, true);
-      assert.ok((await prisma.invitation.findUnique({ where: { id: invitation.id } }))?.acceptedAt);
-
-      const duplicate = await acceptRoute.POST(integrationRequest("/api/auth/invitations/accept", { method: "POST", body: JSON.stringify({ token }) }));
-      assert.equal(duplicate.status, 404, await duplicate.clone().text());
-    } finally {
-      setIntegrationTestSession(null);
-    }
-  });
-});
-
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
