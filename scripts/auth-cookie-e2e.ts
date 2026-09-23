@@ -113,6 +113,10 @@ async function main() {
   const duplicateWorkspace = await request("/api/auth/workspaces", { method: "POST", body: JSON.stringify({ name: `Duplicate ${suffix}` }) });
   assert.equal(duplicateWorkspace.status, 409, `duplicate onboarding: ${await duplicateWorkspace.clone().text()}`);
 
+  await prisma.session.updateMany({ where: { userId: inviteeUser.id! }, data: { expiresAt: new Date(Date.now() - 60 * 1000) } });
+  const expiredSessionMe = await request("/api/auth/me");
+  assert.equal(expiredSessionMe.status, 401, `expired session: ${await expiredSessionMe.clone().text()}`);
+
   const loggedOut = await request("/api/auth/sign-out", { method: "POST", body: JSON.stringify({}) });
   assert.ok(loggedOut.status === 200 || loggedOut.status === 204, `sign-out: ${await loggedOut.clone().text()}`);
   const afterLogout = await request("/api/auth/me");
