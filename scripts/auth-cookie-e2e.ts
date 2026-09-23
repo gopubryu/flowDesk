@@ -94,7 +94,12 @@ async function main() {
   const allMemberships = await request("/api/auth/workspaces");
   assert.equal(allMemberships.status, 200, `multi-workspace read: ${await allMemberships.clone().text()}`);
   const allMembershipBody = await json(allMemberships);
-  assert.equal((allMembershipBody.memberships as Array<unknown>).length, 2);
+  const allMembershipRows = allMembershipBody.memberships as Array<{ role?: string; workspace?: { id?: string; name?: string } }>;
+  assert.equal(allMembershipRows.length, 2);
+  const membershipIds = allMembershipRows.map((entry) => entry.workspace?.id);
+  assert.ok(membershipIds.includes(createdWorkspaceData.id));
+  assert.ok(membershipIds.includes(workspaceB.id));
+  assert.ok(allMembershipRows.every((entry) => entry.role === "OPERATOR"));
   const ambiguousItems = await request("/api/items");
   assert.equal(ambiguousItems.status, 400, `ambiguous workspace: ${await ambiguousItems.clone().text()}`);
   const selectedItems = await request(`/api/items?workspaceId=${workspaceB.id}`);
