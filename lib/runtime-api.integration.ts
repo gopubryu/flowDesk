@@ -1157,7 +1157,7 @@ test("quotation status update and delete roles remain isolated", { skip: !enable
   const detailRoute = await import("../app/api/quotations/[id]/route");
 
   await withWorkspaceFixture(prisma, WorkspaceRole, async ({ workspaceA, operator, admin, suffix }) => {
-    const row = await prisma.quotation.create({ data: { workspaceId: workspaceA.id, quoteDate: new Date("2026-01-01T00:00:00.000Z"), slipNo: `QT-U-${suffix}`, vendorName: "A", item: "A", quantity: 1, amount: 10, vat: 0, total: 10, status: "draft" } });
+    const row = await prisma.quotation.create({ data: { workspaceId: workspaceA.id, quoteDate: new Date("2026-01-01T00:00:00.000Z"), slipNo: `QT-U-${suffix}`, vendorName: "A", item: "A", quantity: 1, amount: 10, vat: 0, total: 10, status: "draft", lines: { create: [{ itemName: "A", qty: 1, unitPrice: 10, supply: 10, vat: 0, total: 10 }] } } });
     const ctx = { params: Promise.resolve({ id: row.id }) };
     try {
       setIntegrationTestSession(integrationSession(operator));
