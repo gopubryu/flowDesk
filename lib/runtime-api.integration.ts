@@ -973,6 +973,27 @@ test("workspace invitation creation runtime enforces admin role and duplicate pr
   });
 });
 
+test("workspace invitation acceptance rejects anonymous and malformed requests", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const acceptRoute = await import("../app/api/auth/invitations/accept/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ viewer }) => {
+    try {
+      setIntegrationTestSession(null);
+      const anonymous = await acceptRoute.POST(integrationRequest("/api/auth/invitations/accept", { method: "POST", body: JSON.stringify({ token: "invalid" }) }));
+      assert.equal(anonymous.status, 401, await anonymous.clone().text());
+
+      setIntegrationTestSession(integrationSession(viewer));
+      const malformed = await acceptRoute.POST(integrationRequest("/api/auth/invitations/accept", { method: "POST", body: JSON.stringify({ token: "invalid" }) }));
+      assert.equal(malformed.status, 400, await malformed.clone().text());
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
