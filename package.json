@@ -5,6 +5,7 @@
   "scripts": {
     "test": "tsx --test lib/*.test.ts",
     "test:integration": "tsx --test lib/runtime-api.integration.ts",
+    "test:auth-e2e": "tsx scripts/auth-cookie-e2e.ts",
     "dev": "next dev",
     "build": "next build",
     "db:migrate:deploy": "prisma migrate deploy",

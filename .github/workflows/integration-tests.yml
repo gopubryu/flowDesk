@@ -42,6 +42,9 @@ jobs:
       INTEGRATION_TEST: "1"
       CI_EXPECT_INTEGRATION: "1"
       NODE_ENV: test
+      BETTER_AUTH_SECRET: test-only-secret-for-ci-auth-e2e-32-bytes
+      BETTER_AUTH_URL: http://127.0.0.1:3100
+      AUTH_E2E_BASE_URL: http://127.0.0.1:3100
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -51,6 +54,26 @@ jobs:
       - run: npm ci
       - run: npx prisma migrate deploy
       - run: npm test
+      - run: npm run build
+      - name: Start HTTP server for auth cookie E2E
+        run: |
+          npm run start -- -p 3100 > auth-e2e-server.log 2>&1 &
+          echo $! > auth-e2e-server.pid
+          status=000
+          for i in $(seq 1 30); do
+            status=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3100/api/auth/me || true)
+            if [ "$status" != "000" ]; then break; fi
+            sleep 1
+          done
+          if [ "$status" = "000" ]; then
+            cat auth-e2e-server.log
+            exit 1
+          fi
+      - name: Run auth cookie and network E2E
+        run: npm run test:auth-e2e
+      - name: Stop auth E2E server
+        if: always()
+        run: if [ -f auth-e2e-server.pid ]; then kill "$(cat auth-e2e-server.pid)" || true; fi
       - name: Run isolated-database integration suite
         run: |
           set -o pipefail
