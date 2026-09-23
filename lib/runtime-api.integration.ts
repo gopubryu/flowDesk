@@ -1121,6 +1121,35 @@ test("sales plan status update and delete roles remain isolated", { skip: !enabl
   });
 });
 
+test("purchase request status update and delete roles remain isolated", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const detailRoute = await import("../app/api/purchase-requests/[id]/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ workspaceA, operator, admin, suffix }) => {
+    const row = await prisma.purchaseRequest.create({ data: { workspaceId: workspaceA.id, requestDate: new Date("2026-01-01T00:00:00.000Z"), slipNo: `PR-U-${suffix}`, vendorName: "A", item: "A", quantity: 1, amount: 10, status: "unconfirmed" } });
+    const ctx = { params: Promise.resolve({ id: row.id }) };
+    try {
+      setIntegrationTestSession(integrationSession(operator));
+      const updated = await detailRoute.PATCH(integrationRequest(`/api/purchase-requests/${row.id}`, { method: "PATCH", body: JSON.stringify({ workspaceId: workspaceA.id, status: "confirmed" }) }), ctx);
+      assert.equal(updated.status, 200, await updated.clone().text());
+      const body = await updated.json() as { status: string };
+      assert.equal(body.status, "confirmed");
+      assert.equal((await prisma.purchaseRequest.findUnique({ where: { id: row.id } }))?.status, "confirmed");
+
+      const operatorDelete = await detailRoute.DELETE(integrationRequest(`/api/purchase-requests/${row.id}?workspaceId=${workspaceA.id}`, { method: "DELETE" }), ctx);
+      assert.equal(operatorDelete.status, 403, await operatorDelete.clone().text());
+      setIntegrationTestSession(integrationSession(admin));
+      const adminDelete = await detailRoute.DELETE(integrationRequest(`/api/purchase-requests/${row.id}?workspaceId=${workspaceA.id}`, { method: "DELETE" }), ctx);
+      assert.equal(adminDelete.status, 200, await adminDelete.clone().text());
+      assert.equal(await prisma.purchaseRequest.findUnique({ where: { id: row.id } }), null);
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
