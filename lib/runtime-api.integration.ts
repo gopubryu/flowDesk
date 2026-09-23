@@ -1150,6 +1150,35 @@ test("purchase request status update and delete roles remain isolated", { skip: 
   });
 });
 
+test("quotation status update and delete roles remain isolated", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const detailRoute = await import("../app/api/quotations/[id]/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ workspaceA, operator, admin, suffix }) => {
+    const row = await prisma.quotation.create({ data: { workspaceId: workspaceA.id, quoteDate: new Date("2026-01-01T00:00:00.000Z"), slipNo: `QT-U-${suffix}`, vendorName: "A", item: "A", quantity: 1, amount: 10, vat: 0, total: 10, status: "draft" } });
+    const ctx = { params: Promise.resolve({ id: row.id }) };
+    try {
+      setIntegrationTestSession(integrationSession(operator));
+      const updated = await detailRoute.PATCH(integrationRequest(`/api/quotations/${row.id}`, { method: "PATCH", body: JSON.stringify({ workspaceId: workspaceA.id, status: "sent" }) }), ctx);
+      assert.equal(updated.status, 200, await updated.clone().text());
+      const body = await updated.json() as { status: string };
+      assert.equal(body.status, "sent");
+      assert.equal((await prisma.quotation.findUnique({ where: { id: row.id } }))?.status, "sent");
+
+      const operatorDelete = await detailRoute.DELETE(integrationRequest(`/api/quotations/${row.id}?workspaceId=${workspaceA.id}`, { method: "DELETE" }), ctx);
+      assert.equal(operatorDelete.status, 403, await operatorDelete.clone().text());
+      setIntegrationTestSession(integrationSession(admin));
+      const adminDelete = await detailRoute.DELETE(integrationRequest(`/api/quotations/${row.id}?workspaceId=${workspaceA.id}`, { method: "DELETE" }), ctx);
+      assert.equal(adminDelete.status, 200, await adminDelete.clone().text());
+      assert.equal(await prisma.quotation.findUnique({ where: { id: row.id } }), null);
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
