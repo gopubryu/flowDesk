@@ -801,6 +801,29 @@ test("multi-workspace membership runtime requires explicit workspace selection",
   });
 });
 
+test("auth session probe runtime maps authenticated and anonymous sessions", { skip: !enabled }, async () => {
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const meRoute = await import("../app/api/auth/me/route");
+
+  await withWorkspaceFixture((await import("./prisma")).prisma, WorkspaceRole, async ({ admin }) => {
+    try {
+      setIntegrationTestSession(integrationSession(admin));
+      const authenticated = await meRoute.GET();
+      assert.equal(authenticated.status, 200, await authenticated.clone().text());
+      const session = await authenticated.json() as { user: { id: string; email: string } };
+      assert.equal(session.user.id, admin.id);
+      assert.match(session.user.email, /@test\.invalid$/);
+
+      setIntegrationTestSession(null);
+      const anonymous = await meRoute.GET();
+      assert.equal(anonymous.status, 401, await anonymous.clone().text());
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
