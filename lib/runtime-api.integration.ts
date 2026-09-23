@@ -1031,6 +1031,29 @@ test("sales plans line lifecycle runtime preserves workspace isolation", { skip:
   });
 });
 
+test("purchase request attachment limits preserve authorization boundaries", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const route = await import("../app/api/purchase-requests/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ workspaceA, operator, viewer }) => {
+    try {
+      const payload = { workspaceId: workspaceA.id, item: "oversized", attachments: [{ fileName: "too-large.pdf", mimeType: "application/pdf", size: 5 * 1024 * 1024 + 1, dataUrl: "data:application/pdf;base64,AA==" }] };
+      setIntegrationTestSession(integrationSession(operator));
+      const oversized = await route.POST(integrationRequest("/api/purchase-requests", { method: "POST", body: JSON.stringify(payload) }));
+      assert.equal(oversized.status, 400, await oversized.clone().text());
+      assert.equal(await prisma.purchaseRequest.count({ where: { workspaceId: workspaceA.id } }), 0);
+
+      setIntegrationTestSession(integrationSession(viewer));
+      const viewerWrite = await route.POST(integrationRequest("/api/purchase-requests", { method: "POST", body: JSON.stringify({ workspaceId: workspaceA.id, item: "blocked" }) }));
+      assert.equal(viewerWrite.status, 403, await viewerWrite.clone().text());
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
