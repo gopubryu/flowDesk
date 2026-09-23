@@ -773,6 +773,34 @@ test("workspace session runtime authorization lists memberships and blocks repea
   });
 });
 
+test("multi-workspace membership runtime requires explicit workspace selection", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const workspacesRoute = await import("../app/api/auth/workspaces/route");
+  const itemsRoute = await import("../app/api/items/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ workspaceA, workspaceB, admin }) => {
+    await prisma.workspaceMember.create({ data: { workspaceId: workspaceB.id, userId: admin.id, role: WorkspaceRole.OPERATOR } });
+    try {
+      setIntegrationTestSession(integrationSession(admin));
+      const memberships = await workspacesRoute.GET();
+      assert.equal(memberships.status, 200, await memberships.clone().text());
+      const body = await memberships.json() as { memberships: Array<{ workspace: { id: string }; role: string }> };
+      assert.equal(body.memberships.length, 2);
+      assert.deepEqual(body.memberships.map((entry) => entry.workspace.id), [workspaceA.id, workspaceB.id]);
+      assert.deepEqual(body.memberships.map((entry) => entry.role), ["ADMIN", "OPERATOR"]);
+
+      const ambiguous = await itemsRoute.GET(integrationRequest("/api/items"));
+      assert.equal(ambiguous.status, 400, await ambiguous.clone().text());
+      const explicit = await itemsRoute.GET(integrationRequest(`/api/items?workspaceId=${workspaceB.id}`));
+      assert.equal(explicit.status, 200, await explicit.clone().text());
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
