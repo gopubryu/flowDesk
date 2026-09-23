@@ -87,6 +87,19 @@ async function main() {
   const acceptedBody = await json(accepted);
   assert.equal((acceptedBody.workspace as { id?: string }).id, createdWorkspaceData.id);
   assert.equal(acceptedBody.role, "OPERATOR");
+  const inviteeMe = await request("/api/auth/me");
+  const inviteeUser = (await json(inviteeMe)).user as { id?: string };
+  assert.ok(inviteeUser.id);
+  const workspaceB = await prisma.workspace.create({ data: { name: `Auth E2E Workspace B ${suffix}`, members: { create: { userId: inviteeUser.id!, role: "OPERATOR", isActive: true } }, items: { create: { code: `AUTH-${suffix}`, name: "Cookie Item" } } } });
+  const allMemberships = await request("/api/auth/workspaces");
+  assert.equal(allMemberships.status, 200, `multi-workspace read: ${await allMemberships.clone().text()}`);
+  const allMembershipBody = await json(allMemberships);
+  assert.equal((allMembershipBody.memberships as Array<unknown>).length, 2);
+  const ambiguousItems = await request("/api/items");
+  assert.equal(ambiguousItems.status, 400, `ambiguous workspace: ${await ambiguousItems.clone().text()}`);
+  const selectedItems = await request(`/api/items?workspaceId=${workspaceB.id}`);
+  assert.equal(selectedItems.status, 200, `selected workspace: ${await selectedItems.clone().text()}`);
+
   const mismatch = await request("/api/auth/invitations/accept", { method: "POST", body: JSON.stringify({ token: mismatchToken }) });
   assert.equal(mismatch.status, 403, `email mismatch: ${await mismatch.clone().text()}`);
   const expired = await request("/api/auth/invitations/accept", { method: "POST", body: JSON.stringify({ token: expiredToken }) });
