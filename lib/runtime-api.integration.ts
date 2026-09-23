@@ -939,6 +939,40 @@ test("workspace invitation acceptance rejects email mismatch and expired tokens"
   });
 });
 
+test("workspace invitation creation runtime enforces admin role and duplicate protection", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const invitationsRoute = await import("../app/api/auth/invitations/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ suffix, workspaceB, admin, viewer }) => {
+    await prisma.workspaceMember.create({ data: { workspaceId: workspaceB.id, userId: admin.id, role: WorkspaceRole.ADMIN } });
+    const email = `new-invite-${suffix}@test.invalid`;
+    try {
+      setIntegrationTestSession(integrationSession(admin));
+      const created = await invitationsRoute.POST(integrationRequest("/api/auth/invitations", { method: "POST", body: JSON.stringify({ workspaceId: workspaceB.id, email, role: "OPERATOR" }) }));
+      assert.equal(created.status, 201, await created.clone().text());
+      const body = await created.json() as { invitation: { workspaceId: string; email: string; role: string }; delivery: string; token?: string };
+      assert.equal(body.invitation.workspaceId, workspaceB.id);
+      assert.equal(body.invitation.email, email);
+      assert.equal(body.invitation.role, "OPERATOR");
+      assert.ok(["not_configured", "sent"].includes(body.delivery));
+      assert.equal("token" in body, false, "raw invitation token must never be returned");
+      const stored = await prisma.invitation.findFirst({ where: { workspaceId: workspaceB.id, email, acceptedAt: null } });
+      assert.ok(stored?.tokenHash);
+
+      const duplicate = await invitationsRoute.POST(integrationRequest("/api/auth/invitations", { method: "POST", body: JSON.stringify({ workspaceId: workspaceB.id, email, role: "OPERATOR" }) }));
+      assert.equal(duplicate.status, 409, await duplicate.clone().text());
+
+      setIntegrationTestSession(integrationSession(viewer));
+      const forbidden = await invitationsRoute.POST(integrationRequest("/api/auth/invitations", { method: "POST", body: JSON.stringify({ workspaceId: workspaceB.id, email: `blocked-${suffix}@test.invalid`, role: "VIEWER" }) }));
+      assert.equal(forbidden.status, 403, await forbidden.clone().text());
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
