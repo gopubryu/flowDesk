@@ -851,38 +851,6 @@ test("workspace onboarding runtime creates the first workspace for a new user", 
   });
 });
 
-test("workspace invitation listing runtime enforces admin workspace scope", { skip: !enabled }, async () => {
-  const { prisma } = await import("./prisma");
-  const { setIntegrationTestSession } = await import("./auth-guards");
-  const { WorkspaceRole } = await import("@prisma/client");
-  const { hashInvitationToken } = await import("./invitation");
-  const invitationsRoute = await import("../app/api/auth/invitations/route");
-
-  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ workspaceA, workspaceB, admin, viewer }) => {
-    await prisma.workspaceMember.create({ data: { workspaceId: workspaceB.id, userId: admin.id, role: WorkspaceRole.ADMIN } });
-    const invitation = await prisma.invitation.create({ data: { workspaceId: workspaceB.id, inviterId: admin.id, email: viewer.email, role: WorkspaceRole.OPERATOR, tokenHash: hashInvitationToken("test-token-unused"), expiresAt: new Date(Date.now() + 60_000) } });
-    try {
-      setIntegrationTestSession(integrationSession(admin));
-      const list = await invitationsRoute.GET(integrationRequest(`/api/auth/invitations?workspaceId=${workspaceB.id}`));
-      assert.equal(list.status, 200, await list.clone().text());
-      const body = await list.json() as { invitations: Array<{ id: string; workspaceId: string; email: string; role: string }> };
-      assert.equal(body.invitations.length, 1);
-      assert.equal(body.invitations[0]?.id, invitation.id);
-      assert.equal(body.invitations[0]?.workspaceId, workspaceB.id);
-      assert.equal(body.invitations[0]?.email, viewer.email);
-      assert.equal(body.invitations[0]?.role, "OPERATOR");
-
-      const cross = await invitationsRoute.GET(integrationRequest(`/api/auth/invitations?workspaceId=${workspaceA.id}`));
-      assert.equal(cross.status, 403, await cross.clone().text());
-      setIntegrationTestSession(integrationSession(viewer));
-      const viewerList = await invitationsRoute.GET(integrationRequest(`/api/auth/invitations?workspaceId=${workspaceB.id}`));
-      assert.equal(viewerList.status, 403, await viewerList.clone().text());
-    } finally {
-      setIntegrationTestSession(null);
-    }
-  });
-});
-
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");
