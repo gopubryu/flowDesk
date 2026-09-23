@@ -982,11 +982,11 @@ test("workspace invitation acceptance rejects anonymous and malformed requests",
   await withWorkspaceFixture(prisma, WorkspaceRole, async ({ viewer }) => {
     try {
       setIntegrationTestSession(null);
-      const anonymous = await acceptRoute.POST(integrationRequest("/api/auth/invitations/accept", { method: "POST", body: JSON.stringify({ token: "invalid" }) }));
+      const anonymous = await acceptRoute.POST(integrationRequest("/api/auth/invitations/accept", { method: "POST", body: JSON.stringify({ token: "" }) }));
       assert.equal(anonymous.status, 401, await anonymous.clone().text());
 
       setIntegrationTestSession(integrationSession(viewer));
-      const malformed = await acceptRoute.POST(integrationRequest("/api/auth/invitations/accept", { method: "POST", body: JSON.stringify({ token: "invalid" }) }));
+      const malformed = await acceptRoute.POST(integrationRequest("/api/auth/invitations/accept", { method: "POST", body: JSON.stringify({ token: "" }) }));
       assert.equal(malformed.status, 400, await malformed.clone().text());
     } finally {
       setIntegrationTestSession(null);
