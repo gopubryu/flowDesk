@@ -25,6 +25,7 @@ import { useAppDialog } from "@/components/ui/app-alert-dialog";
 import { Input } from "@/components/ui/input";
 import { WarehouseSearchDialog } from "@/components/warehouses/warehouse-search-dialog";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useWorkspaceRole } from "@/lib/use-workspace-role";
 
 type GridRow = {
   itemCode: string;
@@ -59,6 +60,7 @@ function ShipmentNewPageInner() {
   const [whOpen, setWhOpen] = useState(false);
   const [spOpen, setSpOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const { canWrite: allowWrite } = useWorkspaceRole();
 
   useEffect(() => {
     void (async () => {
@@ -296,7 +298,7 @@ function ShipmentNewPageInner() {
           type="button"
           size="sm"
           className="h-8 gap-1"
-          disabled={saving}
+          disabled={saving || !allowWrite}
           onClick={() => void handleSave()}
         >
           <Save className="h-3.5 w-3.5" />

@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import { AppAlertDialog, useAppDialog } from "@/components/ui/app-alert-dialog";
 import { PurchaseRequestForm } from "@/components/purchase-requests/purchase-request-form";
+import { useWorkspaceRole } from "@/lib/use-workspace-role";
 
 type TabKey = "all" | PurchaseRequestStatus;
 
@@ -85,6 +86,7 @@ export default function PurchaseRequestsPage() {
   const [statusOpen, setStatusOpen] = useState(false);
   const [nextStatus, setNextStatus] = useState<PurchaseRequestStatus>("unconfirmed");
   const [actionBusy, setActionBusy] = useState(false);
+  const { canWrite: allowWrite, canDelete: allowDelete } = useWorkspaceRole();
   const { alert: appAlert, confirm: appConfirm, dialog: appDialog } = useAppDialog();
 
   async function refreshFromApi() {
@@ -483,6 +485,7 @@ export default function PurchaseRequestsPage() {
                             variant="outline"
                             className="h-7 gap-1 px-2 text-[11px]"
                             onClick={() => openEdit(r.id)}
+                            disabled={actionBusy || !allowWrite}
                           >
                             <Pencil className="h-3 w-3" />
                             수정
@@ -505,7 +508,7 @@ export default function PurchaseRequestsPage() {
                 size="sm"
                 className="h-8 gap-1.5"
                 onClick={() => setNewOpen(true)}
-                disabled={actionBusy}
+                disabled={actionBusy || !allowWrite}
               >
                 <FilePlus2 className="h-3.5 w-3.5" />
                 신규
@@ -527,7 +530,7 @@ export default function PurchaseRequestsPage() {
                 variant="outline"
                 className="h-8 gap-1.5"
                 onClick={() => void openStatusChange()}
-                disabled={actionBusy}
+                disabled={actionBusy || !allowWrite}
               >
                 <RefreshCw className="h-3.5 w-3.5" />
                 진행상태변경
@@ -538,7 +541,7 @@ export default function PurchaseRequestsPage() {
                 variant="outline"
                 className="h-8 gap-1.5 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
                 onClick={() => void deleteSelected()}
-                disabled={actionBusy}
+                disabled={actionBusy || !allowDelete}
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 삭제

@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { SalesPlanForm } from "@/components/sales-plans/sales-plan-form";
+import { useWorkspaceRole } from "@/lib/use-workspace-role";
 
 type TabKey = "all" | SalesPlanStatus;
 
@@ -43,6 +44,7 @@ const statusVariant: Record<
 export default function SalesPlansPage() {
   const router = useRouter();
   const { alert: appAlert, confirm: appConfirm, dialog: appDialog } = useAppDialog();
+  const { canWrite: allowWrite, canDelete: allowDelete } = useWorkspaceRole();
   const [rows, setRows] = useState<SalesPlan[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [tab, setTab] = useState<TabKey>("all");
@@ -423,6 +425,7 @@ export default function SalesPlansPage() {
                 size="sm"
                 className="h-8 gap-1.5"
                 onClick={() => setNewOpen(true)}
+                disabled={!allowWrite}
               >
                 <FilePlus2 className="h-3.5 w-3.5" />
                 신규
@@ -433,6 +436,7 @@ export default function SalesPlansPage() {
                 variant="outline"
                 className="h-8 gap-1.5"
                 onClick={() => void handleDeleteSelected()}
+                disabled={!allowDelete}
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 선택삭제
