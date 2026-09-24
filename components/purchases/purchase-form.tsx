@@ -291,6 +291,7 @@ export function PurchaseForm({
     function onKey(e: KeyboardEvent) {
       if (e.key === "F8") {
         e.preventDefault();
+        if (!allowWrite) return;
         if (!saving) void handleSave();
       }
       if (e.key === "F3") {

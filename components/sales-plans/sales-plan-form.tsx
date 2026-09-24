@@ -381,6 +381,7 @@ export function SalesPlanForm({
     function onKey(e: KeyboardEvent) {
       if (e.key === "F8") {
         e.preventDefault();
+        if (!allowWrite) return;
         handleSave();
       }
     }

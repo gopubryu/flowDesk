@@ -413,6 +413,7 @@ export function PurchaseRequestForm({
     function onKey(e: KeyboardEvent) {
       if (e.key === "F8") {
         e.preventDefault();
+        if (!allowWrite) return;
         void handleSave();
       }
     }
