@@ -27,6 +27,7 @@ import {
   parseNonNegNumber,
 } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { useWorkspaceRole } from "@/lib/use-workspace-role";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EmployeeSearchDialog } from "@/components/employees/employee-search-dialog";
@@ -264,6 +265,7 @@ export function PurchaseRequestForm({
   const [itemSearchLineId, setItemSearchLineId] = useState<string | null>(null);
   const [vendorSearchOpen, setVendorSearchOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const { canWrite: allowWrite } = useWorkspaceRole();
   const [importOpen, setImportOpen] = useState(false);
   const [inventoryVisible, setInventoryVisible] = useState(false);
   const [inventoryLoading, setInventoryLoading] = useState(false);
@@ -1000,7 +1002,7 @@ export function PurchaseRequestForm({
                 type="button"
                 size="sm"
                 className="h-8 min-w-[72px] rounded-r-none"
-                disabled={saving}
+                disabled={saving || !allowWrite}
                 onClick={() => void handleSave()}
               >
                 {saving ? "저장 중…" : "저장"}
@@ -1013,6 +1015,7 @@ export function PurchaseRequestForm({
                 aria-expanded={saveMenuOpen}
                 aria-haspopup="menu"
                 aria-label="저장 옵션"
+                disabled={!allowWrite}
               >
                 <ChevronDown className="h-3.5 w-3.5" />
               </Button>

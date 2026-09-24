@@ -24,6 +24,7 @@ import { hasNonEmptyBusinessFormData, normalizeImportableSlip } from "@/lib/slip
 import { formatNumberWithComma, parseNumberInput } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useWorkspaceRole } from "@/lib/use-workspace-role";
 import { useAppDialog } from "@/components/ui/app-alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -229,6 +230,7 @@ export function SalesPlanForm({
   onSaved,
 }: Props) {
   const { alert: appAlert, confirm, dialog: appDialog } = useAppDialog();
+  const { canWrite: allowWrite } = useWorkspaceRole();
   const router = useRouter();
   const isModal = variant === "modal";
   const [master, setMaster] = useState<Master>(() => defaultMaster());
@@ -843,6 +845,7 @@ export function SalesPlanForm({
                 size="sm"
                 className="h-8 min-w-[72px] rounded-r-none"
                 onClick={() => handleSave()}
+                disabled={!allowWrite}
               >
                 저장
               </Button>
@@ -854,6 +857,7 @@ export function SalesPlanForm({
                 aria-expanded={saveMenuOpen}
                 aria-haspopup="menu"
                 aria-label="저장 옵션"
+                disabled={!allowWrite}
               >
                 <ChevronDown className="h-3.5 w-3.5" />
               </Button>

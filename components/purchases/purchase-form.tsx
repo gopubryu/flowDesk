@@ -21,6 +21,7 @@ import { SlipImportDialog } from "@/components/slips/slip-import-dialog";
 import { calculateRemainingLineQuantities, hasNonEmptyBusinessFormData, mapImportedPurchaseLines, normalizeImportableSlip } from "@/lib/slip-import";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useWorkspaceRole } from "@/lib/use-workspace-role";
 import { useAppDialog } from "@/components/ui/app-alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -252,6 +253,7 @@ export function PurchaseForm({
   const [itemSearchOpen, setItemSearchOpen] = useState(false);
   const [itemSearchLineId, setItemSearchLineId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const { canWrite: allowWrite } = useWorkspaceRole();
   const [importOpen, setImportOpen] = useState(false);
   const [importedSlip, setImportedSlip] = useState("");
   const [sourceType, setSourceType] = useState<string | undefined>();
@@ -784,7 +786,7 @@ export function PurchaseForm({
                 size="sm"
                 className="h-8 min-w-[72px] rounded-r-none"
                 onClick={() => handleSave()}
-                disabled={saving}
+                disabled={saving || !allowWrite}
               >
                 저장
               </Button>
@@ -793,7 +795,7 @@ export function PurchaseForm({
                 size="sm"
                 className="h-8 rounded-l-none border-l border-indigo-400/40 px-1.5"
                 onClick={() => setSaveMenuOpen((o) => !o)}
-                disabled={saving}
+                disabled={saving || !allowWrite}
                 aria-expanded={saveMenuOpen}
                 aria-haspopup="menu"
                 aria-label="저장 옵션"

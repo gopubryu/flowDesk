@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useWorkspaceRole } from "@/lib/use-workspace-role";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { formatNumberWithComma, parseNumberInput } from "@/lib/format";
@@ -122,12 +123,13 @@ export function QuotationForm({ id }: Props) {
   const router = useRouter(); const edit = Boolean(id);
   const [header, setHeader] = useState({ quoteDate: today(), slipNo: "", vendorCode: "", vendorName: "", managerCode: "", managerName: "", warehouseCode: "", warehouseName: "", validUntil: "", status: "draft" as QuotationStatus, taxType: "과세", currency: "내자", project: "", remarks: "" });
   const [lines, setLines] = useState<QuotationLine[]>([emptyLine()]); const [loading, setLoading] = useState(edit); const [saving, setSaving] = useState(false); const [error, setError] = useState("");
+  const { canWrite: allowWrite, canDelete: allowDelete } = useWorkspaceRole();
   const [vendorSearchOpen, setVendorSearchOpen] = useState(false);
   const [employeeSearchOpen, setEmployeeSearchOpen] = useState(false);
   const [warehouseSearchOpen, setWarehouseSearchOpen] = useState(false);
   const [itemSearchOpen, setItemSearchOpen] = useState(false);
   const [itemSearchIndex, setItemSearchIndex] = useState<number | null>(null);
-  const readOnly = header.status === "accepted" || header.status === "rejected" || header.status === "expired";
+  const readOnly = !allowWrite || header.status === "accepted" || header.status === "rejected" || header.status === "expired";
   const linesLocked = header.status === "accepted"; // accepted quotations lock items/amounts but header stays viewable
 
   useEffect(() => { if (!id) return; void fetchQuotation(id).then((row) => { setHeader({ quoteDate: row.quoteDate, slipNo: row.slipNo, vendorCode: row.vendorCode ?? "", vendorName: row.vendorName, managerCode: row.managerCode ?? "", managerName: row.managerName ?? "", warehouseCode: row.warehouseCode ?? "", warehouseName: row.warehouseName ?? "", validUntil: row.validUntil ?? "", status: row.status, taxType: row.taxType ?? "과세", currency: row.currency ?? "내자", project: row.project ?? "", remarks: row.remarks ?? "" }); setLines(row.lines?.length ? row.lines : [emptyLine()]); }).catch((err) => setError(err instanceof Error ? err.message : "견적서를 불러오지 못했습니다.")).finally(() => setLoading(false)); }, [id]);
@@ -157,7 +159,7 @@ export function QuotationForm({ id }: Props) {
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => router.push("/quotations")}>목록</Button>
-          {edit && <Button type="button" size="sm" variant="outline" className="h-8" onClick={remove} disabled={readOnly}>삭제</Button>}
+          {edit && <Button type="button" size="sm" variant="outline" className="h-8" onClick={remove} disabled={readOnly || !allowDelete}>삭제</Button>}
           <Button type="button" size="sm" className="h-8" onClick={() => void persist()} disabled={saving || readOnly}>{saving ? "저장 중…" : "저장"}</Button>
         </div>
       </div>

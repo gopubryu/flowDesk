@@ -11,6 +11,7 @@ import {
 import { withEulReul } from "@/lib/josa";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useWorkspaceRole } from "@/lib/use-workspace-role";
 import { useAppDialog } from "@/components/ui/app-alert-dialog";
 import { Input } from "@/components/ui/input";
 import { WarehouseSearchDialog } from "@/components/warehouses/warehouse-search-dialog";
@@ -31,6 +32,7 @@ export default function AdjustmentNewPage() {
   const [whOpen, setWhOpen] = useState(false);
   const [itemOpen, setItemOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const { canWrite: allowWrite } = useWorkspaceRole();
 
   const diff =
     actualQty === "" ? 0 : (Number(actualQty) || 0) - bookQty;
@@ -132,7 +134,7 @@ export default function AdjustmentNewPage() {
             실사수량과 장부수량의 차이를 조정으로 반영해요.
           </p>
         </div>
-        <Button type="button" size="sm" className="h-8 gap-1" disabled={saving} onClick={() => void handleSave()}>
+        <Button type="button" size="sm" className="h-8 gap-1" disabled={saving || !allowWrite} onClick={() => void handleSave()}>
           <Save className="h-3.5 w-3.5" />
           {saving ? "저장 중…" : "저장"}
         </Button>
