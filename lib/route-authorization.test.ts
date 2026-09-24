@@ -23,7 +23,7 @@ type RouteContract = {
 
 const contracts: RouteContract[] = [
   { route: "app/api/items/route.ts", reads: true, writes: true },
-  { route: "app/api/items/[code]/route.ts", writes: true, deletes: true },
+  { route: "app/api/items/[code]/route.ts", reads: true, writes: true, deletes: true },
   { route: "app/api/vendors/route.ts", reads: true, writes: true },
   { route: "app/api/vendors/[code]/route.ts", writes: true, deletes: true },
   { route: "app/api/warehouses/route.ts", reads: true, writes: true },

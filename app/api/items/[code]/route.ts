@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { normalizeItem } from "@/lib/master-data";
-import { assertMasterCanDelete, assertMasterCanRename } from "@/lib/master-data-references";
+import { assertMasterCanDelete, assertMasterCanRename, getMasterReferences } from "@/lib/master-data-references";
 import { apiError, publicRow } from "@/lib/master-data-server";
 import {
   BadRequestError,
@@ -30,6 +30,23 @@ async function requestedWorkspace(req: Request, body?: unknown) {
   );
 }
 
+export async function GET(req: Request, ctx: Ctx) {
+  try {
+    const workspace = await requireResolvedWorkspace(
+      new URL(req.url).searchParams.get("workspaceId"),
+      [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR, WorkspaceRole.VIEWER],
+    );
+    const { code } = await ctx.params;
+    const itemCode = decodeURIComponent(code).toUpperCase();
+    const existing = await prisma.item.findUnique({ where: { workspaceId_code: { workspaceId: workspace.workspaceId, code: itemCode } } });
+    if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const references = await getMasterReferences("item", workspace.workspaceId, itemCode);
+    return NextResponse.json({ ...publicRow(existing), references, canRename: references.length === 0 });
+  } catch (error) {
+    return authError(error) ?? apiError(error, "Failed to load item");
+  }
+}
+
 export async function PUT(req: Request, ctx: Ctx) {
   try {
     const body: unknown = await req.json();
@@ -46,6 +63,10 @@ export async function PUT(req: Request, ctx: Ctx) {
   } catch (error) {
     return authError(error) ?? apiError(error, "Failed to update item");
   }
+}
+
+export async function PATCH(req: Request, ctx: Ctx) {
+  return PUT(req, ctx);
 }
 
 export async function DELETE(req: Request, ctx: Ctx) {

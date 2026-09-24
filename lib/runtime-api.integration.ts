@@ -1212,6 +1212,40 @@ test("quotation line update remains workspace scoped", { skip: !enabled }, async
   });
 });
 
+test("item code rename allows unused items and rejects referenced items with workspace isolation", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const detailRoute = await import("../app/api/items/[code]/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ workspaceA, workspaceB, operator, suffix }) => {
+    const unusedCode = `IU${suffix.slice(-8).toUpperCase()}`;
+    const renamedCode = `IR${suffix.slice(-8).toUpperCase()}`;
+    const usedCode = `IX${suffix.slice(-8).toUpperCase()}`;
+    const foreignCode = `IF${suffix.slice(-8).toUpperCase()}`;
+    const unused = await prisma.item.create({ data: { workspaceId: workspaceA.id, code: unusedCode, name: "unused", inboundPrice: 1, outboundPrice: 2, inboundVatIncluded: false, outboundVatIncluded: false } });
+    const used = await prisma.item.create({ data: { workspaceId: workspaceA.id, code: usedCode, name: "used", inboundPrice: 1, outboundPrice: 2, inboundVatIncluded: false, outboundVatIncluded: false } });
+    await prisma.stockBalance.create({ data: { workspaceId: workspaceA.id, warehouseCode: `WH${suffix.slice(-6).toUpperCase()}`, warehouseName: "warehouse", itemCode: usedCode, itemName: "used", qty: 1 } });
+    const foreign = await prisma.item.create({ data: { workspaceId: workspaceB.id, code: foreignCode, name: "foreign", inboundPrice: 1, outboundPrice: 2, inboundVatIncluded: false, outboundVatIncluded: false } });
+    const ctx = (code: string) => ({ params: Promise.resolve({ code }) });
+    try {
+      setIntegrationTestSession(integrationSession(operator));
+      const unusedRename = await detailRoute.PUT(integrationRequest(`/api/items/${unusedCode}`, { method: "PUT", body: JSON.stringify({ workspaceId: workspaceA.id, code: renamedCode, name: "renamed", inboundPrice: 1, outboundPrice: 2, inboundVatIncluded: false, outboundVatIncluded: false }) }), ctx(unusedCode));
+      assert.equal(unusedRename.status, 200, await unusedRename.clone().text());
+      assert.equal((await prisma.item.findUnique({ where: { id: unused.id } }))?.code, renamedCode);
+
+      const usedRename = await detailRoute.PUT(integrationRequest(`/api/items/${usedCode}`, { method: "PUT", body: JSON.stringify({ workspaceId: workspaceA.id, code: `IY${suffix.slice(-8).toUpperCase()}`, name: "blocked", inboundPrice: 1, outboundPrice: 2, inboundVatIncluded: false, outboundVatIncluded: false }) }), ctx(usedCode));
+      assert.equal(usedRename.status, 400, await usedRename.clone().text());
+      const usedReadBack = await prisma.item.findUnique({ where: { id: used.id } });
+      assert.equal(usedReadBack?.code, usedCode);
+
+      const crossWorkspace = await detailRoute.PUT(integrationRequest(`/api/items/${foreignCode}`, { method: "PUT", body: JSON.stringify({ workspaceId: workspaceB.id, code: `IZ${suffix.slice(-8).toUpperCase()}`, name: "tampered", inboundPrice: 1, outboundPrice: 2, inboundVatIncluded: false, outboundVatIncluded: false }) }), ctx(foreignCode));
+      assert.equal(crossWorkspace.status, 403, await crossWorkspace.clone().text());
+      assert.equal((await prisma.item.findUnique({ where: { id: foreign.id } }))?.code, foreignCode);
+    } finally { setIntegrationTestSession(null); }
+  });
+});
+
 after(async () => {
   if (!enabled) return;
   const { prisma } = await import("./prisma");

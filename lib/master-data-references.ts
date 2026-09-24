@@ -46,6 +46,10 @@ async function references(kind: MasterKind, workspaceId: string, code: string) {
   return counts.filter(({ count }) => count > 0);
 }
 
+export async function getMasterReferences(kind: MasterKind, workspaceId: string, code: string) {
+  return references(kind, workspaceId, code);
+}
+
 export async function assertMasterCanDelete(kind: MasterKind, workspaceId: string, code: string) {
   const found = await references(kind, workspaceId, code);
   if (found.length) throw new MasterDataValidationError(`사용 중인 기준정보은 삭제할 수 없습니다. ${found.map(({ label, count }) => `${label} ${count}건`).join(", ")}`);
