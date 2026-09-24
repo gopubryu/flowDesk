@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label";
 import { WarehouseSearchDialog } from "@/components/warehouses/warehouse-search-dialog";
 import { ItemSearchDialog } from "@/components/items/item-search-dialog";
 import { VendorSearchDialog } from "@/components/vendors/vendor-search-dialog";
+import { EmployeeSearchDialog } from "@/components/employees/employee-search-dialog";
 import { parseNonNegNumber } from "@/lib/format";
 
 export type LineRow = {
@@ -250,6 +251,7 @@ export function PurchaseForm({
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const [warehouseSearchOpen, setWarehouseSearchOpen] = useState(false);
   const [vendorSearchOpen, setVendorSearchOpen] = useState(false);
+  const [employeeSearchOpen, setEmployeeSearchOpen] = useState(false);
   const [itemSearchOpen, setItemSearchOpen] = useState(false);
   const [itemSearchLineId, setItemSearchLineId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -570,7 +572,7 @@ export function PurchaseForm({
               name={master.managerName}
               onCodeChange={(v) => setMasterField("managerCode", v)}
               onNameChange={(v) => setMasterField("managerName", v)}
-              onSearch={undefined}
+              onSearch={() => setEmployeeSearchOpen(true)}
               namePlaceholder="담당자명"
             />
 
@@ -872,6 +874,18 @@ export function PurchaseForm({
             ...m,
             vendorCode: vendor.code,
             vendorName: vendor.name,
+          }));
+        }}
+      />
+
+      <EmployeeSearchDialog
+        open={employeeSearchOpen}
+        onOpenChange={setEmployeeSearchOpen}
+        onSelect={(employee) => {
+          setMaster((m) => ({
+            ...m,
+            managerCode: employee.code,
+            managerName: employee.name,
           }));
         }}
       />
