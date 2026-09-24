@@ -1,0 +1,3 @@
+code,name,contactName,phone,email,address
+DEMO-VENDOR-001,샘플 공급처 A,담당자 A,010-0000-0000,demo-vendor-a@example.invalid,샘플 주소 A
+DEMO-VENDOR-002,샘플 공급처 B,담당자 B,010-0000-0001,demo-vendor-b@example.invalid,샘플 주소 B

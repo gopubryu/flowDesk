@@ -1,0 +1,3 @@
+code,name,departmentCode,email,phone,isActive
+DEMO-EMP-001,샘플 사원 A,DEMO-DEPT-001,demo-emp-a@example.invalid,010-0000-0010,true
+DEMO-EMP-002,샘플 사원 B,DEMO-DEPT-002,demo-emp-b@example.invalid,010-0000-0011,true
