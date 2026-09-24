@@ -420,7 +420,7 @@ export function PurchaseRequestForm({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [master, lines, attachments, mode, editId, isModal]);
+  }, [master, lines, attachments, mode, editId, isModal, allowWrite]);
 
   function setMasterField<K extends keyof Master>(key: K, value: Master[K]) {
     setMaster((m) => {
