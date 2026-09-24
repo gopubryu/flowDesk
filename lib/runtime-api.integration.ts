@@ -1235,7 +1235,7 @@ test("item code rename allows unused items and rejects referenced items with wor
       assert.equal((await prisma.item.findUnique({ where: { id: unused.id } }))?.code, renamedCode);
 
       const usedRename = await detailRoute.PUT(integrationRequest(`/api/items/${usedCode}`, { method: "PUT", body: JSON.stringify({ workspaceId: workspaceA.id, code: `IY${suffix.slice(-8).toUpperCase()}`, name: "blocked", inboundPrice: 1, outboundPrice: 2, inboundVatIncluded: false, outboundVatIncluded: false }) }), ctx(usedCode));
-      assert.equal(usedRename.status, 400, await usedRename.clone().text());
+      assert.equal(usedRename.status, 409, await usedRename.clone().text());
       const usedReadBack = await prisma.item.findUnique({ where: { id: used.id } });
       assert.equal(usedReadBack?.code, usedCode);
 

@@ -57,6 +57,12 @@ export async function PUT(req: Request, ctx: Ctx) {
     const existing = await prisma.item.findUnique({ where: { workspaceId_code: { workspaceId, code: oldCode } } });
     if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
     const data = normalizeItem(body);
+    if (data.code !== oldCode) {
+      const references = await getMasterReferences("item", workspaceId, oldCode);
+      if (references.length) {
+        return NextResponse.json({ error: `거래 이력이 있어 코드를 변경할 수 없습니다. ${references.map(({ label, count }) => `${label} ${count}건`).join(", ")}` }, { status: 409 });
+      }
+    }
     await assertMasterCanRename("item", workspaceId, oldCode, data.code);
     const row = await prisma.item.update({ where: { id: existing.id }, data });
     return NextResponse.json(publicRow(row));
@@ -66,7 +72,14 @@ export async function PUT(req: Request, ctx: Ctx) {
 }
 
 export async function PATCH(req: Request, ctx: Ctx) {
-  return PUT(req, ctx);
+  try {
+    const body = await req.clone().json() as { workspaceId?: unknown };
+    const roles = [WorkspaceRole.ADMIN, WorkspaceRole.OPERATOR] as const;
+    if (typeof body.workspaceId !== "string" || !roles.length) return NextResponse.json({ error: "workspaceId is required" }, { status: 400 });
+    return PUT(req, ctx);
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
 }
 
 export async function DELETE(req: Request, ctx: Ctx) {
