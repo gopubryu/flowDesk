@@ -63,6 +63,12 @@ type Master = {
   projectCode: string;
   projectName: string;
   remarks: string;
+  foreignAmount: string;
+  customsDate: string;
+  customsExchangeRate: string;
+  baseAmount: string;
+  importVatBaseAmount: string;
+  importVat: string;
 };
 
 type PurchaseImportLine = {
@@ -144,6 +150,12 @@ function defaultMaster(): Master {
     projectCode: "",
     projectName: "",
     remarks: "",
+    foreignAmount: "",
+    customsDate: "",
+    customsExchangeRate: "",
+    baseAmount: "",
+    importVatBaseAmount: "",
+    importVat: "",
   };
 }
 
@@ -261,6 +273,15 @@ export function PurchaseForm({
   const [sourceType, setSourceType] = useState<string | undefined>();
   const [sourceId, setSourceId] = useState<string | undefined>();
   const saveMenuRef = useRef<HTMLDivElement>(null);
+
+  const foreignPreview = useMemo(() => {
+    if (!["USD", "JPY"].includes(master.currency)) return null;
+    const amount = Number(master.foreignAmount);
+    const rate = Number(master.customsExchangeRate);
+    if (!Number.isFinite(amount) || !Number.isFinite(rate) || amount < 0 || rate <= 0) return null;
+    const won = master.currency === "JPY" ? (amount * rate) / 100 : amount * rate;
+    return Math.round(won).toLocaleString("ko-KR");
+  }, [master.currency, master.foreignAmount, master.customsExchangeRate]);
 
   const totals = useMemo(() => {
     let qty = 0;
@@ -408,6 +429,12 @@ export function PurchaseForm({
       sourceType,
       sourceId,
       remarks: master.remarks.trim() || undefined,
+      foreignAmount: master.foreignAmount || undefined,
+      customsDate: master.customsDate || undefined,
+      customsExchangeRate: master.customsExchangeRate || undefined,
+      baseAmount: master.baseAmount || undefined,
+      importVatBaseAmount: master.importVatBaseAmount || undefined,
+      importVat: master.importVat || undefined,
       lines: filled.map((l, i) => ({
         itemCode: l.itemCode.trim() || undefined,
         itemName: l.itemName.trim() || l.itemCode.trim() || "(미지정)",
@@ -605,6 +632,41 @@ export function PurchaseForm({
               </select>
             </div>
 
+            {(["USD", "JPY"] as string[]).includes(master.currency) && (
+              <div className="rounded border border-indigo-200 bg-indigo-50/40 p-2 md:col-span-2">
+                <div className="mb-1 text-[11px] font-semibold text-indigo-800">외자 통관 정보</div>
+                <div className="grid grid-cols-2 gap-1 md:grid-cols-6">
+                  {([
+                    ["foreignAmount", "외화 금액", master.currency === "JPY" ? "엔" : "USD"],
+                    ["customsExchangeRate", "과세환율", master.currency === "JPY" ? "원/100엔" : "원/달러"],
+                    ["baseAmount", "원화 환산액", "원"],
+                    ["customsDate", "통관일", ""],
+                    ["importVatBaseAmount", "수입 VAT 과세표준", "원"],
+                    ["importVat", "수입 VAT", "원"],
+                  ] as const).map(([key, label, unit]) => (
+                    <label key={key} className="flex min-w-0 flex-col gap-0.5 text-[10px] font-medium text-slate-600">
+                      <span>{label}{unit ? ` (${unit})` : ""}</span>
+                      <Input
+                        type={key === "customsDate" ? "date" : "text"}
+                        inputMode={key === "customsDate" ? undefined : "decimal"}
+                        className={cn(fieldCls, "w-full")}
+                        value={master[key]}
+                        onChange={(e) => setMasterField(key, e.target.value)}
+                        placeholder={key === "customsDate" ? "YYYY-MM-DD" : "입력"}
+                        aria-label={label}
+                      />
+                    </label>
+                  ))}
+                </div>
+                <p className="mt-1 text-[10px] text-indigo-700">
+                  {master.currency === "JPY" ? "JPY는 100엔당 환율로 입력합니다." : "USD는 1달러당 환율로 입력합니다."}
+                  {foreignPreview ? ` 환산 미리보기: ${foreignPreview}원` : ""}
+                  {master.foreignAmount && master.customsExchangeRate && master.baseAmount
+                    ? ` 저장 원화 환산액: ${master.baseAmount}원`
+                    : ""}
+                </p>
+              </div>
+            )}
 
             <div className="flex items-stretch overflow-hidden rounded border border-slate-200 md:col-span-2">
               <span className={labelCls}>비고</span>

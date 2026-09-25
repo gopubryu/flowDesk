@@ -58,6 +58,13 @@ export interface Purchase {
   project?: string;
   /** 내외자/통화 */
   currency?: string;
+  /** 외자 구매 통관/환산 정보 */
+  foreignAmount?: string;
+  customsDate?: string;
+  customsExchangeRate?: string;
+  baseAmount?: string;
+  importVatBaseAmount?: string;
+  importVat?: string;
   /** 발송여부 */
   sent?: boolean;
   /** 회계반영여부 */
@@ -94,15 +101,16 @@ export const TAX_TYPE_OPTIONS = [
 
 export const CURRENCY_OPTIONS = [
   "내자",
-  "달러[100]",
-  "엔화[400]",
+  "USD",
+  "JPY",
   "위안",
   "유로",
 ] as const;
 
 /** UI label without unit brackets, e.g. 달러[100] → 달러 */
 export function formatCurrencyLabel(value: string): string {
-  return String(value ?? "").replace(/\[[^\]]*\]/g, "").trim() || value;
+  const labels: Record<string, string> = { USD: "달러 (1달러당)", JPY: "엔화 (100엔당)" };
+  return labels[value] ?? (String(value ?? "").replace(/\[[^\]]*\]/g, "").trim() || value);
 }
 
 export const SENT_FILTER_OPTIONS = [
@@ -424,6 +432,12 @@ export async function savePurchaseApi(row: PurchaseInput): Promise<Purchase> {
     warehouseName: row.warehouse,
     warehouse: row.warehouse,
     currency: row.currency,
+    foreignAmount: row.foreignAmount,
+    customsDate: row.customsDate,
+    customsExchangeRate: row.customsExchangeRate,
+    baseAmount: row.baseAmount,
+    importVatBaseAmount: row.importVatBaseAmount,
+    importVat: row.importVat,
     project: row.project,
     status: row.status,
     inboundStatus: row.inboundStatus,

@@ -491,6 +491,8 @@ export default function PurchasesPage() {
                   <th className="px-3 py-2.5">거래처명</th>
                   <th className="px-3 py-2.5">품목명</th>
                   <th className="px-3 py-2.5 text-right">금액합계</th>
+                  <th className="px-3 py-2.5 text-right">외화 금액</th>
+                  <th className="px-3 py-2.5 text-right">원화 환산액</th>
                   <th className="px-3 py-2.5">거래유형명</th>
                   <th className="px-3 py-2.5">입고상태</th>
                   <th className="px-3 py-2.5">창고명</th>
@@ -503,13 +505,13 @@ export default function PurchasesPage() {
               <tbody>
                 {!hydrated ? (
                   <tr>
-                    <td colSpan={12} className="px-3 py-10 text-center text-muted-foreground">
+                    <td colSpan={14} className="px-3 py-10 text-center text-muted-foreground">
                       불러오는 중…
                     </td>
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="px-3 py-10 text-center text-muted-foreground">
+                    <td colSpan={14} className="px-3 py-10 text-center text-muted-foreground">
                       조회된 구매가 없습니다.
                     </td>
                   </tr>
@@ -536,6 +538,12 @@ export default function PurchasesPage() {
                       <td className="px-3 py-2 text-slate-700">{r.item}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium text-slate-900">
                         {formatKRW(r.amount)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-700">
+                        {r.foreignAmount ? `${r.foreignAmount} ${r.currency === "JPY" ? "엔" : r.currency === "USD" ? "USD" : ""}` : "—"}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-700">
+                        {r.baseAmount ? `${formatKRW(Number(r.baseAmount))}` : "—"}
                       </td>
                       <td className="px-3 py-2 text-slate-700">{r.taxType || "—"}</td>
                                             <td className="px-3 py-2">
