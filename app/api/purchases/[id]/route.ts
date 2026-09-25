@@ -6,7 +6,7 @@ import {
   parseDateOnly,
   serializePurchase,
 } from "@/lib/demo";
-import { canDeletePurchase, canTransitionPurchase, finiteNonNegative, validatePurchaseInput } from "@/lib/erp-rules";
+import { canDeletePurchase, canTransitionPurchase, finiteNonNegative, validateImportAmounts, validatePurchaseInput } from "@/lib/erp-rules";
 import { serializableInventoryTransaction } from "@/lib/inventory-server";
 import { bodyWorkspaceId, authError } from "@/lib/master-data-server";
 import { requireResolvedWorkspace, WorkspaceRole } from "@/lib/workspace-auth";
@@ -103,6 +103,14 @@ export async function PATCH(req: Request, ctx: Ctx) {
     }
     const lineRows = mapLines(body.lines as LineInput[] | undefined);
 
+    const importFields = [body.foreignAmount, body.customsDate, body.customsExchangeRate, body.baseAmount, body.importVatBaseAmount, body.importVat];
+    if (importFields.some((value) => value !== undefined)) {
+      if (existing.accountingReflect) return NextResponse.json({ error: "Accounting-reflected purchases cannot change import fields." }, { status: 409 });
+      const importValidation = validateImportAmounts({ currency: body.currency ?? existing.currency, foreignAmount: body.foreignAmount ?? existing.foreignAmount?.toString(), customsExchangeRate: body.customsExchangeRate ?? existing.customsExchangeRate?.toString(), baseAmount: body.baseAmount ?? existing.baseAmount?.toString(), importVatBaseAmount: body.importVatBaseAmount ?? existing.importVatBaseAmount?.toString(), importVat: body.importVat ?? existing.importVat?.toString() });
+      if (importValidation) return NextResponse.json({ error: importValidation }, { status: 400 });
+      if ((body.customsDate ?? existing.customsDate) === null || (body.customsDate ?? existing.customsDate) === undefined) return NextResponse.json({ error: "customsDate is required with import amounts." }, { status: 400 });
+    }
+
     const data: Record<string, unknown> = { updatedAt: new Date() };
     if (body.purchaseDate !== undefined)
       data.purchaseDate =
@@ -148,6 +156,12 @@ export async function PATCH(req: Request, ctx: Ctx) {
           : null;
     if (body.currency !== undefined)
       data.currency = body.currency ? String(body.currency) : null;
+    if (body.foreignAmount !== undefined) data.foreignAmount = body.foreignAmount;
+    if (body.customsDate !== undefined) data.customsDate = parseDateOnly(body.customsDate);
+    if (body.customsExchangeRate !== undefined) data.customsExchangeRate = body.customsExchangeRate;
+    if (body.baseAmount !== undefined) data.baseAmount = body.baseAmount;
+    if (body.importVatBaseAmount !== undefined) data.importVatBaseAmount = body.importVatBaseAmount;
+    if (body.importVat !== undefined) data.importVat = body.importVat;
     if (body.project !== undefined)
       data.project = body.project ? String(body.project) : null;
     if (body.status !== undefined) {

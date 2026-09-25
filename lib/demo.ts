@@ -524,6 +524,12 @@ export function serializePurchase(r: {
   warehouseCode: string | null;
   warehouseName: string | null;
   currency: string | null;
+  foreignAmount: unknown;
+  customsDate: Date | null;
+  customsExchangeRate: unknown;
+  baseAmount: unknown;
+  importVatBaseAmount: unknown;
+  importVat: unknown;
   project: string | null;
   status: string;
   inboundStatus: string;
@@ -572,6 +578,12 @@ export function serializePurchase(r: {
     warehouseName: r.warehouseName ?? undefined,
     warehouse: r.warehouseName ?? r.warehouseCode ?? undefined,
     currency: r.currency ?? undefined,
+    foreignAmount: r.foreignAmount == null ? undefined : String(r.foreignAmount),
+    customsDate: r.customsDate ? toDateString(r.customsDate) : undefined,
+    customsExchangeRate: r.customsExchangeRate == null ? undefined : String(r.customsExchangeRate),
+    baseAmount: r.baseAmount == null ? undefined : String(r.baseAmount),
+    importVatBaseAmount: r.importVatBaseAmount == null ? undefined : String(r.importVatBaseAmount),
+    importVat: r.importVat == null ? undefined : String(r.importVat),
     project: r.project ?? undefined,
     status: r.status,
     inboundStatus: r.inboundStatus,

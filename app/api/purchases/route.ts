@@ -9,7 +9,7 @@ import {
   parseDateOnly,
   serializePurchase,
 } from "@/lib/demo";
-import { finiteNonNegative, validatePurchaseInput } from "@/lib/erp-rules";
+import { finiteNonNegative, validateImportAmounts, validatePurchaseInput } from "@/lib/erp-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -92,6 +92,13 @@ export async function POST(req: Request) {
     const validation = validatePurchaseInput(String(body.vendorName ?? body.vendor ?? "").trim(), lineRows);
     if (validation) return NextResponse.json({ error: validation }, { status: 400 });
 
+    const importFields = [body.foreignAmount, body.customsDate, body.customsExchangeRate, body.baseAmount, body.importVatBaseAmount, body.importVat];
+    if (importFields.some((value) => value !== undefined && value !== null && value !== "")) {
+      const importValidation = validateImportAmounts({ currency: body.currency, foreignAmount: body.foreignAmount, customsExchangeRate: body.customsExchangeRate, baseAmount: body.baseAmount, importVatBaseAmount: body.importVatBaseAmount, importVat: body.importVat });
+      if (importValidation) return NextResponse.json({ error: importValidation }, { status: 400 });
+      if (!body.customsDate) return NextResponse.json({ error: "customsDate is required with import amounts." }, { status: 400 });
+    }
+
     const itemCodes = [...new Set([
       ...lineRows.map((line) => line.itemCode).filter((code): code is string => Boolean(code)),
       ...(body.itemCode ? [String(body.itemCode).trim()] : []),
@@ -147,6 +154,12 @@ export async function POST(req: Request) {
             ? String(body.warehouseName ?? body.warehouse)
             : null,
         currency: body.currency ? String(body.currency) : null,
+        foreignAmount: body.foreignAmount ?? null,
+        customsDate: parseDateOnly(body.customsDate) ?? null,
+        customsExchangeRate: body.customsExchangeRate ?? null,
+        baseAmount: body.baseAmount ?? null,
+        importVatBaseAmount: body.importVatBaseAmount ?? null,
+        importVat: body.importVat ?? null,
         project: body.project ? String(body.project) : null,
         status: (body.status as PurchaseStatus) ?? "unconfirmed",
         inboundStatus: (body.inboundStatus as InboundStatus) ?? "none",
