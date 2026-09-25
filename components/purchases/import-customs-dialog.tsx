@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAppDialog } from "@/components/ui/app-alert-dialog";
 import { savePurchaseApi, type Purchase } from "@/lib/purchases";
 
 export function ImportCustomsDialog({
@@ -17,6 +18,7 @@ export function ImportCustomsDialog({
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
 }) {
+  const { alert: appAlert } = useAppDialog();
   const [customsDate, setCustomsDate] = useState("");
   const [customsExchangeRate, setCustomsExchangeRate] = useState("");
   const [baseAmount, setBaseAmount] = useState("");
@@ -48,6 +50,11 @@ export function ImportCustomsDialog({
       });
       onOpenChange(false);
       onSaved();
+    } catch (error) {
+      await appAlert({
+        title: "통관 정보 저장 실패",
+        description: error instanceof Error ? error.message : "통관 정보 저장에 실패했습니다.",
+      });
     } finally {
       setSaving(false);
     }
@@ -57,7 +64,7 @@ export function ImportCustomsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent onClose={() => onOpenChange(false)}>
         <DialogHeader>
-          <DialogTitle>통관 정보 입력</DialogTitle>
+          <DialogTitle>{locked ? "통관 정보 잠금" : purchase?.customsDate ? "통관 정보 수정" : "통관 정보 입력"}</DialogTitle>
           <p className="text-xs text-muted-foreground">{purchase?.vendor} · {purchase?.item}</p>
         </DialogHeader>
         {locked && (
