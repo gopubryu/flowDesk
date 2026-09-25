@@ -37,7 +37,10 @@ test("import amounts enforce currency, precision, positive rate and non-negative
 
 test("server import base amount uses fixed scales and half-up rounding", () => {
   assert.equal(calculateImportBaseAmount("USD", "1", "1300"), "1300");
+  assert.equal(calculateImportBaseAmount("USD", "1000.5", "1300"), "1300650");
   assert.equal(calculateImportBaseAmount("USD", "1.23", "1300.5"), "1600");
+  assert.equal(calculateImportBaseAmount("JPY", "1000", "950"), "9500");
+  assert.equal(calculateImportBaseAmount("JPY", "1", "950"), "10");
   assert.equal(calculateImportBaseAmount("JPY", "100", "9.1234"), "9");
   assert.equal(calculateImportBaseAmount("USD", "0.01", "50"), "1");
 });
