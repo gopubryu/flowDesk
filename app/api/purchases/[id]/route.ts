@@ -104,8 +104,13 @@ export async function PATCH(req: Request, ctx: Ctx) {
     const lineRows = mapLines(body.lines as LineInput[] | undefined);
 
     const importFields = [body.foreignAmount, body.customsDate, body.customsExchangeRate, body.baseAmount, body.importVatBaseAmount, body.importVat];
-    const requestedCurrency = body.currency === undefined ? String(existing.currency ?? "").trim().toUpperCase() : String(body.currency ?? "").trim().toUpperCase();
-    const currencyChanged = body.currency !== undefined && requestedCurrency !== String(existing.currency ?? "").trim().toUpperCase();
+    const existingCurrency = String(existing.currency ?? "").trim().toUpperCase();
+    const requestedCurrency = body.currency === undefined ? existingCurrency : String(body.currency ?? "").trim().toUpperCase();
+    const currencyChanged = body.currency !== undefined && requestedCurrency !== existingCurrency;
+    const existingImportCurrency = existingCurrency === "USD" || existingCurrency === "JPY";
+    if (currencyChanged && existingImportCurrency && requestedCurrency !== "USD" && requestedCurrency !== "JPY") {
+      return NextResponse.json({ error: "Import currency cannot change to a domestic currency while import amounts exist." }, { status: 409 });
+    }
     const importFieldProvided = currencyChanged || importFields.some((value) => value !== undefined);
     if (importFieldProvided) {
       if (existing.accountingReflect) return NextResponse.json({ error: "Accounting-reflected purchases cannot change import fields." }, { status: 409 });
