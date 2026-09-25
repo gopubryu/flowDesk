@@ -8,6 +8,35 @@ export function finiteNonNegative(value: unknown): boolean {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
+type ImportAmountInput = {
+  currency: unknown;
+  foreignAmount: unknown;
+  customsExchangeRate: unknown;
+  baseAmount: unknown;
+  importVatBaseAmount: unknown;
+  importVat: unknown;
+};
+
+function decimalParts(value: unknown) {
+  const text = typeof value === "number" && Number.isFinite(value) ? String(value) : typeof value === "string" ? value.trim() : "";
+  const match = /^(?:0|[1-9]\d*)(?:\.(\d+))?$/.exec(text);
+  return match ? { text, scale: match[1]?.length ?? 0 } : null;
+}
+
+export function validateImportAmounts(input: ImportAmountInput): string | null {
+  const currency = String(input.currency ?? "").trim().toUpperCase();
+  if (currency !== "USD" && currency !== "JPY") return "Currency must be USD or JPY.";
+  const foreign = decimalParts(input.foreignAmount);
+  if (!foreign || foreign.scale > (currency === "JPY" ? 0 : 2) || Number(foreign.text) < 0) return `foreignAmount must be a non-negative ${currency} amount with valid precision.`;
+  const rate = decimalParts(input.customsExchangeRate);
+  if (!rate || Number(rate.text) <= 0 || rate.scale > 4) return "customsExchangeRate must be greater than zero with at most 4 decimal places.";
+  for (const [name, value] of [["baseAmount", input.baseAmount], ["importVatBaseAmount", input.importVatBaseAmount], ["importVat", input.importVat]] as const) {
+    const amount = decimalParts(value);
+    if (!amount || amount.scale > 0 || Number(amount.text) < 0) return `${name} must be a non-negative integer amount.`;
+  }
+  return null;
+}
+
 export function aggregateQtyByItem<T extends { itemCode: string; qty: number }>(lines: T[]) {
   const quantities = new Map<string, number>();
   for (const line of lines) quantities.set(line.itemCode, (quantities.get(line.itemCode) ?? 0) + line.qty);

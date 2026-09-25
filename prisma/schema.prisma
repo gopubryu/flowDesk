@@ -325,6 +325,12 @@ model Purchase {
   warehouseCode     String?
   warehouseName     String?
   currency          String?
+  foreignAmount     Decimal?       @db.Decimal(18,2)
+  customsDate       DateTime?      @db.Date
+  customsExchangeRate Decimal?     @db.Decimal(12,4)
+  baseAmount        Decimal?       @db.Decimal(18,0)
+  importVatBaseAmount Decimal?     @db.Decimal(18,0)
+  importVat         Decimal?       @db.Decimal(18,0)
   project           String?
   status            PurchaseStatus @default(unconfirmed)
   /// 미입고 / 부분입고 / 입고완료 — 입고전표 저장 시 갱신

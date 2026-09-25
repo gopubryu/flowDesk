@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { adjustmentDelta, aggregateQtyByItem, canDeletePurchase, canTransitionPurchase, canTransitionPurchaseRequest, groupRelatedLines, validDateOnly, validateLinkedQuantities, validatePurchaseInput } from "./erp-rules";
+import { adjustmentDelta, aggregateQtyByItem, canDeletePurchase, canTransitionPurchase, canTransitionPurchaseRequest, groupRelatedLines, validDateOnly, validateImportAmounts, validateLinkedQuantities, validatePurchaseInput } from "./erp-rules";
 
 test("adjustment uses server balance and treats book quantity as OCC only", () => {
   assert.deepEqual(adjustmentDelta(10, 7, 10), { delta: -3 });
@@ -22,6 +22,14 @@ test("purchase validation rejects missing vendor, invalid items, quantities, and
   assert.ok(validatePurchaseInput("", [line]));
   assert.ok(validatePurchaseInput("Vendor", [{ ...line, qty: 0 }]));
   assert.ok(validatePurchaseInput("Vendor", [{ ...line, total: Number.NaN }]));
+});
+
+test("import amounts enforce currency, precision, positive rate and non-negative won values", () => {
+  assert.equal(validateImportAmounts({ currency: "JPY", foreignAmount: "100", customsExchangeRate: "9.1234", baseAmount: "912", importVatBaseAmount: "1000", importVat: "100" }), null);
+  assert.match(validateImportAmounts({ currency: "JPY", foreignAmount: "100.01", customsExchangeRate: "9.1234", baseAmount: "9", importVatBaseAmount: "10", importVat: "1" }) ?? "", /JPY/);
+  assert.match(validateImportAmounts({ currency: "USD", foreignAmount: "1.234", customsExchangeRate: "1300", baseAmount: "1300", importVatBaseAmount: "1300", importVat: "130" }) ?? "", /foreignAmount/);
+  assert.match(validateImportAmounts({ currency: "USD", foreignAmount: "1", customsExchangeRate: "0", baseAmount: "0", importVatBaseAmount: "0", importVat: "0" }) ?? "", /customsExchangeRate/);
+  assert.match(validateImportAmounts({ currency: "USD", foreignAmount: "1", customsExchangeRate: "1300", baseAmount: "-1", importVatBaseAmount: "0", importVat: "0" }) ?? "", /baseAmount/);
 });
 
 test("linked quantities reject unknown items, over-quantity, and repeated processing", () => {
