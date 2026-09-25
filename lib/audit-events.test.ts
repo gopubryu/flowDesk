@@ -18,6 +18,13 @@ test("audit diff omits unchanged values and preserves changed values", () => {
   assert.deepEqual(diffAuditValues({ code: "A" }, { code: "B" }), { before: { code: "A" }, after: { code: "B" } });
 });
 
+test("audit event sanitizes context fields that may contain personal data", () => {
+  const event = createAuditEvent({ workspaceId: "w", actorUserId: "u", action: "ACCESS_DENIED", resourceType: "item", ip: "192.168.1.20", reason: "contact user@example.com at 010-1234-5678 token=secret", userAgent: "Bearer abc123 user@example.com" });
+  assert.equal(event.ip, "[REDACTED]");
+  assert.equal(event.reason, "contact [REDACTED] at [REDACTED] [REDACTED]");
+  assert.equal(event.userAgent, "[REDACTED] [REDACTED]");
+});
+
 test("audit event keeps workspace and actor context and records reason", () => {
   const event = createAuditEvent({
     workspaceId: "workspace-a",
