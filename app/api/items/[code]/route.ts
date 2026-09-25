@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { normalizeItem } from "@/lib/master-data";
-import { createAuditEvent } from "@/lib/audit-events";
-import { recordAuditEvent } from "@/lib/audit-log";
 import { assertMasterCanDelete, assertMasterCanRename, getMasterReferences } from "@/lib/master-data-references";
 import { apiError, publicRow } from "@/lib/master-data-server";
 import {
@@ -62,14 +60,11 @@ export async function PUT(req: Request, ctx: Ctx) {
     if (data.code !== oldCode) {
       const references = await getMasterReferences("item", workspaceId, oldCode);
       if (references.length) {
-        const reason = `거래 이력이 있어 코드를 변경할 수 없습니다. ${references.map(({ label, count }) => `${label} ${count}건`).join(", ")}`;
-        await recordAuditEvent(createAuditEvent({ workspaceId, actorUserId: workspace.user.id, action: "ACCESS_DENIED", resourceType: "item", resourceId: existing.id, resourceCode: oldCode, reason, requestId: req.headers.get("x-request-id") ?? undefined }, { code: oldCode }, { code: data.code }));
-        return NextResponse.json({ error: reason }, { status: 409 });
+        return NextResponse.json({ error: `거래 이력이 있어 코드를 변경할 수 없습니다. ${references.map(({ label, count }) => `${label} ${count}건`).join(", ")}` }, { status: 409 });
       }
     }
     await assertMasterCanRename("item", workspaceId, oldCode, data.code);
     const row = await prisma.item.update({ where: { id: existing.id }, data });
-    await recordAuditEvent(createAuditEvent({ workspaceId, actorUserId: workspace.user.id, action: data.code !== oldCode ? "RENAME" : "UPDATE", resourceType: "item", resourceId: existing.id, resourceCode: row.code, requestId: req.headers.get("x-request-id") ?? undefined }, { code: oldCode, name: existing.name }, { code: row.code, name: row.name }));
     return NextResponse.json(publicRow(row));
   } catch (error) {
     return authError(error) ?? apiError(error, "Failed to update item");

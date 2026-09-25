@@ -86,29 +86,6 @@ model Workspace {
   quotations       Quotation[]
   members          WorkspaceMember[]
   invitations      Invitation[]
-  auditLogs        AuditLog[]
-}
-
-model AuditLog {
-  id            String   @id @default(cuid())
-  workspaceId   String
-  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  actorUserId   String?
-  action        String
-  resourceType  String
-  resourceId    String?
-  resourceCode  String?
-  before        Json?
-  after         Json?
-  reason        String?
-  requestId     String?
-  ip            String?
-  userAgent     String?
-  createdAt     DateTime @default(now())
-
-  @@index([workspaceId, createdAt])
-  @@index([workspaceId, resourceType, resourceId])
-  @@index([workspaceId, action, createdAt])
 }
 
 model Employee {
