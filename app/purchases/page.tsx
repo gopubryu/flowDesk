@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { PurchaseForm } from "@/components/purchases/purchase-form";
+import { ImportCustomsDialog } from "@/components/purchases/import-customs-dialog";
 import { useWorkspaceRole } from "@/lib/use-workspace-role";
 
 type TabKey = "all" | PurchaseStatus;
@@ -98,6 +99,7 @@ export default function PurchasesPage() {
   });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [newOpen, setNewOpen] = useState(false);
+  const [customsPurchase, setCustomsPurchase] = useState<Purchase | null>(null);
 
   async function refreshFromApi() {
     const loaded = await fetchPurchases();
@@ -504,6 +506,7 @@ export default function PurchasesPage() {
                   <th className="px-3 py-2.5">입고상태</th>
                   <th className="px-3 py-2.5">창고명</th>
                   <th className="px-3 py-2.5">입고</th>
+                  <th className="px-3 py-2.5">통관</th>
                   <th className="px-3 py-2.5">회계반영여부</th>
                   <th className="px-3 py-2.5">인쇄</th>
                   <th className="px-3 py-2.5">불러온전표</th>
@@ -512,13 +515,13 @@ export default function PurchasesPage() {
               <tbody>
                 {!hydrated ? (
                   <tr>
-                    <td colSpan={14} className="px-3 py-10 text-center text-muted-foreground">
+                    <td colSpan={15} className="px-3 py-10 text-center text-muted-foreground">
                       불러오는 중…
                     </td>
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={14} className="px-3 py-10 text-center text-muted-foreground">
+                    <td colSpan={15} className="px-3 py-10 text-center text-muted-foreground">
                       조회된 구매가 없습니다.
                     </td>
                   </tr>
@@ -575,6 +578,13 @@ export default function PurchasesPage() {
                       <td className="px-3 py-2">
                         {r.status === "confirmed" ? ((r.inboundStatus || "none") !== "complete" ? (<Link href={`/inventory/receipts/new?purchaseId=${r.id}`} className="text-[11px] font-medium text-indigo-600 hover:underline" onClick={(e) => e.stopPropagation()}>입고하기</Link>) : (<span className="text-[11px] text-slate-400" title="이미 입고가 완료된 구매입니다.">입고 완료</span>)) : (<span className="text-[11px] text-slate-400" title="구매 확정 후 입고할 수 있습니다.">입고 대기 · 구매 확정 필요</span>)}
                       </td>
+                      <td className="px-3 py-2">
+                        {r.currency === "USD" || r.currency === "JPY" ? (
+                          <button type="button" className="text-[11px] font-medium text-indigo-600 hover:underline disabled:text-slate-400" disabled={r.status !== "confirmed"} onClick={() => setCustomsPurchase(r)}>
+                            {r.accountingReflect ? "통관 잠금" : r.customsDate ? "통관 수정" : "통관 입력"}
+                          </button>
+                        ) : "—"}
+                      </td>
                       <td className="px-3 py-2 text-slate-700">
                         {r.accountingReflect ? "반영" : "미반영"}
                       </td>
@@ -628,6 +638,8 @@ export default function PurchasesPage() {
           </div>
         </CardContent>
       </Card>
+
+      <ImportCustomsDialog purchase={customsPurchase} open={Boolean(customsPurchase)} onOpenChange={(open) => { if (!open) setCustomsPurchase(null); }} onSaved={() => { setCustomsPurchase(null); void refreshFromApi(); }} />
 
       <Dialog open={newOpen} onOpenChange={(open) => (open ? setNewOpen(true) : closeNewModal())}>
         <DialogContent className="pointer-events-auto flex h-[min(92vh,920px)] w-[min(96vw,1280px)] max-w-none flex-col overflow-hidden p-3 sm:p-4">
