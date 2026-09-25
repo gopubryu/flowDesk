@@ -7,6 +7,23 @@ import { Input } from "@/components/ui/input";
 import { useAppDialog } from "@/components/ui/app-alert-dialog";
 import { savePurchaseApi, type Purchase } from "@/lib/purchases";
 
+function toScaled(value: string, scale: number): bigint | null {
+  const match = value.trim().match(/^\d+(?:\.\d+)?$/);
+  if (!match) return null;
+  const [whole, fraction = ""] = value.trim().split(".");
+  if (fraction.length > scale) return null;
+  return BigInt(whole + fraction.padEnd(scale, "0"));
+}
+
+function calculateWon(currency: string | undefined, foreignAmount?: string, rate?: string): string {
+  const foreign = toScaled(foreignAmount ?? "", 2);
+  const exchange = toScaled(rate ?? "", 4);
+  if (foreign === null || exchange === null || exchange <= BigInt("0")) return "";
+  const denominator = currency === "JPY" ? BigInt("100000000") : BigInt("1000000");
+  const rounded = (foreign * exchange + denominator / BigInt("2")) / denominator;
+  return rounded.toString();
+}
+
 export function ImportCustomsDialog({
   purchase,
   open,
@@ -35,6 +52,10 @@ export function ImportCustomsDialog({
     setImportVatBaseAmount(purchase.importVatBaseAmount ?? "");
     setImportVat(purchase.importVat ?? "");
   }, [purchase]);
+
+  useEffect(() => {
+    if (!locked) setBaseAmount(calculateWon(purchase?.currency, purchase?.foreignAmount, customsExchangeRate));
+  }, [customsExchangeRate, locked, purchase?.currency, purchase?.foreignAmount]);
 
   async function save() {
     if (!purchase || locked || saving) return;
@@ -75,7 +96,7 @@ export function ImportCustomsDialog({
         <div className="grid grid-cols-2 gap-2">
           <label className="text-xs font-medium text-slate-600">통관일<input type="date" required disabled={locked} value={customsDate} onChange={(e) => setCustomsDate(e.target.value)} className="mt-1 h-8 w-full rounded border px-2 text-xs" /></label>
           <label className="text-xs font-medium text-slate-600">과세환율 ({purchase?.currency === "JPY" ? "원/100엔" : "원/달러"})<Input required disabled={locked} value={customsExchangeRate} onChange={(e) => setCustomsExchangeRate(e.target.value)} className="mt-1 h-8" /></label>
-          <label className="text-xs font-medium text-slate-600">원화 환산액 (원)<Input required disabled={locked} value={baseAmount} onChange={(e) => setBaseAmount(e.target.value)} className="mt-1 h-8" /></label>
+          <label className="text-xs font-medium text-slate-600">원화 환산액 (원)<Input required readOnly disabled={locked} value={baseAmount} className="mt-1 h-8 bg-slate-50" /></label>
           <label className="text-xs font-medium text-slate-600">수입 VAT 과세표준 (원)<Input required disabled={locked} value={importVatBaseAmount} onChange={(e) => setImportVatBaseAmount(e.target.value)} className="mt-1 h-8" /></label>
           <label className="col-span-2 text-xs font-medium text-slate-600">수입 VAT (원)<Input required disabled={locked} value={importVat} onChange={(e) => setImportVat(e.target.value)} className="mt-1 h-8" /></label>
         </div>
