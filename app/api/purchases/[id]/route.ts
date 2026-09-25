@@ -109,10 +109,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
     const importFieldProvided = currencyChanged || importFields.some((value) => value !== undefined);
     if (importFieldProvided) {
       if (existing.accountingReflect) return NextResponse.json({ error: "Accounting-reflected purchases cannot change import fields." }, { status: 409 });
-      const importValidation = validateImportAmounts({ currency: body.currency ?? existing.currency, foreignAmount: body.foreignAmount ?? existing.foreignAmount?.toString(), customsExchangeRate: body.customsExchangeRate ?? existing.customsExchangeRate?.toString(), baseAmount: body.baseAmount ?? existing.baseAmount?.toString(), importVatBaseAmount: body.importVatBaseAmount ?? existing.importVatBaseAmount?.toString(), importVat: body.importVat ?? existing.importVat?.toString() });
+      const importValidation = validateImportAmounts({ currency: body.currency !== undefined ? body.currency : existing.currency, foreignAmount: body.foreignAmount !== undefined ? body.foreignAmount : existing.foreignAmount?.toString(), customsExchangeRate: body.customsExchangeRate !== undefined ? body.customsExchangeRate : existing.customsExchangeRate?.toString(), baseAmount: body.baseAmount !== undefined ? body.baseAmount : existing.baseAmount?.toString(), importVatBaseAmount: body.importVatBaseAmount !== undefined ? body.importVatBaseAmount : existing.importVatBaseAmount?.toString(), importVat: body.importVat !== undefined ? body.importVat : existing.importVat?.toString() });
       if (requestedCurrency === "USD" || requestedCurrency === "JPY" || importFields.some((value) => value !== undefined && value !== null && value !== "")) {
         if (importValidation) return NextResponse.json({ error: importValidation }, { status: 400 });
-        if ((body.customsDate ?? existing.customsDate) === null || (body.customsDate ?? existing.customsDate) === undefined) return NextResponse.json({ error: "customsDate is required with import amounts." }, { status: 400 });
+        const requestedCustomsDate = body.customsDate !== undefined ? body.customsDate : existing.customsDate;
+        if (requestedCustomsDate === null || requestedCustomsDate === undefined || requestedCustomsDate === "") return NextResponse.json({ error: "customsDate is required with import amounts." }, { status: 400 });
       }
     }
 
