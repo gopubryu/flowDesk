@@ -199,10 +199,6 @@ export function QuotationForm({ id }: Props) {
               <span className={labelCls}>유효기간</span>
               <Input type="date" className={cn(fieldCls, "rounded-none border-0")} value={header.validUntil} disabled={readOnly} onChange={(e) => setHeader({ ...header, validUntil: e.target.value })} />
             </div>
-            <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
-              <span className={labelCls}>프로젝트</span>
-              <Input className={cn(fieldCls, "rounded-none border-0")} value={header.project} disabled={readOnly} onChange={(e) => setHeader({ ...header, project: e.target.value })} />
-            </div>
 
             <div className="flex items-stretch overflow-hidden rounded border border-slate-200 md:col-span-2" title={STATUS_DESCRIPTION[header.status]}>
               <span className={labelCls}>상태</span>

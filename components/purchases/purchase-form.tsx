@@ -523,15 +523,6 @@ export function PurchaseForm({
         {/* Master header — Ecount 구매입력 */}
         <div className="shrink-0 border-b border-slate-200 bg-slate-50/80 px-3 py-2.5">
           <div className="grid grid-cols-1 gap-x-6 gap-y-1.5 md:grid-cols-2">
-            <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
-              <span className={labelCls}>오더관리번호</span>
-              <Input
-                className={cn(fieldCls, "rounded-none border-0")}
-                value={master.orderNo}
-                onChange={(e) => setMasterField("orderNo", e.target.value)}
-                placeholder="오더관리번호"
-              />
-            </div>
 
             <div className="flex items-stretch overflow-hidden rounded border border-slate-200">
               <span className={labelCls}>일자-No.</span>
@@ -614,15 +605,6 @@ export function PurchaseForm({
               </select>
             </div>
 
-            <CodeNameField
-              label="프로젝트"
-              code={master.projectCode}
-              name={master.projectName}
-              onCodeChange={(v) => setMasterField("projectCode", v)}
-              onNameChange={(v) => setMasterField("projectName", v)}
-              onSearch={undefined}
-              namePlaceholder="프로젝트명"
-            />
 
             <div className="flex items-stretch overflow-hidden rounded border border-slate-200 md:col-span-2">
               <span className={labelCls}>비고</span>
