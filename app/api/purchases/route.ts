@@ -92,8 +92,9 @@ export async function POST(req: Request) {
     const validation = validatePurchaseInput(String(body.vendorName ?? body.vendor ?? "").trim(), lineRows);
     if (validation) return NextResponse.json({ error: validation }, { status: 400 });
 
-    const importFields = [body.foreignAmount, body.customsDate, body.customsExchangeRate, body.baseAmount, body.importVatBaseAmount, body.importVat];
-    if (importFields.some((value) => value !== undefined && value !== null && value !== "")) {
+    const importFields = [body.currency, body.foreignAmount, body.customsDate, body.customsExchangeRate, body.baseAmount, body.importVatBaseAmount, body.importVat];
+    const importCurrency = String(body.currency ?? "").trim().toUpperCase();
+    if (importCurrency === "USD" || importCurrency === "JPY" || importFields.slice(1).some((value) => value !== undefined && value !== null && value !== "")) {
       const importValidation = validateImportAmounts({ currency: body.currency, foreignAmount: body.foreignAmount, customsExchangeRate: body.customsExchangeRate, baseAmount: body.baseAmount, importVatBaseAmount: body.importVatBaseAmount, importVat: body.importVat });
       if (importValidation) return NextResponse.json({ error: importValidation }, { status: 400 });
       if (!body.customsDate) return NextResponse.json({ error: "customsDate is required with import amounts." }, { status: 400 });
