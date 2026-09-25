@@ -526,6 +526,44 @@ test("purchase orders runtime authorization isolates workspaces and roles", { sk
   });
 });
 
+test("purchase import base amount runtime guards reject spoofed values", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const listRoute = await import("../app/api/purchases/route");
+  const detailRoute = await import("../app/api/purchases/[id]/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ workspaceA, operator }) => {
+    const basePayload = { workspaceId: workspaceA.id, vendorName: "Runtime import guard", purchaseDate: "2026-01-02", item: "Import item", quantity: 1, amount: 1 };
+    try {
+      setIntegrationTestSession(integrationSession(operator));
+
+      const postOnlyBase = await listRoute.POST(integrationRequest("/api/purchases", { method: "POST", body: JSON.stringify({ ...basePayload, baseAmount: "999999" }) }));
+      assert.equal(postOnlyBase.status, 400, "POST baseAmount-only must be rejected");
+
+      const imported = await listRoute.POST(integrationRequest("/api/purchases", { method: "POST", body: JSON.stringify({ ...basePayload, currency: "USD", foreignAmount: "1", customsDate: "2026-01-02", customsExchangeRate: "1300", baseAmount: "1300" }) }));
+      assert.equal(imported.status, 201, await imported.clone().text());
+      const importedId = ((await imported.json()) as { id: string }).id;
+
+      const patchOnlyBase = await detailRoute.PATCH(integrationRequest(`/api/purchases/${importedId}`, { method: "PATCH", body: JSON.stringify({ workspaceId: workspaceA.id, baseAmount: "999999" }) }), { params: Promise.resolve({ id: importedId }) });
+      assert.equal(patchOnlyBase.status, 200, await patchOnlyBase.clone().text());
+      assert.equal((await prisma.purchase.findUniqueOrThrow({ where: { id: importedId } })).baseAmount?.toString(), "1300", "stored foreign/rate must override spoofed baseAmount");
+
+      const patchMismatch = await detailRoute.PATCH(integrationRequest(`/api/purchases/${importedId}`, { method: "PATCH", body: JSON.stringify({ workspaceId: workspaceA.id, foreignAmount: "2", customsExchangeRate: "1300", baseAmount: "1" }) }), { params: Promise.resolve({ id: importedId }) });
+      assert.equal(patchMismatch.status, 200, await patchMismatch.clone().text());
+      assert.equal((await prisma.purchase.findUniqueOrThrow({ where: { id: importedId } })).baseAmount?.toString(), "2600", "calculated baseAmount must win over client value");
+
+      const domestic = await listRoute.POST(integrationRequest("/api/purchases", { method: "POST", body: JSON.stringify(basePayload) }));
+      assert.equal(domestic.status, 201, await domestic.clone().text());
+      const domesticId = ((await domestic.json()) as { id: string }).id;
+      const domesticOnlyBase = await detailRoute.PATCH(integrationRequest(`/api/purchases/${domesticId}`, { method: "PATCH", body: JSON.stringify({ workspaceId: workspaceA.id, baseAmount: "999999" }) }), { params: Promise.resolve({ id: domesticId }) });
+      assert.equal(domesticOnlyBase.status, 400, "domestic baseAmount-only must be rejected");
+    } finally {
+      setIntegrationTestSession(null);
+    }
+  });
+});
+
 test("purchase bulk runtime authorization isolates workspaces and roles", { skip: !enabled }, async () => {
   const { prisma } = await import("./prisma");
   const { setIntegrationTestSession } = await import("./auth-guards");
