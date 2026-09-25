@@ -548,7 +548,7 @@ test("purchase import base amount runtime guards reject spoofed values", { skip:
       assert.equal(calculateImportBaseAmount("JPY", "1000", "950"), "9500");
       assert.equal(calculateImportBaseAmount("JPY", "1", "950"), "10", "half-up 9.5 must round to 10");
 
-      const imported = await listRoute.POST(integrationRequest("/api/purchases", { method: "POST", body: JSON.stringify({ ...basePayload, currency: "USD", foreignAmount: "1", customsDate: "2026-01-02", customsExchangeRate: "1300", baseAmount: "1300" }) }));
+      const imported = await listRoute.POST(integrationRequest("/api/purchases", { method: "POST", body: JSON.stringify({ ...basePayload, currency: "USD", foreignAmount: "1", customsDate: "2026-01-02", customsExchangeRate: "1300", baseAmount: "1300", importVatBaseAmount: "1300", importVat: "130" }) }));
       assert.equal(imported.status, 201, await imported.clone().text());
       const importedId = ((await imported.json()) as { id: string }).id;
 
