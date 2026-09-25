@@ -30,6 +30,9 @@ test("import amounts enforce currency, precision, positive rate and non-negative
   assert.match(validateImportAmounts({ currency: "USD", foreignAmount: "1.234", customsExchangeRate: "1300", baseAmount: "1300", importVatBaseAmount: "1300", importVat: "130" }) ?? "", /foreignAmount/);
   assert.match(validateImportAmounts({ currency: "USD", foreignAmount: "1", customsExchangeRate: "0", baseAmount: "0", importVatBaseAmount: "0", importVat: "0" }) ?? "", /customsExchangeRate/);
   assert.match(validateImportAmounts({ currency: "USD", foreignAmount: "1", customsExchangeRate: "1300", baseAmount: "-1", importVatBaseAmount: "0", importVat: "0" }) ?? "", /baseAmount/);
+  assert.match(validateImportAmounts({ currency: "USD", foreignAmount: "12345678901234567", customsExchangeRate: "1300", baseAmount: "1300", importVatBaseAmount: "1300", importVat: "130" }) ?? "", /Decimal/);
+  assert.match(validateImportAmounts({ currency: "USD", foreignAmount: "1", customsExchangeRate: "123456789", baseAmount: "1300", importVatBaseAmount: "1300", importVat: "130" }) ?? "", /Decimal/);
+  assert.match(validateImportAmounts({ currency: "USD", foreignAmount: "1", customsExchangeRate: "1300", baseAmount: "1234567890123456789", importVatBaseAmount: "1300", importVat: "130" }) ?? "", /Decimal/);
 });
 
 test("linked quantities reject unknown items, over-quantity, and repeated processing", () => {

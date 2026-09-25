@@ -20,19 +20,19 @@ type ImportAmountInput = {
 function decimalParts(value: unknown) {
   const text = typeof value === "number" && Number.isFinite(value) ? String(value) : typeof value === "string" ? value.trim() : "";
   const match = /^(?:0|[1-9]\d*)(?:\.(\d+))?$/.exec(text);
-  return match ? { text, scale: match[1]?.length ?? 0 } : null;
+  return match ? { text, scale: match[1]?.length ?? 0, integerDigits: (match[0].split(".")[0] ?? "0").length } : null;
 }
 
 export function validateImportAmounts(input: ImportAmountInput): string | null {
   const currency = String(input.currency ?? "").trim().toUpperCase();
   if (currency !== "USD" && currency !== "JPY") return "Currency must be USD or JPY.";
   const foreign = decimalParts(input.foreignAmount);
-  if (!foreign || foreign.scale > (currency === "JPY" ? 0 : 2) || Number(foreign.text) < 0) return `foreignAmount must be a non-negative ${currency} amount with valid precision.`;
+  if (!foreign || foreign.scale > (currency === "JPY" ? 0 : 2) || foreign.integerDigits > 16 || Number(foreign.text) < 0) return `foreignAmount must fit Decimal(18,2) with valid ${currency} precision.`;
   const rate = decimalParts(input.customsExchangeRate);
-  if (!rate || Number(rate.text) <= 0 || rate.scale > 4) return "customsExchangeRate must be greater than zero with at most 4 decimal places.";
+  if (!rate || Number(rate.text) <= 0 || rate.scale > 4 || rate.integerDigits > 8) return "customsExchangeRate must fit Decimal(12,4) and be greater than zero.";
   for (const [name, value] of [["baseAmount", input.baseAmount], ["importVatBaseAmount", input.importVatBaseAmount], ["importVat", input.importVat]] as const) {
     const amount = decimalParts(value);
-    if (!amount || amount.scale > 0 || Number(amount.text) < 0) return `${name} must be a non-negative integer amount.`;
+    if (!amount || amount.scale > 0 || amount.integerDigits > 18 || Number(amount.text) < 0) return `${name} must fit Decimal(18,0) and be non-negative.`;
   }
   return null;
 }
