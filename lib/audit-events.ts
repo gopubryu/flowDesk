@@ -34,12 +34,19 @@ const PII_KEYS = /email|phone|mobile|address|ip/i;
 const MAX_STRING_LENGTH = 1000;
 const MAX_ARRAY_LENGTH = 50;
 const REDACTED = "[REDACTED]";
+const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+const PHONE_PATTERN = /(?:\+?\d[\d .()-]{7,}\d)/g;
+const TOKEN_PATTERN = /(?:bearer\s+|token\s*[=:]\s*)[^\s,;]+/gi;
+
+function sanitizeText(value: string): string {
+  return value.replace(EMAIL_PATTERN, REDACTED).replace(PHONE_PATTERN, REDACTED).replace(TOKEN_PATTERN, REDACTED);
+}
 
 function sanitize(value: unknown, key?: string, depth = 0): AuditValue {
   if (depth > 8) return REDACTED;
   if (key && SENSITIVE_KEYS.test(key)) return REDACTED;
   if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    if (typeof value === "string") return value.length > MAX_STRING_LENGTH ? `${value.slice(0, MAX_STRING_LENGTH)}…` : value;
+    if (typeof value === "string") return sanitizeText(value.length > MAX_STRING_LENGTH ? `${value.slice(0, MAX_STRING_LENGTH)}…` : value);
     return value;
   }
   if (Array.isArray(value)) return value.slice(0, MAX_ARRAY_LENGTH).map((entry) => sanitize(entry, undefined, depth + 1));
@@ -65,10 +72,13 @@ export function diffAuditValues(before: unknown, after: unknown): { before: Audi
 
 export function createAuditEvent(context: AuditContext, before?: unknown, after?: unknown): AuditEvent {
   const diff = diffAuditValues(before, after);
+  const safeReason = context.reason ? sanitizeText(context.reason).slice(0, MAX_STRING_LENGTH) : undefined;
+  const safeUserAgent = context.userAgent ? sanitizeText(context.userAgent).slice(0, MAX_STRING_LENGTH) : undefined;
   return {
     ...context,
+    ...(context.ip ? { ip: REDACTED } : {}),
     ...(diff ? { before: diff.before, after: diff.after } : {}),
-    ...(context.reason ? { reason: context.reason.slice(0, MAX_STRING_LENGTH) } : {}),
-    ...(context.userAgent ? { userAgent: context.userAgent.slice(0, MAX_STRING_LENGTH) } : {}),
+    ...(safeReason ? { reason: safeReason } : {}),
+    ...(safeUserAgent ? { userAgent: safeUserAgent } : {}),
   };
 }
