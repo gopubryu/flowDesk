@@ -558,18 +558,7 @@ export default function PurchasesPage() {
                       </td>
                       <td className="px-3 py-2 text-slate-700">{r.warehouse || "—"}</td>
                       <td className="px-3 py-2">
-                        {r.status === "confirmed" &&
-                        (r.inboundStatus || "none") !== "complete" ? (
-                          <Link
-                            href={`/inventory/receipts/new?purchaseId=${r.id}`}
-                            className="text-[11px] font-medium text-indigo-600 hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            입고하기
-                          </Link>
-                        ) : (
-                          <span className="text-slate-300">—</span>
-                        )}
+                        {r.status === "confirmed" ? ((r.inboundStatus || "none") !== "complete" ? (<Link href={`/inventory/receipts/new?purchaseId=${r.id}`} className="text-[11px] font-medium text-indigo-600 hover:underline" onClick={(e) => e.stopPropagation()}>입고하기</Link>) : (<span className="text-[11px] text-slate-400" title="이미 입고가 완료된 구매입니다.">입고 완료</span>)) : (<span className="text-[11px] text-slate-400" title="구매 확정 후 입고할 수 있습니다.">입고 대기 · 구매 확정 필요</span>)}
                       </td>
                       <td className="px-3 py-2 text-slate-700">
                         {r.accountingReflect ? "반영" : "미반영"}
