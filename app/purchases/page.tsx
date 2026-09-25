@@ -58,6 +58,13 @@ const fieldCls =
 const labelCls =
   "flex h-7 min-w-[88px] shrink-0 items-center bg-slate-100 px-2 text-[11px] font-medium text-slate-600";
 
+function formatWonString(value?: string): string {
+  if (value === undefined || value === null || value === "") return "—";
+  const [integer, fraction] = String(value).split(".");
+  const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `₩${grouped}${fraction ? `.${fraction}` : ""}`;
+}
+
 export default function PurchasesPage() {
   const { alert: appAlert, confirm: appConfirm, dialog: appDialog } = useAppDialog();
   const { canWrite: allowWrite, canDelete: allowDelete } = useWorkspaceRole();
@@ -540,10 +547,10 @@ export default function PurchasesPage() {
                         {formatKRW(r.amount)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-700">
-                        {r.foreignAmount ? `${r.foreignAmount} ${r.currency === "JPY" ? "엔" : r.currency === "USD" ? "USD" : ""}` : "—"}
+                        {r.foreignAmount !== undefined && r.foreignAmount !== null && r.foreignAmount !== "" ? `${r.foreignAmount} ${r.currency === "JPY" ? "엔" : r.currency === "USD" ? "USD" : ""}` : "—"}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-700">
-                        {r.baseAmount ? `${formatKRW(Number(r.baseAmount))}` : "—"}
+                        {formatWonString(r.baseAmount) }
                       </td>
                       <td className="px-3 py-2 text-slate-700">{r.taxType || "—"}</td>
                                             <td className="px-3 py-2">

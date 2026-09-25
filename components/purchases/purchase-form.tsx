@@ -634,7 +634,7 @@ export function PurchaseForm({
 
             {(["USD", "JPY"] as string[]).includes(master.currency) && (
               <div className="rounded border border-indigo-200 bg-indigo-50/40 p-2 md:col-span-2">
-                <div className="mb-1 text-[11px] font-semibold text-indigo-800">외자 통관 정보</div>
+                <div className="mb-1 text-[11px] font-semibold text-indigo-800">외자 통관 정보 <span className="font-normal text-indigo-600">(모든 항목 필수)</span></div>
                 <div className="grid grid-cols-2 gap-1 md:grid-cols-6">
                   {([
                     ["foreignAmount", "외화 금액", master.currency === "JPY" ? "엔" : "USD"],
@@ -653,6 +653,7 @@ export function PurchaseForm({
                         value={master[key]}
                         onChange={(e) => setMasterField(key, e.target.value)}
                         placeholder={key === "customsDate" ? "YYYY-MM-DD" : "입력"}
+                        required
                         aria-label={label}
                       />
                     </label>
