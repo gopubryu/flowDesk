@@ -534,7 +534,7 @@ test("purchase import base amount runtime guards reject spoofed values", { skip:
   const detailRoute = await import("../app/api/purchases/[id]/route");
 
   await withWorkspaceFixture(prisma, WorkspaceRole, async ({ workspaceA, operator }) => {
-    const basePayload = { workspaceId: workspaceA.id, vendorName: "Runtime import guard", purchaseDate: "2026-01-02", item: "Import item", quantity: 1, amount: 1 };
+    const basePayload = { workspaceId: workspaceA.id, vendorName: "Runtime import guard", purchaseDate: "2026-01-02", item: "Import item", quantity: 1, amount: 1, lines: [{ itemName: "Import item", qty: 1, unitPrice: 1, supply: 1, vat: 0, total: 1, sortOrder: 0 }] };
     try {
       setIntegrationTestSession(integrationSession(operator));
 
