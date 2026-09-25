@@ -1233,11 +1233,14 @@ test("item code rename allows unused items and rejects referenced items with wor
       const unusedRename = await detailRoute.PUT(integrationRequest(`/api/items/${unusedCode}`, { method: "PUT", body: JSON.stringify({ workspaceId: workspaceA.id, code: renamedCode, name: "renamed", inboundPrice: 1, outboundPrice: 2, inboundVatIncluded: false, outboundVatIncluded: false }) }), ctx(unusedCode));
       assert.equal(unusedRename.status, 200, await unusedRename.clone().text());
       assert.equal((await prisma.item.findUnique({ where: { id: unused.id } }))?.code, renamedCode);
+      const renameAudit = await prisma.auditLog.findFirst({ where: { workspaceId: workspaceA.id, resourceId: unused.id, action: "RENAME" }, orderBy: { createdAt: "desc" } });
+      assert.equal(renameAudit?.resourceCode, renamedCode);
+      assert.equal(renameAudit?.actorUserId, operator.id);
 
       const usedRename = await detailRoute.PUT(integrationRequest(`/api/items/${usedCode}`, { method: "PUT", body: JSON.stringify({ workspaceId: workspaceA.id, code: `IY${suffix.slice(-8).toUpperCase()}`, name: "blocked", inboundPrice: 1, outboundPrice: 2, inboundVatIncluded: false, outboundVatIncluded: false }) }), ctx(usedCode));
       assert.equal(usedRename.status, 409, await usedRename.clone().text());
       const usedReadBack = await prisma.item.findUnique({ where: { id: used.id } });
-      assert.equal(usedReadBack?.code, usedCode);
+      assert.equal(usedReadBack?.code, usedCode); const deniedAudit = await prisma.auditLog.findFirst({ where: { workspaceId: workspaceA.id, resourceId: used.id, action: "ACCESS_DENIED" }, orderBy: { createdAt: "desc" } }); assert.equal(deniedAudit?.resourceCode, usedCode); assert.equal(deniedAudit?.actorUserId, operator.id);
 
       const crossWorkspace = await detailRoute.PUT(integrationRequest(`/api/items/${foreignCode}`, { method: "PUT", body: JSON.stringify({ workspaceId: workspaceB.id, code: `IZ${suffix.slice(-8).toUpperCase()}`, name: "tampered", inboundPrice: 1, outboundPrice: 2, inboundVatIncluded: false, outboundVatIncluded: false }) }), ctx(foreignCode));
       assert.equal(crossWorkspace.status, 403, await crossWorkspace.clone().text());
