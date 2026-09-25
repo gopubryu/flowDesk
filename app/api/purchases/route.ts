@@ -9,7 +9,7 @@ import {
   parseDateOnly,
   serializePurchase,
 } from "@/lib/demo";
-import { finiteNonNegative, validateImportAmounts, validatePurchaseInput } from "@/lib/erp-rules";
+import { calculateImportBaseAmount, finiteNonNegative, validateImportAmounts, validatePurchaseInput } from "@/lib/erp-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -93,9 +93,10 @@ export async function POST(req: Request) {
     if (validation) return NextResponse.json({ error: validation }, { status: 400 });
 
     const importFields = [body.currency, body.foreignAmount, body.customsDate, body.customsExchangeRate, body.baseAmount, body.importVatBaseAmount, body.importVat];
+    const calculatedBaseAmount = calculateImportBaseAmount(body.currency, body.foreignAmount, body.customsExchangeRate);
     const importCurrency = String(body.currency ?? "").trim().toUpperCase();
     if (importCurrency === "USD" || importCurrency === "JPY" || importFields.slice(1).some((value) => value !== undefined && value !== null && value !== "")) {
-      const importValidation = validateImportAmounts({ currency: body.currency, foreignAmount: body.foreignAmount, customsExchangeRate: body.customsExchangeRate, baseAmount: body.baseAmount, importVatBaseAmount: body.importVatBaseAmount, importVat: body.importVat });
+      const importValidation = validateImportAmounts({ currency: body.currency, foreignAmount: body.foreignAmount, customsExchangeRate: body.customsExchangeRate, baseAmount: calculatedBaseAmount ?? body.baseAmount, importVatBaseAmount: body.importVatBaseAmount, importVat: body.importVat });
       if (importValidation) return NextResponse.json({ error: importValidation }, { status: 400 });
       if (!body.customsDate) return NextResponse.json({ error: "customsDate is required with import amounts." }, { status: 400 });
     }
@@ -158,7 +159,7 @@ export async function POST(req: Request) {
         foreignAmount: body.foreignAmount ?? null,
         customsDate: parseDateOnly(body.customsDate) ?? null,
         customsExchangeRate: body.customsExchangeRate ?? null,
-        baseAmount: body.baseAmount ?? null,
+        baseAmount: calculatedBaseAmount ?? body.baseAmount ?? null,
         importVatBaseAmount: body.importVatBaseAmount ?? null,
         importVat: body.importVat ?? null,
         project: body.project ? String(body.project) : null,

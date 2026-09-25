@@ -23,6 +23,17 @@ function decimalParts(value: unknown) {
   return match ? { text, scale: match[1]?.length ?? 0, integerDigits: (match[0].split(".")[0] ?? "0").length } : null;
 }
 
+export function calculateImportBaseAmount(currency: unknown, foreignAmount: unknown, customsExchangeRate: unknown): string | null {
+  const code = String(currency ?? "").trim().toUpperCase();
+  const foreign = decimalParts(foreignAmount);
+  const rate = decimalParts(customsExchangeRate);
+  if (!foreign || !rate || (code !== "USD" && code !== "JPY")) return null;
+  const foreignRaw = BigInt(foreign.text.replace(".", "").padEnd(2 + foreign.scale, "0"));
+  const rateRaw = BigInt(rate.text.replace(".", "").padEnd(4 + rate.scale, "0"));
+  const denominator = code === "JPY" ? BigInt("100000000") : BigInt("1000000");
+  return ((foreignRaw * rateRaw + denominator / BigInt("2")) / denominator).toString();
+}
+
 export function validateImportAmounts(input: ImportAmountInput): string | null {
   const currency = String(input.currency ?? "").trim().toUpperCase();
   if (currency !== "USD" && currency !== "JPY") return "Currency must be USD or JPY.";
