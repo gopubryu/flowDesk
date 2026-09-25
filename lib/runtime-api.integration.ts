@@ -538,8 +538,15 @@ test("purchase import base amount runtime guards reject spoofed values", { skip:
     try {
       setIntegrationTestSession(integrationSession(operator));
 
+      const beforePostCount = await prisma.purchase.count({ where: { workspaceId: workspaceA.id } });
       const postOnlyBase = await listRoute.POST(integrationRequest("/api/purchases", { method: "POST", body: JSON.stringify({ ...basePayload, baseAmount: "999999" }) }));
       assert.equal(postOnlyBase.status, 400, "POST baseAmount-only must be rejected");
+      assert.equal(await prisma.purchase.count({ where: { workspaceId: workspaceA.id } }), beforePostCount, "rejected POST must not create a purchase");
+
+      const { calculateImportBaseAmount } = await import("./erp-rules");
+      assert.equal(calculateImportBaseAmount("USD", "1", "1300"), "1300");
+      assert.equal(calculateImportBaseAmount("JPY", "1000", "950"), "9500");
+      assert.equal(calculateImportBaseAmount("JPY", "1", "950"), "10", "half-up 9.5 must round to 10");
 
       const imported = await listRoute.POST(integrationRequest("/api/purchases", { method: "POST", body: JSON.stringify({ ...basePayload, currency: "USD", foreignAmount: "1", customsDate: "2026-01-02", customsExchangeRate: "1300", baseAmount: "1300" }) }));
       assert.equal(imported.status, 201, await imported.clone().text());
