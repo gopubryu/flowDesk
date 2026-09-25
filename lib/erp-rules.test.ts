@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { adjustmentDelta, aggregateQtyByItem, canDeletePurchase, canTransitionPurchase, canTransitionPurchaseRequest, groupRelatedLines, validDateOnly, validateImportAmounts, validateLinkedQuantities, validatePurchaseInput } from "./erp-rules";
+import { adjustmentDelta, aggregateQtyByItem, calculateImportBaseAmount, canDeletePurchase, canTransitionPurchase, canTransitionPurchaseRequest, groupRelatedLines, validDateOnly, validateImportAmounts, validateLinkedQuantities, validatePurchaseInput } from "./erp-rules";
 
 test("adjustment uses server balance and treats book quantity as OCC only", () => {
   assert.deepEqual(adjustmentDelta(10, 7, 10), { delta: -3 });
@@ -35,6 +35,12 @@ test("import amounts enforce currency, precision, positive rate and non-negative
   assert.match(validateImportAmounts({ currency: "USD", foreignAmount: "1", customsExchangeRate: "1300", baseAmount: "1234567890123456789", importVatBaseAmount: "1300", importVat: "130" }) ?? "", /Decimal/);
 });
 
+test("server import base amount uses fixed scales and half-up rounding", () => {
+  assert.equal(calculateImportBaseAmount("USD", "1", "1300"), "1300");
+  assert.equal(calculateImportBaseAmount("USD", "1.23", "1300.5"), "1600");
+  assert.equal(calculateImportBaseAmount("JPY", "100", "9.1234"), "9");
+  assert.equal(calculateImportBaseAmount("USD", "0.01", "50"), "1");
+});
 test("linked quantities reject unknown items, over-quantity, and repeated processing", () => {
   const planned = new Map([["A", 5], ["B", 2]]);
   assert.equal(validateLinkedQuantities(planned, new Map(), new Map([["A", 2]])), null);
