@@ -21,7 +21,7 @@ import {
   type Purchase,
   type PurchaseStatus,
 } from "@/lib/purchases";
-import { cn, formatKRW } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAppDialog } from "@/components/ui/app-alert-dialog";
 import { Card, CardContent } from "@/components/ui/card";
