@@ -79,7 +79,7 @@ function startOfWeek(d: Date) {
 function unitPriceOf(purchase: Purchase) {
   const wonAmount = wonAmountOf(purchase);
   if (!purchase.quantity || wonAmount === null) return null;
-  return wonAmount / BigInt(purchase.quantity);
+  return (wonAmount + BigInt(purchase.quantity) / BigInt(2)) / BigInt(purchase.quantity);
 }
 
 function monthKey(date: string) {
