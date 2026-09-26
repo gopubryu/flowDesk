@@ -107,6 +107,12 @@ function wonAmountOf(purchase: Purchase) {
   return BigInt(Math.round(purchase.amount));
 }
 
+function formatForeignAmount(purchase: { currency?: string; foreignAmount?: string }) {
+  if (purchase.currency !== "USD" && purchase.currency !== "JPY") return null;
+  if (purchase.foreignAmount === undefined || purchase.foreignAmount === "") return null;
+  return `${purchase.foreignAmount} ${purchase.currency}`;
+}
+
 function formatBigIntWon(value: bigint | null) {
   return value === null ? "—" : value.toLocaleString("ko-KR");
 }
@@ -123,6 +129,8 @@ type ResultRow =
       quantity: number;
       unitPrice: bigint | null;
       amount: bigint | null;
+      foreignAmount?: string;
+      currency?: string;
       importVatBaseAmount?: string;
       importVat?: string;
       status: PurchaseStatus;
@@ -403,6 +411,8 @@ export default function PurchaseStatusPage() {
         quantity: r.quantity,
         unitPrice: up,
         amount: wonAmountOf(r),
+        foreignAmount: r.foreignAmount,
+        currency: r.currency,
         importVatBaseAmount: r.importVatBaseAmount,
         importVat: r.importVat,
         status: r.status,
@@ -858,7 +868,10 @@ export default function PurchaseStatusPage() {
                           {formatBigIntWon(r.unitPrice)}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium text-slate-900">
-                          {formatBigIntWon(r.amount)}
+                          <div>{formatBigIntWon(r.amount)}</div>
+                          {formatForeignAmount(r) && (
+                            <div className="text-[11px] font-normal text-slate-500">{formatForeignAmount(r)}</div>
+                          )}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-700">
                           {formatDecimalWon(r.importVatBaseAmount)}
