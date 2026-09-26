@@ -76,9 +76,10 @@ function startOfWeek(d: Date) {
   return addDays(x, diff);
 }
 
-function unitPriceOf(r: Purchase) {
-  if (!r.quantity) return 0;
-  return Math.round(r.amount / r.quantity);
+function unitPriceOf(purchase: Purchase) {
+  const wonAmount = wonAmountOf(purchase);
+  if (!purchase.quantity || wonAmount === null) return null;
+  return wonAmount / BigInt(purchase.quantity);
 }
 
 function monthKey(date: string) {
@@ -120,7 +121,7 @@ type ResultRow =
       remarks: string;
       item: string;
       quantity: number;
-      unitPrice: number;
+      unitPrice: bigint | null;
       amount: bigint | null;
       importVatBaseAmount?: string;
       importVat?: string;
@@ -703,7 +704,7 @@ export default function PurchaseStatusPage() {
         {[
           { label: "건수", value: `${summary.count.toLocaleString("ko-KR")}건` },
           { label: "총수량", value: summary.quantitySum.toLocaleString("ko-KR") },
-          { label: "총금액", value: formatKRW(summary.amountSum) },
+          { label: "총금액(원)", value: formatBigIntWon(summary.amountSum) },
           {
             label: "확인 건수",
             value: `${summary.confirmedCount.toLocaleString("ko-KR")}건`,
@@ -717,6 +718,12 @@ export default function PurchaseStatusPage() {
           </Card>
         ))}
       </div>
+
+      {summary.excludedBaseAmountCount > 0 && (
+        <p className="text-[11px] text-amber-700">
+          외자 환산액 미입력 {summary.excludedBaseAmountCount.toLocaleString("ko-KR")}건은 총금액에서 제외했습니다.
+        </p>
+      )}
 
       {showChart && viewMode === "status" && (
         <Card className="border-slate-200 shadow-sm">
@@ -848,7 +855,7 @@ export default function PurchaseStatusPage() {
                           {r.quantity.toLocaleString("ko-KR")}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-700">
-                          {formatKRW(r.unitPrice)}
+                          {formatBigIntWon(r.unitPrice)}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium text-slate-900">
                           {formatBigIntWon(r.amount)}

@@ -544,23 +544,32 @@ export function nextPurchaseId(): string {
 export interface PurchaseStatusSummary {
   count: number;
   quantitySum: number;
-  amountSum: number;
+  amountSum: bigint;
+  excludedBaseAmountCount: number;
   confirmedCount: number;
 }
 
 export function summarizePurchases(rows: Purchase[]): PurchaseStatusSummary {
   let quantitySum = 0;
-  let amountSum = 0;
+  let amountSum = BigInt(0);
+  let excludedBaseAmountCount = 0;
   let confirmedCount = 0;
   for (const r of rows) {
     quantitySum += r.quantity;
-    amountSum += r.amount;
+    const foreign = r.currency === "USD" || r.currency === "JPY";
+    if (foreign) {
+      if (r.baseAmount && /^\d+$/.test(r.baseAmount)) amountSum += BigInt(r.baseAmount);
+      else excludedBaseAmountCount += 1;
+    } else {
+      amountSum += BigInt(Math.round(r.amount));
+    }
     if (r.status === "confirmed") confirmedCount += 1;
   }
   return {
     count: rows.length,
     quantitySum,
     amountSum,
+    excludedBaseAmountCount,
     confirmedCount,
   };
 }
