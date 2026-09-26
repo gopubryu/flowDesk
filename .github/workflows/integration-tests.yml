@@ -89,8 +89,8 @@ jobs:
             exit 1
           fi
           # 39 module scenarios + the skip guard.
-          if [ "${passed:-0}" -lt 41 ]; then
-            echo "::error::Expected at least 41 executed integration scenarios, got ${passed:-0}."
+          if [ "${passed:-0}" -lt 42 ]; then
+            echo "::error::Expected at least 42 executed integration scenarios, got ${passed:-0}."
             exit 1
           fi
       - run: npx tsc --noEmit
