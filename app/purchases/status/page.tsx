@@ -97,6 +97,19 @@ function formatDecimalWon(value?: string) {
   return fraction ? `${grouped}.${fraction}` : grouped;
 }
 
+function wonAmountOf(purchase: Purchase) {
+  const foreign = purchase.currency === "USD" || purchase.currency === "JPY";
+  if (foreign) {
+    if (!purchase.baseAmount || !/^\d+$/.test(purchase.baseAmount)) return null;
+    return BigInt(purchase.baseAmount);
+  }
+  return BigInt(Math.round(purchase.amount));
+}
+
+function formatBigIntWon(value: bigint | null) {
+  return value === null ? "—" : value.toLocaleString("ko-KR");
+}
+
 type ResultRow =
   | {
       kind: "data";
@@ -108,7 +121,7 @@ type ResultRow =
       item: string;
       quantity: number;
       unitPrice: number;
-      amount: number;
+      amount: bigint | null;
       importVatBaseAmount?: string;
       importVat?: string;
       status: PurchaseStatus;
@@ -118,14 +131,16 @@ type ResultRow =
       key: string;
       label: string;
       quantity: number;
-      amount: number;
+      amount: bigint | null;
       count: number;
+      incompleteCount: number;
     }
   | {
       kind: "total";
       quantity: number;
-      amount: number;
+      amount: bigint | null;
       count: number;
+      incompleteCount: number;
     };
 
 export default function PurchaseStatusPage() {
@@ -345,10 +360,12 @@ export default function PurchaseStatusPage() {
     const out: ResultRow[] = [];
     let curMonth = "";
     let mQty = 0;
-    let mAmt = 0;
+    let mAmt = BigInt(0);
     let mCount = 0;
+    let mIncomplete = 0;
     let tQty = 0;
-    let tAmt = 0;
+    let tAmt = BigInt(0);
+    let tIncomplete = 0;
 
     const flush = () => {
       if (!curMonth) return;
@@ -359,6 +376,7 @@ export default function PurchaseStatusPage() {
         quantity: mQty,
         amount: mAmt,
         count: mCount,
+        incompleteCount: mIncomplete,
       });
     };
 
@@ -367,8 +385,9 @@ export default function PurchaseStatusPage() {
       if (curMonth && mk !== curMonth) {
         flush();
         mQty = 0;
-        mAmt = 0;
+        mAmt = BigInt(0);
         mCount = 0;
+        mIncomplete = 0;
       }
       curMonth = mk;
       const up = unitPriceOf(r);
@@ -382,20 +401,26 @@ export default function PurchaseStatusPage() {
         item: r.item,
         quantity: r.quantity,
         unitPrice: up,
-        amount: r.amount,
+        amount: wonAmountOf(r),
         importVatBaseAmount: r.importVatBaseAmount,
         importVat: r.importVat,
         status: r.status,
       });
+      const wonAmount = wonAmountOf(r);
+      if (wonAmount === null) {
+        mIncomplete += 1;
+        tIncomplete += 1;
+      } else {
+        mAmt += wonAmount;
+        tAmt += wonAmount;
+      }
       mQty += r.quantity;
-      mAmt += r.amount;
       mCount += 1;
       tQty += r.quantity;
-      tAmt += r.amount;
     }
     flush();
     if (filtered.length > 0) {
-      out.push({ kind: "total", quantity: tQty, amount: tAmt, count: filtered.length });
+      out.push({ kind: "total", quantity: tQty, amount: tAmt, count: filtered.length, incompleteCount: tIncomplete });
     }
     return out;
   }, [filtered]);
@@ -748,7 +773,7 @@ export default function PurchaseStatusPage() {
                   <th className="px-3 py-2.5">품목명[규격]</th>
                   <th className="px-3 py-2.5 text-right">수량</th>
                   <th className="px-3 py-2.5 text-right">단가</th>
-                  <th className="px-3 py-2.5 text-right">금액</th>
+                  <th className="px-3 py-2.5 text-right">금액(원)</th>
                   <th className="px-3 py-2.5 text-right">수입 VAT 과세표준</th>
                   <th className="px-3 py-2.5 text-right">수입 VAT</th>
                 </tr>
@@ -775,14 +800,14 @@ export default function PurchaseStatusPage() {
                             colSpan={4}
                             className="px-3 py-2 text-[11px] font-semibold text-indigo-800"
                           >
-                            {r.label} ({r.count}건)
+                            {r.label} ({r.count}건{r.incompleteCount ? `, 환산액 미입력 ${r.incompleteCount}건 제외` : ""})
                           </td>
                           <td className="px-3 py-2 text-right tabular-nums font-semibold text-indigo-900">
                             {r.quantity.toLocaleString("ko-KR")}
                           </td>
                           <td className="px-3 py-2" />
                           <td className="px-3 py-2 text-right tabular-nums font-semibold text-indigo-900">
-                            {formatKRW(r.amount)}
+                            {formatBigIntWon(r.amount)}
                           </td>
                           <td className="px-3 py-2" />
                           <td className="px-3 py-2" />
@@ -793,14 +818,14 @@ export default function PurchaseStatusPage() {
                       return (
                         <tr key="total" className="border-b bg-slate-100">
                           <td colSpan={4} className="px-3 py-2.5 text-xs font-bold text-slate-900">
-                            총합계 ({r.count}건)
+                            총합계 ({r.count}건{r.incompleteCount ? `, 환산액 미입력 ${r.incompleteCount}건 제외` : ""})
                           </td>
                           <td className="px-3 py-2.5 text-right tabular-nums font-bold text-slate-900">
                             {r.quantity.toLocaleString("ko-KR")}
                           </td>
                           <td className="px-3 py-2.5" />
                           <td className="px-3 py-2.5 text-right tabular-nums font-bold text-slate-900">
-                            {formatKRW(r.amount)}
+                            {formatBigIntWon(r.amount)}
                           </td>
                           <td className="px-3 py-2.5" />
                           <td className="px-3 py-2.5" />
@@ -826,7 +851,7 @@ export default function PurchaseStatusPage() {
                           {formatKRW(r.unitPrice)}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium text-slate-900">
-                          {formatKRW(r.amount)}
+                          {formatBigIntWon(r.amount)}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-700">
                           {formatDecimalWon(r.importVatBaseAmount)}
