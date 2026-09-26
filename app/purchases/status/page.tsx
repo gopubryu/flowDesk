@@ -772,7 +772,7 @@ export default function PurchaseStatusPage() {
                       return (
                         <tr key={`sub-${r.key}`} className="border-b bg-indigo-50/50">
                           <td
-                            colSpan={6}
+                            colSpan={4}
                             className="px-3 py-2 text-[11px] font-semibold text-indigo-800"
                           >
                             {r.label} ({r.count}건)
@@ -792,7 +792,7 @@ export default function PurchaseStatusPage() {
                     if (r.kind === "total") {
                       return (
                         <tr key="total" className="border-b bg-slate-100">
-                          <td colSpan={6} className="px-3 py-2.5 text-xs font-bold text-slate-900">
+                          <td colSpan={4} className="px-3 py-2.5 text-xs font-bold text-slate-900">
                             총합계 ({r.count}건)
                           </td>
                           <td className="px-3 py-2.5 text-right tabular-nums font-bold text-slate-900">
