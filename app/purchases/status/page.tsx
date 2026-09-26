@@ -90,6 +90,13 @@ function monthLabel(ym: string) {
   return `${y}년 ${Number(m)}월 소계`;
 }
 
+function formatDecimalWon(value?: string) {
+  if (value === undefined || value === null || value === "") return "—";
+  const [integer, fraction] = value.split(".");
+  const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return fraction ? `${grouped}.${fraction}` : grouped;
+}
+
 type ResultRow =
   | {
       kind: "data";
@@ -102,6 +109,8 @@ type ResultRow =
       quantity: number;
       unitPrice: number;
       amount: number;
+      importVatBaseAmount?: string;
+      importVat?: string;
       status: PurchaseStatus;
     }
   | {
@@ -374,6 +383,8 @@ export default function PurchaseStatusPage() {
         quantity: r.quantity,
         unitPrice: up,
         amount: r.amount,
+        importVatBaseAmount: r.importVatBaseAmount,
+        importVat: r.importVat,
         status: r.status,
       });
       mQty += r.quantity;
@@ -738,18 +749,20 @@ export default function PurchaseStatusPage() {
                   <th className="px-3 py-2.5 text-right">수량</th>
                   <th className="px-3 py-2.5 text-right">단가</th>
                   <th className="px-3 py-2.5 text-right">금액</th>
+                  <th className="px-3 py-2.5 text-right">수입 VAT 과세표준</th>
+                  <th className="px-3 py-2.5 text-right">수입 VAT</th>
                 </tr>
               </thead>
               <tbody>
                 {!hydrated ? (
                   <tr>
-                    <td colSpan={7} className="px-3 py-10 text-center text-muted-foreground">
+                    <td colSpan={9} className="px-3 py-10 text-center text-muted-foreground">
                       불러오는 중…
                     </td>
                   </tr>
                 ) : resultRows.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-3 py-10 text-center text-muted-foreground">
+                    <td colSpan={9} className="px-3 py-10 text-center text-muted-foreground">
                       조회된 구매현황이 없습니다.
                     </td>
                   </tr>
@@ -759,7 +772,7 @@ export default function PurchaseStatusPage() {
                       return (
                         <tr key={`sub-${r.key}`} className="border-b bg-indigo-50/50">
                           <td
-                            colSpan={4}
+                            colSpan={6}
                             className="px-3 py-2 text-[11px] font-semibold text-indigo-800"
                           >
                             {r.label} ({r.count}건)
@@ -771,13 +784,15 @@ export default function PurchaseStatusPage() {
                           <td className="px-3 py-2 text-right tabular-nums font-semibold text-indigo-900">
                             {formatKRW(r.amount)}
                           </td>
+                          <td className="px-3 py-2" />
+                          <td className="px-3 py-2" />
                         </tr>
                       );
                     }
                     if (r.kind === "total") {
                       return (
                         <tr key="total" className="border-b bg-slate-100">
-                          <td colSpan={4} className="px-3 py-2.5 text-xs font-bold text-slate-900">
+                          <td colSpan={6} className="px-3 py-2.5 text-xs font-bold text-slate-900">
                             총합계 ({r.count}건)
                           </td>
                           <td className="px-3 py-2.5 text-right tabular-nums font-bold text-slate-900">
@@ -787,6 +802,8 @@ export default function PurchaseStatusPage() {
                           <td className="px-3 py-2.5 text-right tabular-nums font-bold text-slate-900">
                             {formatKRW(r.amount)}
                           </td>
+                          <td className="px-3 py-2.5" />
+                          <td className="px-3 py-2.5" />
                         </tr>
                       );
                     }
@@ -810,6 +827,12 @@ export default function PurchaseStatusPage() {
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium text-slate-900">
                           {formatKRW(r.amount)}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-700">
+                          {formatDecimalWon(r.importVatBaseAmount)}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium text-slate-900">
+                          {formatDecimalWon(r.importVat)}
                         </td>
                       </tr>
                     );
