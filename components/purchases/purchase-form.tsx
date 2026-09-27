@@ -337,6 +337,14 @@ export function PurchaseForm({
       if (key === "taxType") {
         setLines((rows) => rows.map((r) => recalcLine(r, String(value))));
       }
+      if (key === "currency" && !["USD", "JPY"].includes(String(value))) {
+        next.foreignAmount = "";
+        next.customsExchangeRate = "";
+        next.baseAmount = "";
+        next.customsDate = "";
+        next.importVatBaseAmount = "";
+        next.importVat = "";
+      }
       return next;
     });
   }
