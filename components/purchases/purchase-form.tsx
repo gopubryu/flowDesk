@@ -30,6 +30,7 @@ import { ItemSearchDialog } from "@/components/items/item-search-dialog";
 import { VendorSearchDialog } from "@/components/vendors/vendor-search-dialog";
 import { EmployeeSearchDialog } from "@/components/employees/employee-search-dialog";
 import { parseNonNegNumber } from "@/lib/format";
+import { calculateImportBaseAmount } from "@/lib/erp-rules";
 
 export type LineRow = {
   id: string;
@@ -276,11 +277,14 @@ export function PurchaseForm({
 
   const foreignPreview = useMemo(() => {
     if (!["USD", "JPY"].includes(master.currency)) return null;
-    const amount = Number(master.foreignAmount);
-    const rate = Number(master.customsExchangeRate);
-    if (!Number.isFinite(amount) || !Number.isFinite(rate) || amount < 0 || rate <= 0) return null;
-    const won = master.currency === "JPY" ? (amount * rate) / 100 : amount * rate;
-    return Math.round(won).toLocaleString("ko-KR");
+    const won = calculateImportBaseAmount(master.currency, master.foreignAmount, master.customsExchangeRate);
+    return won === null ? null : BigInt(won).toLocaleString("ko-KR");
+  }, [master.currency, master.foreignAmount, master.customsExchangeRate]);
+
+  useEffect(() => {
+    if (!["USD", "JPY"].includes(master.currency)) return;
+    const calculated = calculateImportBaseAmount(master.currency, master.foreignAmount, master.customsExchangeRate) ?? "";
+    setMaster((current) => current.baseAmount === calculated ? current : { ...current, baseAmount: calculated });
   }, [master.currency, master.foreignAmount, master.customsExchangeRate]);
 
   const totals = useMemo(() => {
@@ -651,7 +655,9 @@ export function PurchaseForm({
                         inputMode={key === "customsDate" ? undefined : "decimal"}
                         className={cn(fieldCls, "w-full")}
                         value={master[key]}
-                        onChange={(e) => setMasterField(key, e.target.value)}
+                        onChange={key === "baseAmount" ? undefined : (e) => setMasterField(key, e.target.value)}
+                        readOnly={key === "baseAmount"}
+                        aria-readonly={key === "baseAmount"}
                         placeholder={key === "customsDate" ? "YYYY-MM-DD" : "입력"}
                         required
                         aria-label={label}
