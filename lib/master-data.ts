@@ -1,3 +1,6 @@
+// 운영 사용 5종(EA, 장, 통, 봉, BOX) + 실무 일반 단위 보강 목록입니다.
+export const UNIT_OPTIONS = ["EA", "BOX", "SET", "장", "통", "봉", "개", "박스", "롤", "m", "kg", "g", "L", "대", "본", "팩"] as const;
+
 export const VENDOR_CODE_TYPE_OPTIONS = [
   "사업자등록번호",
   "비사업자(내국인)",
