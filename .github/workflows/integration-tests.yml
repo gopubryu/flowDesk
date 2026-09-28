@@ -14,6 +14,11 @@ on:
       - "package-lock.json"
       - ".github/workflows/integration-tests.yml"
 
+# Defense in depth: the integration workflow only needs to read repository contents.
+# Repository-level workflow execution protections should be configured separately when available.
+permissions:
+  contents: read
+
 concurrency:
   group: flowdesk-integration-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
