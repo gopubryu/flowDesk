@@ -19,6 +19,9 @@ on:
 permissions:
   contents: read
 
+# CI only restores the npm cache; it cannot publish cache entries from PR or push runs.
+cache-mode: read
+
 concurrency:
   group: flowdesk-integration-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
