@@ -57,6 +57,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Install Chromium for UI E2E
+        run: npx playwright install --with-deps chromium
       - run: npx prisma migrate deploy
       - run: npm test
       - run: npm run build
@@ -76,6 +78,8 @@ jobs:
           fi
       - name: Run auth cookie and network E2E
         run: npm run test:auth-e2e
+      - name: Run item-search browser E2E
+        run: npm run test:item-search-e2e
       - name: Stop auth E2E server
         if: always()
         run: if [ -f auth-e2e-server.pid ]; then kill "$(cat auth-e2e-server.pid)" || true; fi
