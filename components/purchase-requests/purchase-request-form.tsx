@@ -275,6 +275,12 @@ export function PurchaseRequestForm({
   const [persistedStatus, setPersistedStatus] = useState<PurchaseRequestStatus>("unconfirmed");
   const saveMenuRef = useRef<HTMLDivElement>(null);
 
+  function openItemSearch(lineId: string, readOnly = false) {
+    if (readOnly || !allowWrite) return;
+    setItemSearchLineId(lineId);
+    setItemSearchOpen(true);
+  }
+
   useEffect(() => {
     if (!inventoryVisible) return;
     const lookup = buildInventoryLookup(lines.map((line) => line.itemCode), master.warehouseCode);
@@ -915,7 +921,29 @@ export function PurchaseRequestForm({
                         : plain;
                     return (
                       <td key={key} className="px-1 py-0.5">
-                        {useComma && !readOnly ? (
+                        {key === "itemCode" ? (
+                          <div className="flex items-stretch gap-1">
+                            <Input
+                              className="h-7 min-w-0 flex-1 rounded border-slate-200 px-1.5 text-[11px] focus-visible:ring-1 focus-visible:ring-indigo-500"
+                              value={line.itemCode}
+                              placeholder="코드 입력 또는 검색"
+                              readOnly={readOnly || !allowWrite}
+                              onChange={(e) => updateLine(line.id, { itemCode: e.target.value })}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  openItemSearch(line.id, readOnly);
+                                }
+                              }}
+                              onDoubleClick={() => openItemSearch(line.id, readOnly)}
+                              title="Enter 또는 검색 버튼으로 품목 검색"
+                              aria-label="품목코드"
+                            />
+                            <button type="button" className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => openItemSearch(line.id, readOnly)} disabled={readOnly || !allowWrite} aria-label="품목 검색" title="품목 검색">
+                              <Search className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ) : useComma && !readOnly ? (
                           <CommaLineInput
                             value={plain}
                             className={cn(
@@ -939,17 +967,7 @@ export function PurchaseRequestForm({
                             onChange={(e) =>
                               updateLine(line.id, { [key]: e.target.value })
                             }
-                            onDoubleClick={() => {
-                              if (key === "itemCode") {
-                                setItemSearchLineId(line.id);
-                                setItemSearchOpen(true);
-                              }
-                            }}
-                            title={
-                              key === "itemCode"
-                                ? "더블클릭하여 품목 검색"
-                                : undefined
-                            }
+
                           />
                         )}
                       </td>

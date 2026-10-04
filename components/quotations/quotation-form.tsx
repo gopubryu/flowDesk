@@ -245,23 +245,31 @@ export function QuotationForm({ id }: Props) {
               {calculated.map((line, index) => (
                 <tr key={index} className="border-b border-slate-100 hover:bg-indigo-50/30">
                   <td className="px-1 py-0.5">
-                    <Input
-                      className="h-7 rounded border-slate-200 px-1.5 text-[11px] focus-visible:ring-1 focus-visible:ring-indigo-500"
-                      value={line.itemCode ?? ""}
-                      readOnly
-                      placeholder="코드"
-                      disabled={linesLocked}
-                      onDoubleClick={() => { if (readOnly) return; setItemSearchIndex(index); setItemSearchOpen(true); }}
-                      title="더블클릭하여 품목 검색"
-                    />
-                  </td>
-                  <td className="px-1 py-0.5">
                     <div className="flex items-stretch gap-1">
-                      <Input className="h-7 min-w-0 flex-1 rounded border-slate-200 px-1.5 text-[11px] focus-visible:ring-1 focus-visible:ring-indigo-500" value={line.itemName ?? ""} readOnly placeholder="품목명" />
-                      <button type="button" className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-slate-200 bg-white text-slate-400 hover:bg-slate-50 hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => { setItemSearchIndex(index); setItemSearchOpen(true); }} disabled={readOnly} aria-label="품목 검색">
+                      <Input
+                        className="h-7 min-w-0 flex-1 rounded border-slate-200 px-1.5 text-[11px] focus-visible:ring-1 focus-visible:ring-indigo-500"
+                        value={line.itemCode ?? ""}
+                        readOnly
+                        placeholder="코드 입력 또는 검색"
+                        disabled={linesLocked}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" && !readOnly) {
+                            event.preventDefault();
+                            setItemSearchIndex(index);
+                            setItemSearchOpen(true);
+                          }
+                        }}
+                        onDoubleClick={() => { if (readOnly) return; setItemSearchIndex(index); setItemSearchOpen(true); }}
+                        title="Enter 또는 검색 버튼으로 품목 검색"
+                        aria-label="품목코드"
+                      />
+                      <button type="button" className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => { setItemSearchIndex(index); setItemSearchOpen(true); }} disabled={readOnly || linesLocked} aria-label="품목 검색" title="품목 검색">
                         <Search className="h-3 w-3" />
                       </button>
                     </div>
+                  </td>
+                  <td className="px-1 py-0.5">
+                    <Input className="h-7 min-w-0 rounded border-slate-200 px-1.5 text-[11px] focus-visible:ring-1 focus-visible:ring-indigo-500" value={line.itemName ?? ""} readOnly placeholder="품목명" />
                   </td>
                   <td className="px-1 py-0.5"><Input className="h-7 rounded border-slate-200 px-1.5 text-[11px]" value={line.spec ?? ""} readOnly /></td>
                   <td className="px-1 py-0.5"><Input className="h-7 rounded border-slate-200 px-1.5 text-[11px]" value={line.unit ?? ""} readOnly /></td>

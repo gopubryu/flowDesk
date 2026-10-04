@@ -323,6 +323,7 @@ export function PurchaseForm({
       }
       if (e.key === "F3") {
         e.preventDefault();
+        if (!allowWrite) return;
         openItemSearch();
       }
     }
@@ -373,7 +374,8 @@ export function PurchaseForm({
     });
   }
 
-  function openItemSearch(lineId?: string) {
+  function openItemSearch(lineId?: string, readOnly = false) {
+    if (readOnly || !allowWrite) return;
     const checked = lines.find((r) => r.checked);
     const targetId = lineId || checked?.id || lines[0]?.id;
     if (!targetId) {
@@ -784,26 +786,41 @@ export function PurchaseForm({
                     const isExtra = key === "extra";
                     return (
                       <td key={key} className="px-1 py-0.5">
-                        <Input
-                          className={cn(
-                            "h-7 rounded border-slate-200 px-1.5 text-[11px] focus-visible:ring-1 focus-visible:ring-indigo-500",
-                            align === "right" && "text-right tabular-nums",
-                            readOnly && "bg-slate-50 text-slate-600",
-                            isExtra &&
-                              "border-dashed border-slate-200 bg-slate-50/50 placeholder:text-slate-300"
-                          )}
-                          value={line[key]}
-                          readOnly={readOnly}
-                          onChange={(e) => updateLine(line.id, { [key]: e.target.value })}
-                          onDoubleClick={() => {
-                            if (key === "itemCode") openItemSearch(line.id);
-                          }}
-                          title={
-                            key === "itemCode"
-                              ? "더블클릭하여 품목 검색"
-                              : undefined
-                          }
-                        />
+                        {key === "itemCode" ? (
+                          <div className="flex items-stretch gap-1">
+                            <Input
+                              className="h-7 min-w-0 flex-1 rounded border-slate-200 px-1.5 text-[11px] focus-visible:ring-1 focus-visible:ring-indigo-500"
+                              value={line.itemCode}
+                              placeholder="코드 입력 또는 검색"
+                              readOnly={readOnly || !allowWrite}
+                              onChange={(e) => updateLine(line.id, { itemCode: e.target.value })}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  openItemSearch(line.id, readOnly);
+                                }
+                              }}
+                              onDoubleClick={() => openItemSearch(line.id, readOnly)}
+                              title="Enter 또는 검색 버튼으로 품목 검색"
+                              aria-label="품목코드"
+                            />
+                            <button type="button" className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => openItemSearch(line.id, readOnly)} disabled={readOnly || !allowWrite} aria-label="품목 검색" title="품목 검색">
+                              <Search className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <Input
+                            className={cn(
+                              "h-7 rounded border-slate-200 px-1.5 text-[11px] focus-visible:ring-1 focus-visible:ring-indigo-500",
+                              align === "right" && "text-right tabular-nums",
+                              readOnly && "bg-slate-50 text-slate-600",
+                              isExtra && "border-dashed border-slate-200 bg-slate-50/50 placeholder:text-slate-300"
+                            )}
+                            value={line[key]}
+                            readOnly={readOnly}
+                            onChange={(e) => updateLine(line.id, { [key]: e.target.value })}
+                          />
+                        )}
                       </td>
                     );
                   })}
