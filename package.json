@@ -6,6 +6,7 @@
     "test": "tsx --test lib/*.test.ts",
     "test:integration": "tsx --test lib/runtime-api.integration.ts",
     "test:auth-e2e": "tsx scripts/auth-cookie-e2e.ts",
+    "test:item-search-e2e": "tsx scripts/item-search-ui-e2e.ts",
     "dev": "next dev",
     "build": "next build",
     "db:migrate:deploy": "prisma migrate deploy",
@@ -37,6 +38,7 @@
     "ws": "^8.21.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.51.1",
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
