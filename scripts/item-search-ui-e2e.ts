@@ -5,7 +5,7 @@ const base = process.env.ITEM_SEARCH_E2E_BASE_URL ?? "http://127.0.0.1:3100";
 const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const email = `item-search-e2e-${suffix}@example.test`;
 const password = "ItemSearch-E2E-Test-Password-123!";
-const itemCode = `UI-${suffix}`;
+const itemCode = `UI-${suffix}`.toUpperCase();
 const itemName = "UI 품목 검색 검증";
 let cookie = "";
 
