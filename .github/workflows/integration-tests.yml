@@ -80,6 +80,8 @@ jobs:
         run: npm run test:auth-e2e
       - name: Run item-search browser E2E
         run: npm run test:item-search-e2e
+      - name: Run expired-session browser E2E
+        run: npm run test:session-expiry-e2e
       - name: Stop auth E2E server
         if: always()
         run: if [ -f auth-e2e-server.pid ]; then kill "$(cat auth-e2e-server.pid)" || true; fi

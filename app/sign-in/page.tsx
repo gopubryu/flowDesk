@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { signIn } from "@/lib/auth-client";
+import { signInCallbackUrl } from "@/lib/sign-in-redirect";
 
 export default function SignInPage() {
   const [email, setEmail] = useState("");
@@ -14,14 +15,15 @@ export default function SignInPage() {
     event.preventDefault();
     setError("");
     setPending(true);
+    const callbackUrl = signInCallbackUrl(new URLSearchParams(window.location.search).get("next"));
     try {
-      const result = await signIn.email({ email, password, callbackURL: "/" });
+      const result = await signIn.email({ email, password, callbackURL: callbackUrl });
       if (result.error) setError(result.error.message ?? "로그인에 실패했습니다.");
       else {
         const pendingToken = window.sessionStorage.getItem("flowdesk_pending_invitation");
         window.location.assign(pendingToken
           ? `/invitations/accept?token=${encodeURIComponent(pendingToken)}`
-          : "/dashboard");
+          : callbackUrl);
       }
     } catch {
       setError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");

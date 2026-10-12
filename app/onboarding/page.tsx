@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { clientJson } from "@/lib/client-request";
 
 export default function OnboardingPage() {
   const [name, setName] = useState("");
@@ -13,16 +14,10 @@ export default function OnboardingPage() {
     setPending(true);
 
     try {
-      const response = await fetch("/api/auth/workspaces", {
+      await clientJson("/api/auth/workspaces", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
       });
-      const result = await response.json();
-      if (!response.ok) {
-        setError(result.error ?? "업무 공간을 만들 수 없습니다.");
-        return;
-      }
       window.location.assign("/");
     } catch {
       setError("업무 공간을 만들 수 없습니다.");
