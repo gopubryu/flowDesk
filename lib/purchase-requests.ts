@@ -1,4 +1,5 @@
 import { activeWorkspaceId } from "./master-data-client";
+import { clientJson } from "./client-request";
 export type PurchaseRequestStatus =
   | "approval"
   | "unconfirmed"
@@ -237,19 +238,7 @@ export const mockPurchaseRequests: PurchaseRequest[] = [
 ];
 
 async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(text || `${res.status} ${res.statusText}`);
-  }
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  return clientJson<T>(url, init);
 }
 
 /** Fetch all purchase requests from Neon/Prisma API */

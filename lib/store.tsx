@@ -19,6 +19,7 @@ import type {
 } from "./types";
 import { ME_FROM } from "./mock-data";
 import { activeWorkspaceId } from "./master-data-client";
+import { clientJson } from "./client-request";
 
 interface StoreContextValue {
   tasks: Task[];
@@ -72,19 +73,7 @@ function makeSnippet(body: string) {
 }
 
 async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(text || `${res.status} ${res.statusText}`);
-  }
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  return clientJson<T>(url, init);
 }
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {

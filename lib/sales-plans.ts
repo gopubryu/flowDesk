@@ -1,4 +1,5 @@
 import { activeWorkspaceId } from "@/lib/master-data-client";
+import { clientJson } from "@/lib/client-request";
 
 export type SalesPlanStatus =
   | "confirmed"
@@ -318,25 +319,7 @@ export const mockSalesPlans: SalesPlan[] = [
 const OLD_STORAGE_KEY = "flowdesk-purchase-plans";
 
 async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  });
-  if (!res.ok) {
-    let msg = res.statusText;
-    try {
-      const body = (await res.json()) as { error?: string };
-      if (body?.error) msg = body.error;
-    } catch {
-      /* ignore */
-    }
-    throw new Error(msg || `Request failed (${res.status})`);
-  }
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  return clientJson<T>(url, init);
 }
 
 export async function fetchSalesPlans(): Promise<SalesPlan[]> {

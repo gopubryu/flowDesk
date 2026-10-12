@@ -1,3 +1,5 @@
+import { clientJson } from "./client-request";
+
 type WorkspaceMembershipResponse = { memberships: Array<{ workspace: { id: string } }> };
 
 export async function activeWorkspaceId() {
@@ -7,8 +9,5 @@ export async function activeWorkspaceId() {
 }
 
 export async function masterDataRequest<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...init, headers: { "Content-Type": "application/json", ...init?.headers } });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : `Request failed (${response.status})`);
-  return data as T;
+  return clientJson<T>(url, init);
 }

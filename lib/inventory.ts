@@ -1,6 +1,7 @@
 /** Client types & helpers for FlowDesk 재고 v1 */
 
 import { activeWorkspaceId } from "./master-data-client";
+import { clientJson } from "./client-request";
 
 export type StockMovementType = "receipt" | "shipment" | "adjustment";
 
@@ -127,25 +128,7 @@ export function computeOutboundStatus(planQty: number, shippedQty: number): Outb
 }
 
 async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  });
-  if (!res.ok) {
-    let msg = `${res.status} ${res.statusText}`;
-    try {
-      const body = await res.json();
-      if (body?.error) msg = String(body.error);
-    } catch {
-      /* ignore */
-    }
-    throw new Error(msg);
-  }
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  return clientJson<T>(url, init);
 }
 
 export async function fetchBalances(params?: {
