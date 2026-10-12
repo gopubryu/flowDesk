@@ -4,7 +4,10 @@ import { chromium } from "@playwright/test";
 const base = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3100";
 
 async function main() {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({
+    headless: true,
+    executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE,
+  });
   try {
     const page = await browser.newPage();
     await page.goto(`${base}/dashboard`, { waitUntil: "networkidle" });
