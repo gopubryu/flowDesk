@@ -9,10 +9,25 @@ async function main() {
     executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE,
   });
   try {
-    const page = await browser.newPage();
-    await page.goto(`${base}/dashboard`, { waitUntil: "networkidle" });
-    await page.waitForURL(/\/sign-in\?reason=session-expired&next=%2Fdashboard$/, { timeout: 10_000 });
-    assert.match(page.url(), /\/sign-in\?reason=session-expired&next=%2Fdashboard$/);
+    // 1) No session cookie: the server must redirect before any protected page HTML is rendered.
+    const anonymous = await browser.newContext();
+    const anonymousPage = await anonymous.newPage();
+    const response = await anonymousPage.goto(`${base}/sales-plans`, { waitUntil: "domcontentloaded" });
+    const redirectedFrom = response?.request().redirectedFrom();
+    assert.ok(redirectedFrom, "expected a server redirect for /sales-plans without a session cookie");
+    assert.equal(new URL(redirectedFrom.url()).pathname, "/sales-plans");
+    const redirectResponse = await redirectedFrom.response();
+    assert.ok(redirectResponse && [302, 303, 307, 308].includes(redirectResponse.status()), "expected an HTTP redirect status");
+    assert.match(anonymousPage.url(), /\/sign-in\?next=%2Fsales-plans$/);
+    await anonymous.close();
+
+    // 2) Cookie present but session invalid/expired: page loads, API returns 401, client redirects as session-expired.
+    const stale = await browser.newContext();
+    await stale.addCookies([{ name: "better-auth.session_token", value: "expired-e2e-token", url: base }]);
+    const stalePage = await stale.newPage();
+    await stalePage.goto(`${base}/dashboard`, { waitUntil: "domcontentloaded" });
+    await stalePage.waitForURL(/\/sign-in\?reason=session-expired&next=%2Fdashboard$/, { timeout: 10_000 });
+    await stale.close();
   } finally {
     await browser.close();
   }
