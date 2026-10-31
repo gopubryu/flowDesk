@@ -1168,6 +1168,68 @@ test("sales plan status update and delete roles remain isolated", { skip: !enabl
   });
 });
 
+test("sales plan delete is refused when shipments exist and preserves the row", { skip: !enabled }, async () => {
+  const { prisma } = await import("./prisma");
+  const { setIntegrationTestSession } = await import("./auth-guards");
+  const { WorkspaceRole } = await import("@prisma/client");
+  const detailRoute = await import("../app/api/sales-plans/[id]/route");
+
+  await withWorkspaceFixture(prisma, WorkspaceRole, async ({ workspaceA, workspaceB, operator, admin, suffix }) => {
+    const plan = (workspaceId: string, slipNo: string, outboundStatus: "none" | "partial") => prisma.salesPlan.create({ data: { workspaceId, planDate: new Date("2026-01-01T00:00:00.000Z"), slipNo, vendorName: "A", item: "A", quantity: 2, unitPrice: 10, amount: 20, vat: 2, total: 22, status: "confirmed", outboundStatus, closed: false } });
+    const shipment = (workspaceId: string, relatedId: string, slipNo: string) => prisma.stockMovement.create({ data: { workspaceId, date: new Date("2026-01-02T00:00:00.000Z"), type: "shipment", slipNo, warehouseCode: `W-${suffix}`, itemCode: `I-${suffix}`, qty: -1, relatedType: "salesPlan", relatedId } });
+    const shipped = await plan(workspaceA.id, `SP-SH-${suffix}`, "none");
+    const shippedMovement = await shipment(workspaceA.id, shipped.id, `SM-SH-${suffix}`);
+    const partial = await plan(workspaceA.id, `SP-PT-${suffix}`, "partial");
+    const clean = await plan(workspaceA.id, `SP-CL-${suffix}`, "none");
+    const foreignShipped = await plan(workspaceB.id, `SP-FB-${suffix}`, "none");
+    const foreignMovement = await shipment(workspaceB.id, foreignShipped.id, `SM-FB-${suffix}`);
+    const del = (id: string, workspaceId: string) => detailRoute.DELETE(integrationRequest(`/api/sales-plans/${id}?workspaceId=${workspaceId}`, { method: "DELETE" }), { params: Promise.resolve({ id }) });
+    try {
+      // OPERATOR still cannot delete (regression of the existing role rule)
+      setIntegrationTestSession(integrationSession(operator));
+      const operatorDelete = await del(clean.id, workspaceA.id);
+      assert.equal(operatorDelete.status, 403, await operatorDelete.clone().text());
+      assert.ok(await prisma.salesPlan.findUnique({ where: { id: clean.id } }), "operator 403 must keep the row");
+
+      setIntegrationTestSession(integrationSession(admin));
+      // a. shipment movement exists -> 409 with a Korean reason, row and movement preserved
+      const shippedDelete = await del(shipped.id, workspaceA.id);
+      assert.equal(shippedDelete.status, 409, await shippedDelete.clone().text());
+      assert.deepEqual(await shippedDelete.json(), { error: "출하 이력이 있는 판매계획은 삭제할 수 없습니다." });
+      const shippedRow = await prisma.salesPlan.findUnique({ where: { id: shipped.id } });
+      assert.ok(shippedRow, "a sales plan with shipments must remain after a refused delete");
+      assert.equal(shippedRow.workspaceId, workspaceA.id);
+      assert.ok(await prisma.stockMovement.findUnique({ where: { id: shippedMovement.id } }), "the shipment movement must remain");
+
+      // outboundStatus other than none is refused even without a movement row
+      const partialDelete = await del(partial.id, workspaceA.id);
+      assert.equal(partialDelete.status, 409, await partialDelete.clone().text());
+      assert.ok(await prisma.salesPlan.findUnique({ where: { id: partial.id } }), "a partially shipped sales plan must remain");
+
+      // foreign shipped plan under the caller's own workspace does not resolve and stays untouched
+      const foreignBefore = await prisma.salesPlan.findUnique({ where: { id: foreignShipped.id } });
+      const foreignDelete = await del(foreignShipped.id, workspaceA.id);
+      assert.equal(foreignDelete.status, 404, await foreignDelete.clone().text());
+      const crossDelete = await del(foreignShipped.id, workspaceB.id);
+      assert.equal(crossDelete.status, 403, await crossDelete.clone().text());
+      assert.deepEqual(await prisma.salesPlan.findUnique({ where: { id: foreignShipped.id } }), foreignBefore, "foreign sales plan must be unchanged");
+      assert.ok(await prisma.stockMovement.findUnique({ where: { id: foreignMovement.id } }), "foreign shipment movement must remain");
+
+      // b. no shipments -> 200 and the row is gone
+      const cleanDelete = await del(clean.id, workspaceA.id);
+      assert.equal(cleanDelete.status, 200, await cleanDelete.clone().text());
+      assert.equal(await prisma.salesPlan.findUnique({ where: { id: clean.id } }), null);
+
+      // missing document stays 404
+      const missingDelete = await del(clean.id, workspaceA.id);
+      assert.equal(missingDelete.status, 404, await missingDelete.clone().text());
+    } finally {
+      setIntegrationTestSession(null);
+      await prisma.stockMovement.deleteMany({ where: { id: { in: [shippedMovement.id, foreignMovement.id] } } });
+    }
+  });
+});
+
 test("purchase request status update and delete roles remain isolated", { skip: !enabled }, async () => {
   const { prisma } = await import("./prisma");
   const { setIntegrationTestSession } = await import("./auth-guards");

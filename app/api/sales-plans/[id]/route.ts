@@ -7,6 +7,7 @@ import {
 } from "@/lib/demo";
 import { bodyWorkspaceId, authError } from "@/lib/master-data-server";
 import { requireResolvedWorkspace, WorkspaceRole } from "@/lib/workspace-auth";
+import { serializableInventoryTransaction } from "@/lib/inventory-server";
 
 export const dynamic = "force-dynamic";
 
@@ -196,20 +197,28 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 }
 
+const SHIPPED_SALES_PLAN_DELETE_ERROR = "출하 이력이 있는 판매계획은 삭제할 수 없습니다.";
+
 export async function DELETE(req: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
     const { workspaceId } = await requireResolvedWorkspace(new URL(req.url).searchParams.get("workspaceId"), [WorkspaceRole.ADMIN]);
-    const existing = await prisma.salesPlan.findFirst({
-      where: { id, workspaceId },
+    // Existence, shipment check, and delete share one serializable transaction so a
+    // shipment posted concurrently cannot slip in between the check and the delete.
+    await serializableInventoryTransaction(async (tx) => {
+      const current = await tx.salesPlan.findFirst({ where: { id, workspaceId } });
+      if (!current) throw new Error("Not found");
+      const shipments = await tx.stockMovement.count({ where: { workspaceId, relatedType: "salesPlan", relatedId: id, type: "shipment" } });
+      if (shipments > 0 || current.outboundStatus !== "none") throw new Error(SHIPPED_SALES_PLAN_DELETE_ERROR);
+      const result = await tx.salesPlan.deleteMany({ where: { id, workspaceId } });
+      if (result.count === 0) throw new Error("Not found");
     });
-    if (!existing) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-    await prisma.salesPlan.deleteMany({ where: { id, workspaceId } });
     return NextResponse.json({ ok: true });
   } catch (e) {
     const auth = authError(e); if (auth) return auth;
+    const message = e instanceof Error ? e.message : "";
+    if (message === "Not found") return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (message === SHIPPED_SALES_PLAN_DELETE_ERROR) return NextResponse.json({ error: message }, { status: 409 });
     console.error("DELETE /api/sales-plans/[id]", e);
     return NextResponse.json(
       { error: "Failed to delete sales plan" },
