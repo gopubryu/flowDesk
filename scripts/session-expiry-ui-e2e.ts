@@ -19,6 +19,12 @@ async function main() {
     const redirectResponse = await redirectedFrom.response();
     assert.ok(redirectResponse && [302, 303, 307, 308].includes(redirectResponse.status()), "expected an HTTP redirect status");
     assert.match(anonymousPage.url(), /\/sign-in\?next=%2Fsales-plans$/);
+
+    // Files with an extension are excluded by the matcher: the server answers them directly (404 here, no redirect).
+    for (const assetPath of ["/robots.txt", "/favicon.ico", "/missing-asset.png"]) {
+      const asset = await anonymous.request.get(`${base}${assetPath}`, { maxRedirects: 0 });
+      assert.equal(asset.status(), 404, `${assetPath} must not be redirected by the page guard`);
+    }
     await anonymous.close();
 
     // 2) Cookie present but session invalid/expired: page loads, API returns 401, client redirects as session-expired.
